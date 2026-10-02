@@ -1,5 +1,10 @@
-const CACHE = 'stroyka-v1';
-const APP_SHELL = ['/', '/manifest.webmanifest', '/icon.svg'];
+const CACHE = 'stroyka-v2';
+const ROOT = '/fit-tracker/';
+const APP_SHELL = [
+  ROOT,
+  ROOT + 'manifest.webmanifest',
+  ROOT + 'icon.svg'
+];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(APP_SHELL)));
@@ -25,6 +30,6 @@ self.addEventListener('fetch', (event) => {
         caches.open(CACHE).then((cache) => cache.put(event.request, copy));
         return response;
       })
-      .catch(() => caches.match(event.request).then((cached) => cached || caches.match('/')))
+      .catch(() => caches.match(event.request).then((cached) => cached || caches.match(ROOT)))
   );
 });
