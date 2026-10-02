@@ -8,6 +8,10 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: forma-android-latest
+  cancel-in-progress: true
+
 jobs:
   android:
     runs-on: ubuntu-latest
