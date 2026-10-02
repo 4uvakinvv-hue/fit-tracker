@@ -2,14 +2,15 @@
   "name": "Стройка — тренировки и питание",
   "short_name": "Стройка",
   "description": "Тренировки, питание и прогресс в одном приложении",
-  "start_url": "/",
+  "start_url": "/fit-tracker/",
+  "scope": "/fit-tracker/",
   "display": "standalone",
   "background_color": "#f3f3f1",
   "theme_color": "#111111",
   "lang": "ru",
   "icons": [
     {
-      "src": "/icon.svg",
+      "src": "/fit-tracker/icon.svg",
       "sizes": "any",
       "type": "image/svg+xml",
       "purpose": "any maskable"
