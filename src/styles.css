@@ -83,3 +83,41 @@
   .exercise-head,.exercise-row{grid-template-columns:minmax(0,1fr) 63px 68px;gap:5px}.exercise-row select,.exercise-row input{padding-left:7px;padding-right:7px;font-size:10px}
 }
 @media(max-width:350px){.brand-subtitle,.score-wrap small{display:none}.activity-grid,.stats-grid-big{grid-template-columns:1fr}.date-wheel-shell{min-height:360px}}
+
+
+/* Auth, members, Android install, trainer request */
+.loading-copy{margin-top:28px;color:#8ea0b9;font-size:13px}
+.auth-tabs{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:22px 0 10px}
+.auth-tabs button{min-height:42px;border-radius:13px;background:#142238;color:#7f90aa;font-weight:800;border:1px solid rgba(116,153,203,.16)}
+.auth-tabs button.active{color:#071510;background:linear-gradient(120deg,#72efb0,#46ddda);border-color:transparent}
+.auth-message{margin:2px 0 0;color:#9fb0c5;font-size:11px;line-height:1.45}
+.onboarding-form{display:grid;gap:12px}
+
+.gym-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:11px}
+.gym-actions .previous-button{margin-bottom:0}
+.trainer-button{min-height:48px;border-radius:14px;padding:0 12px;border:1px solid rgba(255,190,56,.35);background:linear-gradient(135deg,rgba(85,61,12,.58),rgba(31,34,45,.95));color:#ffe29a;font-weight:850;display:flex;align-items:center;justify-content:center;gap:8px}
+.trainer-button span{font-size:18px}.trainer-button:disabled{opacity:.68}
+
+.bottom-nav.four{grid-template-columns:repeat(4,1fr)}
+.members-screen{padding-bottom:120px}
+.members-head{display:flex;align-items:flex-end;justify-content:space-between;gap:12px}
+.members-head h1{margin:0;font-size:36px;letter-spacing:-.045em}
+.members-head>strong{min-width:54px;height:54px;border-radius:18px;display:grid;place-items:center;background:linear-gradient(145deg,#183047,#0f1c2d);border:1px solid rgba(92,229,196,.28);color:var(--mint);font-size:21px}
+.members-caption{margin:8px 0 18px;color:#7f91aa;font-size:11px}
+.leaderboard{display:grid;gap:8px}
+.leader-row{min-height:68px;border-radius:18px;padding:10px 12px;display:grid;grid-template-columns:30px 42px minmax(0,1fr) auto;gap:9px;align-items:center;background:rgba(17,30,47,.9);border:1px solid rgba(102,140,188,.16)}
+.leader-row.me{border-color:rgba(101,240,181,.54);box-shadow:0 0 22px rgba(101,240,181,.08)}
+.rank-place{color:#8698b1;font-size:12px;font-weight:900;text-align:center}
+.member-avatar{width:42px;height:42px;border-radius:50%;display:grid;place-items:center;background:linear-gradient(145deg,#263c59,#162338);color:#dff8ee;font-weight:900}
+.leader-row>div{min-width:0}.leader-row strong,.leader-row small{display:block}.leader-row strong{font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.leader-row small{margin-top:3px;color:#70829b;font-size:9px}.leader-row>b{color:#ffd45c;font-size:12px;white-space:nowrap}
+.install-card{margin-top:20px;padding:16px;border-radius:20px;background:linear-gradient(145deg,rgba(25,52,61,.95),rgba(15,27,42,.96));border:1px solid rgba(95,226,195,.25);display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center}
+.install-card strong,.install-card small{display:block}.install-card strong{font-size:13px}.install-card small{margin-top:4px;color:#8294aa;font-size:9px;line-height:1.35}.install-card button{min-height:40px;padding:0 13px;border-radius:12px;background:linear-gradient(100deg,#73efa4,#48e7e2);color:#061311;font-weight:900;font-size:11px}.install-card p{grid-column:1/-1;margin:0;color:#93a4b9;font-size:9px;line-height:1.4}
+.account-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}.account-actions button{min-height:42px;border-radius:12px;background:#142238;color:#cbd7e6;font-weight:800}.account-actions .logout{color:#ff9189;background:#251820}
+.inactive-rule{margin:12px 4px 0;color:#697b94;font-size:9px;line-height:1.45}
+
+@media(max-width:420px){
+  .gym-actions{grid-template-columns:1fr}
+  .bottom-nav{padding-left:8px;padding-right:8px}
+  .bottom-nav button{font-size:9px}
+  .nav-icon{font-size:20px}
+}
