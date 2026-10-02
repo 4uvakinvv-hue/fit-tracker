@@ -1,16 +1,19 @@
 {
   "name": "fit-tracker",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
-  "main": "node_modules/expo/AppEntry.js",
+  "type": "module",
   "scripts": {
-    "start": "expo start --tunnel",
-    "start:lan": "expo start",
-    "android": "expo start --android"
+    "dev": "vite --host 0.0.0.0",
+    "build": "vite build",
+    "preview": "vite preview --host 0.0.0.0"
   },
   "dependencies": {
-    "expo": "~54.0.30",
-    "react": "19.1.0",
-    "react-native": "0.81.5"
+    "react": "^19.1.1",
+    "react-dom": "^19.1.1"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^5.0.4",
+    "vite": "^7.1.7"
   }
 }
