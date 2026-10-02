@@ -1,6 +1,6 @@
 {
   "name": "fit-tracker",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -9,6 +9,7 @@
     "preview": "vite preview --host 0.0.0.0"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.57.4",
     "react": "^19.1.1",
     "react-dom": "^19.1.1"
   },
