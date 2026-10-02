@@ -1,7 +1,7 @@
 {
   "name": "Форма — тренировки и регулярность",
   "short_name": "Форма",
-  "description": "Календарь тренировок, регулярность и история активности",
+  "description": "Планирование тренировок, история, баллы и статистика",
   "start_url": "/fit-tracker/",
   "scope": "/fit-tracker/",
   "display": "standalone",
