@@ -1,5 +1,10 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-  <rect width="512" height="512" rx="112" fill="#111111"/>
-  <path d="M149 169c0-31 25-56 56-56h102c31 0 56 25 56 56v22h-62v-14c0-9-7-16-16-16h-58c-9 0-16 7-16 16v158c0 9 7 16 16 16h58c9 0 16-7 16-16v-27h62v35c0 31-25 56-56 56H205c-31 0-56-25-56-56V169z" fill="#ffffff"/>
-  <rect x="232" y="226" width="131" height="60" rx="30" fill="#ffffff"/>
+  <defs>
+    <linearGradient id="g" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0" stop-color="#7ef0a8"/>
+      <stop offset="1" stop-color="#48e7e2"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="112" fill="#0b1421"/>
+  <path d="M106 340 202 143c10-20 38-20 48 0l39 80 32-65c10-21 40-21 50 0l76 158c9 19-5 41-26 41h-53l-63-131-49 101-54-110-68 140h-4c-22 0-36-23-24-43z" fill="url(#g)"/>
 </svg>
