@@ -61,5 +61,5 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release delete android-current -y --cleanup-tag || true
-          gh release create android-current android/app/build/outputs/apk/debug/forma-v0.4.2.apk --title "Форма Android — актуальная" --notes "Актуальная Android-сборка приложения Форма." --prerelease
+          gh release delete android-v0.4.2 -y --cleanup-tag || true
+          gh release create android-v0.4.2 android/app/build/outputs/apk/debug/forma-v0.4.2.apk --title "Форма Android 0.4.2" --notes "Актуальная Android-сборка приложения Форма." --prerelease
