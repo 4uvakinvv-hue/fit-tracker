@@ -1,0 +1,16 @@
+{
+  "name": "fit-tracker",
+  "version": "0.1.0",
+  "private": true,
+  "main": "node_modules/expo/AppEntry.js",
+  "scripts": {
+    "start": "expo start --tunnel",
+    "start:lan": "expo start",
+    "android": "expo start --android"
+  },
+  "dependencies": {
+    "expo": "~54.0.30",
+    "react": "19.1.0",
+    "react-native": "0.81.5"
+  }
+}
