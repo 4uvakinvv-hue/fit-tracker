@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { supabase } from './supabase.js';
 
 const ACTIVITIES = [
   { id: 'gym', label: 'Тренажёрка', icon: '🏋︎', accent: 'violet' },
@@ -25,8 +26,6 @@ const ACCESSORY_EXERCISES = [
   'Скручивания на пресс','Подъём ног на пресс','Подъёмы на носки',
 ];
 
-const uid=()=>crypto.randomUUID?.()??String(Date.now()+Math.random());
-
 function localDateKey(date=new Date()){
   const y=date.getFullYear();
   const m=String(date.getMonth()+1).padStart(2,'0');
@@ -40,37 +39,10 @@ function addYears(date,amount){const r=new Date(date);r.setFullYear(r.getFullYea
 function daysBetween(a,b){return Math.round((dateFromKey(b)-dateFromKey(a))/86400000);}
 function formatDate(key,options={day:'numeric',month:'long'}){return new Intl.DateTimeFormat('ru-RU',options).format(dateFromKey(key));}
 function formatDateShort(key){return new Intl.DateTimeFormat('ru-RU',{day:'numeric',month:'short'}).format(dateFromKey(key));}
-
-function useStoredState(key,initialValue){
-  const [value,setValue]=useState(()=>{try{const saved=localStorage.getItem(key);return saved?JSON.parse(saved):initialValue;}catch{return initialValue;}});
-  useEffect(()=>localStorage.setItem(key,JSON.stringify(value)),[key,value]);
-  return [value,setValue];
-}
 function activityMeta(type){return ACTIVITIES.find(a=>a.id===type);}
 function activityLabel(item){return item?.customTitle||activityMeta(item?.type)?.label||'';}
 function makeRows(n){return Array.from({length:n},()=>({exercise:'',sets:'',weight:''}));}
 function normalizeRows(rows,n){return Array.from({length:n},(_,i)=>({exercise:rows?.[i]?.exercise||'',sets:rows?.[i]?.sets??'',weight:rows?.[i]?.weight??''}));}
-function nextTrainingNumber(sessions){return sessions.reduce((max,s)=>Math.max(max,Number(s.number)||0),0)+1;}
-
-function calculatePoints(sessions){
-  const ordered=[...sessions].filter(s=>s.date).sort((a,b)=>a.date.localeCompare(b.date)||(a.number||0)-(b.number||0));
-  let total=0,prev=null;
-  ordered.forEach(s=>{
-    const base=(s.type==='gym'||s.type==='bike')?5:3;
-    let bonus=0;
-    if(prev){
-      const gap=daysBetween(prev,s.date);
-      if(gap===1)bonus=2;
-      else if(gap===2)bonus=1;
-      else if(gap>=3&&gap<=5)bonus=0;
-      else if(gap>=6&&gap<=13)bonus=-Math.floor((gap-4)/2);
-      else if(gap>=14)bonus=10;
-    }
-    total+=base+bonus;
-    prev=s.date;
-  });
-  return total;
-}
 function scoreHint(sessions){
   if(!sessions.length)return 'Первая тренировка — уже сильный шаг';
   const latest=[...sessions].sort((a,b)=>b.date.localeCompare(a.date)||(b.number||0)-(a.number||0))[0];
@@ -89,81 +61,196 @@ function sessionValue(s){
   if(s.type==='gym')return GYM_GROUPS.find(g=>g.id===s.gymGroup)?.label||'Тренажёрка';
   return '';
 }
+function mapSession(row){return {...row,gymGroup:row.gym_group,baseRows:row.base_rows||[],extraRows:row.extra_rows||[]};}
 
 function Brand({compact=false}){return <div className={`logo-lockup ${compact?'compact':''}`}><span className="logo-mark"><i/><i/></span><span>Форма</span></div>;}
 
-function Onboarding({onSave}){
+function AuthScreen(){
+  const [mode,setMode]=useState('register');
   const [name,setName]=useState('');
+  const [email,setEmail]=useState('');
+  const [password,setPassword]=useState('');
+  const [message,setMessage]=useState('');
+  const [busy,setBusy]=useState(false);
+
+  async function submit(e){
+    e.preventDefault();
+    setBusy(true);setMessage('');
+    try{
+      if(mode==='register'){
+        if(!name.trim())throw new Error('Укажи имя.');
+        const {data,error}=await supabase.auth.signUp({email:email.trim(),password,options:{data:{name:name.trim()}}});
+        if(error)throw error;
+        if(!data.session)setMessage('Регистрация создана. Подтверди e-mail по ссылке в письме, затем войди.');
+      }else{
+        const {error}=await supabase.auth.signInWithPassword({email:email.trim(),password});
+        if(error)throw error;
+      }
+    }catch(err){setMessage(err.message||'Не получилось выполнить вход.');}
+    finally{setBusy(false);}
+  }
+
   return <main className="onboarding dark-screen">
     <Brand/><p className="brand-subtitle">Тренировки. Питание. Прогресс.</p>
-    <h1>Начнём с движения.</h1><p className="soft-text">Главная задача — сделать тренировку простым следующим действием.</p>
-    <form className="glass-card onboarding-form" onSubmit={e=>{e.preventDefault();if(name.trim())onSave({name:name.trim()});}}>
-      <label className="dark-field"><span>Как тебя зовут</span><input value={name} onChange={e=>setName(e.target.value)} placeholder="Имя"/></label>
-      <button className="gradient-button">Начать</button>
+    <h1>{mode==='register'?'Регистрация':'Вход'}</h1>
+    <p className="soft-text">Один аккаунт — одна история тренировок, баллы и место среди участников.</p>
+    <div className="auth-tabs"><button className={mode==='register'?'active':''} onClick={()=>setMode('register')}>Регистрация</button><button className={mode==='login'?'active':''} onClick={()=>setMode('login')}>Вход</button></div>
+    <form className="glass-card onboarding-form" onSubmit={submit}>
+      {mode==='register'&&<label className="dark-field"><span>Имя</span><input value={name} onChange={e=>setName(e.target.value)} placeholder="Как тебя показывать участникам"/></label>}
+      <label className="dark-field"><span>E-mail</span><input type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="you@example.com" required/></label>
+      <label className="dark-field"><span>Пароль</span><input type="password" value={password} onChange={e=>setPassword(e.target.value)} placeholder="Минимум 6 символов" minLength={6} required/></label>
+      <button className="gradient-button" disabled={busy}>{busy?'Подожди…':mode==='register'?'Зарегистрироваться':'Войти'}</button>
+      {message&&<p className="auth-message">{message}</p>}
     </form>
   </main>;
 }
 
 export default function App(){
-  const [profile,setProfile]=useStoredState('forma.profile',null);
-  const [schedule,setSchedule]=useStoredState('forma.activities',{});
-  const [sessions,setSessions]=useStoredState('forma.sessions',[]);
-  const [gymTemplates,setGymTemplates]=useStoredState('forma.gymTemplates',{});
-  const [proposals,setProposals]=useStoredState('forma.activityProposals',[]);
+  const [authSession,setAuthSession]=useState(undefined);
+  const [profile,setProfile]=useState(null);
+  const [members,setMembers]=useState([]);
+  const [sessions,setSessions]=useState([]);
+  const [schedule,setSchedule]=useState({});
+  const [gymTemplates,setGymTemplates]=useState({});
   const [screen,setScreen]=useState('home');
   const [selectedDateKey,setSelectedDateKey]=useState(localDateKey());
   const [draftDateKey,setDraftDateKey]=useState(localDateKey());
+  const [loading,setLoading]=useState(true);
 
-  if(!profile)return <Onboarding onSave={setProfile}/>;
+  useEffect(()=>{
+    supabase.auth.getSession().then(({data})=>setAuthSession(data.session||null));
+    const {data:{subscription}}=supabase.auth.onAuthStateChange((_event,next)=>setAuthSession(next));
+    return ()=>subscription.unsubscribe();
+  },[]);
+
+  useEffect(()=>{
+    if(authSession?.user){loadData();}
+    else if(authSession===null){setLoading(false);setProfile(null);setMembers([]);setSessions([]);setSchedule({});}
+  },[authSession?.user?.id]);
+
+  async function loadData(){
+    setLoading(true);
+    const userId=authSession.user.id;
+    const [profileRes,membersRes,sessionsRes,plansRes,templatesRes]=await Promise.all([
+      supabase.from('profiles').select('*').eq('id',userId).single(),
+      supabase.from('profiles').select('id,name,points,joined_at,last_points_at').order('points',{ascending:false}).order('joined_at',{ascending:true}),
+      supabase.from('sessions').select('*').eq('user_id',userId).order('date',{ascending:true}).order('number',{ascending:true}),
+      supabase.from('plans').select('*').eq('user_id',userId),
+      supabase.from('gym_templates').select('*').eq('user_id',userId),
+    ]);
+
+    if(profileRes.data)setProfile(profileRes.data);
+    setMembers(membersRes.data||[]);
+    setSessions((sessionsRes.data||[]).map(mapSession));
+    const plans={};
+    (plansRes.data||[]).forEach(p=>{plans[p.date]={type:p.type,status:p.status,customTitle:p.custom_title||'',updatedAt:p.updated_at};});
+    setSchedule(plans);
+    const templates={};
+    (templatesRes.data||[]).forEach(t=>{templates[t.gym_group]={baseRows:t.base_rows||[],extraRows:t.extra_rows||[]};});
+    setGymTemplates(templates);
+    setLoading(false);
+  }
+
+  async function savePlan(date,type,customTitle='',status='planned'){
+    if(!authSession?.user)return;
+    await supabase.from('plans').upsert({user_id:authSession.user.id,date,type,custom_title:customTitle||null,status,updated_at:new Date().toISOString()});
+    setSchedule(cur=>({...cur,[date]:{type,status,customTitle,updatedAt:Date.now()}}));
+  }
+
+  async function deletePlan(date){
+    if(!authSession?.user)return;
+    await supabase.from('plans').delete().eq('user_id',authSession.user.id).eq('date',date);
+    setSchedule(cur=>{const c={...cur};delete c[date];return c;});
+  }
+
+  async function sendProposal(title){
+    if(!authSession?.user||!title.trim())return;
+    await supabase.from('activity_proposals').insert({user_id:authSession.user.id,title:title.trim()});
+  }
 
   function openAdd(){setDraftDateKey(selectedDateKey||localDateKey());setScreen('add-training');}
-  function chooseType(type){
-    setSchedule(cur=>({...cur,[draftDateKey]:{type,status:'planned',updatedAt:Date.now()}}));
-    setScreen(type);
-  }
-  function saveSession(payload){
-    const session={id:uid(),number:nextTrainingNumber(sessions),createdAt:Date.now(),...payload};
-    setSessions(cur=>[...cur,session]);
-    setSchedule(cur=>({...cur,[session.date]:{type:session.type,status:'completed',customTitle:session.title||'',sessionId:session.id,updatedAt:Date.now()}}));
-    setSelectedDateKey(session.date);
+  async function chooseType(type){await savePlan(draftDateKey,type,'','planned');setScreen(type);}
+
+  async function saveSession(payload){
+    const {data:number,error:numberError}=await supabase.rpc('next_training_number');
+    if(numberError)throw numberError;
+
+    const row={
+      user_id:authSession.user.id,
+      number,
+      type:payload.type,
+      date:payload.date,
+      title:payload.title||null,
+      distance:payload.distance??null,
+      duration:payload.duration??null,
+      steps:payload.steps??null,
+      gym_group:payload.gymGroup||null,
+      base_rows:payload.baseRows||null,
+      extra_rows:payload.extraRows||null,
+    };
+
+    const {data,error}=await supabase.from('sessions').insert(row).select().single();
+    if(error)throw error;
+
+    await supabase.from('plans').upsert({user_id:authSession.user.id,date:payload.date,type:payload.type,custom_title:payload.title||null,status:'completed',updated_at:new Date().toISOString()});
+    setSelectedDateKey(payload.date);
+    await loadData();
     setScreen('home');
   }
 
+  async function saveTemplate(group,baseRows,extraRows){
+    await supabase.from('gym_templates').upsert({user_id:authSession.user.id,gym_group:group,base_rows:baseRows,extra_rows:extraRows,updated_at:new Date().toISOString()});
+    setGymTemplates(cur=>({...cur,[group]:{baseRows,extraRows}}));
+  }
+
+  async function requestTrainer(){
+    const {error}=await supabase.from('trainer_requests').insert({
+      user_id:authSession.user.id,
+      contact_email:authSession.user.email||null,
+      member_name:profile?.name||null,
+    });
+    if(error)throw error;
+  }
+
+  if(authSession===undefined||loading)return <main className="onboarding dark-screen"><Brand/><p className="loading-copy">Загружаем Форму…</p></main>;
+  if(!authSession)return <AuthScreen/>;
+
   return <div className="app-shell-dark">
-    {screen==='home'&&<Home schedule={schedule} setSchedule={setSchedule} sessions={sessions} proposals={proposals} setProposals={setProposals} selectedDateKey={selectedDateKey} setSelectedDateKey={setSelectedDateKey} onOpenWorkout={openAdd}/>}
+    {screen==='home'&&<Home schedule={schedule} sessions={sessions} profile={profile} selectedDateKey={selectedDateKey} setSelectedDateKey={setSelectedDateKey} onSavePlan={savePlan} onDeletePlan={deletePlan} onProposal={sendProposal} onOpenWorkout={openAdd}/>}
     {screen==='history'&&<History sessions={sessions}/>}
     {screen==='stats'&&<Statistics sessions={sessions}/>}
-    {screen==='add-training'&&<AddTraining dateKey={draftDateKey} setDateKey={setDraftDateKey} proposals={proposals} setProposals={setProposals} onBack={()=>setScreen('home')} onChoose={chooseType}/>}
-    {screen==='gym'&&<GymTraining dateKey={draftDateKey} setDateKey={setDraftDateKey} sessions={sessions} gymTemplates={gymTemplates} setGymTemplates={setGymTemplates} onBack={()=>setScreen('add-training')} onSave={saveSession}/>}
+    {screen==='members'&&<Members members={members} profile={profile} onRefresh={loadData}/>}
+    {screen==='add-training'&&<AddTraining dateKey={draftDateKey} setDateKey={setDraftDateKey} onProposal={sendProposal} onBack={()=>setScreen('home')} onChoose={chooseType}/>}
+    {screen==='gym'&&<GymTraining dateKey={draftDateKey} setDateKey={setDraftDateKey} sessions={sessions} gymTemplates={gymTemplates} onSaveTemplate={saveTemplate} onBack={()=>setScreen('add-training')} onSave={saveSession} onTrainerRequest={requestTrainer}/>}
     {screen==='bike'&&<SimpleTraining type="bike" dateKey={draftDateKey} setDateKey={setDraftDateKey} sessions={sessions} onBack={()=>setScreen('add-training')} onSave={saveSession}/>}
     {screen==='workout'&&<SimpleTraining type="workout" dateKey={draftDateKey} setDateKey={setDraftDateKey} sessions={sessions} onBack={()=>setScreen('add-training')} onSave={saveSession}/>}
     {screen==='walk'&&<SimpleTraining type="walk" dateKey={draftDateKey} setDateKey={setDraftDateKey} sessions={sessions} onBack={()=>setScreen('add-training')} onSave={saveSession}/>}
-    {['home','history','stats'].includes(screen)&&<BottomNav screen={screen} setScreen={setScreen}/>}
+    {['home','history','stats','members'].includes(screen)&&<BottomNav screen={screen} setScreen={setScreen}/>}
   </div>;
 }
 
 function BottomNav({screen,setScreen}){
-  const items=[['home','⌂','Главная'],['history','▥','История'],['stats','▤','Статистика']];
-  return <nav className="bottom-nav three">{items.map(([key,icon,label])=><button key={key} className={screen===key?'active':''} onClick={()=>setScreen(key)}><span className="nav-icon">{icon}</span>{label}</button>)}</nav>;
+  const items=[['home','⌂','Главная'],['history','▥','История'],['stats','▤','Статистика'],['members','♟','Участники']];
+  return <nav className="bottom-nav four">{items.map(([key,icon,label])=><button key={key} className={screen===key?'active':''} onClick={()=>setScreen(key)}><span className="nav-icon">{icon}</span>{label}</button>)}</nav>;
 }
 
-function Home({schedule,setSchedule,sessions,proposals,setProposals,selectedDateKey,setSelectedDateKey,onOpenWorkout}){
+function Home({schedule,sessions,profile,selectedDateKey,setSelectedDateKey,onSavePlan,onDeletePlan,onProposal,onOpenWorkout}){
   return <main className="main-screen home-no-scroll">
     <header className="topbar">
       <div><Brand compact/><p className="brand-subtitle">Тренировки. Питание. Прогресс.</p></div>
-      <div className="score-wrap"><div className="score-card"><span>★</span><strong>Баллы: {calculatePoints(sessions)}</strong></div><small>{scoreHint(sessions)}</small></div>
+      <div className="score-wrap"><div className="score-card"><span>★</span><strong>Баллы: {profile?.points||0}</strong></div><small>{scoreHint(sessions)}</small></div>
     </header>
-    <DateWheel schedule={schedule} setSchedule={setSchedule} proposals={proposals} setProposals={setProposals} selectedDateKey={selectedDateKey} setSelectedDateKey={setSelectedDateKey}/>
+    <DateWheel schedule={schedule} selectedDateKey={selectedDateKey} setSelectedDateKey={setSelectedDateKey} onSavePlan={onSavePlan} onDeletePlan={onDeletePlan} onProposal={onProposal}/>
     <button className="gradient-button workout-cta" onClick={onOpenWorkout}><span>🏋︎</span>Перейти к тренировке<b>›</b></button>
     <p className="helper-text">Выбранная дата: {formatDate(selectedDateKey)}.</p>
   </main>;
 }
 
-function DateWheel({schedule,setSchedule,proposals,setProposals,selectedDateKey,setSelectedDateKey}){
+function DateWheel({schedule,selectedDateKey,setSelectedDateKey,onSavePlan,onDeletePlan,onProposal}){
   const ref=useRef(null),timer=useRef(null),lastHaptic=useRef(selectedDateKey);
   const [open,setOpen]=useState(false),[other,setOther]=useState(false),[proposal,setProposal]=useState('');
   const today=new Date();
-  const dates=Array.from({length:1461},(_,i)=>addDays(today,i-730));
+  const dates=useMemo(()=>Array.from({length:1461},(_,i)=>addDays(today,i-730)),[]);
 
   function center(key,behavior='smooth'){
     const c=ref.current;if(!c)return;
@@ -177,20 +264,13 @@ function DateWheel({schedule,setSchedule,proposals,setProposals,selectedDateKey,
     const c=ref.current;if(!c)return;
     const mid=c.getBoundingClientRect().top+c.clientHeight/2;
     let best=null,dist=Infinity;
-    c.querySelectorAll('.wheel-date-row').forEach(row=>{
-      const r=row.getBoundingClientRect(),d=Math.abs(r.top+r.height/2-mid);
-      if(d<dist){dist=d;best=row.dataset.date;}
-    });
-    if(best&&best!==selectedDateKey){
-      setSelectedDateKey(best);
-      if(lastHaptic.current!==best){lastHaptic.current=best;navigator.vibrate?.(7);}
-    }
+    c.querySelectorAll('.wheel-date-row').forEach(row=>{const r=row.getBoundingClientRect(),d=Math.abs(r.top+r.height/2-mid);if(d<dist){dist=d;best=row.dataset.date;}});
+    if(best&&best!==selectedDateKey){setSelectedDateKey(best);if(lastHaptic.current!==best){lastHaptic.current=best;navigator.vibrate?.(7);}}
   }
   function onScroll(){clearTimeout(timer.current);timer.current=setTimeout(detect,55);}
   function chooseDate(key){setSelectedDateKey(key);navigator.vibrate?.(7);requestAnimationFrame(()=>center(key));}
-  function chooseActivity(type){setSchedule(cur=>({...cur,[selectedDateKey]:{type,status:cur[selectedDateKey]?.status==='completed'?'completed':'planned',updatedAt:Date.now()}}));setOpen(false);}
-  function clear(){setSchedule(cur=>{const c={...cur};delete c[selectedDateKey];return c;});setOpen(false);}
-  function sendProposal(){if(!proposal.trim())return;setProposals([...proposals,{id:uid(),title:proposal.trim(),status:'pending',createdAt:Date.now()}]);setProposal('');setOther(false);setOpen(false);}
+  async function chooseActivity(type){await onSavePlan(selectedDateKey,type,'','planned');setOpen(false);}
+  async function sendProposal(){if(!proposal.trim())return;await onProposal(proposal.trim());setProposal('');setOther(false);setOpen(false);}
 
   return <section className="date-wheel-shell">
     <div className="wheel-center-line"/><div className="wheel-fade wheel-fade-top"/><div className="wheel-fade wheel-fade-bottom"/>
@@ -206,7 +286,7 @@ function DateWheel({schedule,setSchedule,proposals,setProposals,selectedDateKey,
             <span className={`activity-label ${meta?.accent||''}`}>{meta?<><b>{meta.icon}</b>{activityLabel(item)}</>:<span className="empty-dash">—</span>}</span>}
           <span className={`status-dot ${item?.status||''}`}>{item?.status==='completed'?'✓':''}</span>
           {selected&&open&&<div className="activity-popover" onClick={e=>e.stopPropagation()}>
-            {!other?<>{ACTIVITIES.map(a=><button key={a.id} onClick={()=>chooseActivity(a.id)}><span className={a.accent}>{a.icon}</span>{a.label}</button>)}<button onClick={()=>setOther(true)}><span>＋</span>Другое / предложить</button>{item&&<button className="danger-lite" onClick={clear}>Убрать активность</button>}</>:
+            {!other?<>{ACTIVITIES.map(a=><button key={a.id} onClick={()=>chooseActivity(a.id)}><span className={a.accent}>{a.icon}</span>{a.label}</button>)}<button onClick={()=>setOther(true)}><span>＋</span>Другое / предложить</button>{item&&<button className="danger-lite" onClick={()=>onDeletePlan(selectedDateKey)}>Убрать активность</button>}</>:
             <div className="popover-proposal"><input value={proposal} onChange={e=>setProposal(e.target.value)} placeholder="Например: плавание" autoFocus/><button onClick={sendProposal}>Отправить админу</button><small>После одобрения активность появится в общем списке.</small></div>}
           </div>}
         </div>;
@@ -216,9 +296,9 @@ function DateWheel({schedule,setSchedule,proposals,setProposals,selectedDateKey,
   </section>;
 }
 
-function AddTraining({dateKey,setDateKey,proposals,setProposals,onBack,onChoose}){
+function AddTraining({dateKey,setDateKey,onProposal,onBack,onChoose}){
   const [otherOpen,setOtherOpen]=useState(false),[text,setText]=useState(''),[sent,setSent]=useState(false);
-  function submit(){if(!text.trim())return;setProposals([...proposals,{id:uid(),title:text.trim(),status:'pending',createdAt:Date.now()}]);setText('');setSent(true);}
+  async function submit(){if(!text.trim())return;await onProposal(text.trim());setText('');setSent(true);}
   return <main className="sub-screen">
     <ScreenBack onBack={onBack}/><p className="eyebrow-dark">Новая запись</p><h1>Добавить тренировку</h1>
     <label className="date-control"><span>Дата</span><input type="date" value={dateKey} onChange={e=>setDateKey(e.target.value)}/></label>
@@ -232,17 +312,22 @@ function AddTraining({dateKey,setDateKey,proposals,setProposals,onBack,onChoose}
 
 function ScreenBack({onBack,title}){return <div className="screen-back-row"><button className="back-button" onClick={onBack}>‹</button>{title&&<strong>{title}</strong>}</div>;}
 
-function GymTraining({dateKey,setDateKey,sessions,gymTemplates,setGymTemplates,onBack,onSave}){
-  const [group,setGroup]=useState('chest'),[baseRows,setBaseRows]=useState(makeRows(3)),[extraRows,setExtraRows]=useState(makeRows(5)),[history,setHistory]=useState(false),[error,setError]=useState('');
+function GymTraining({dateKey,setDateKey,sessions,gymTemplates,onSaveTemplate,onBack,onSave,onTrainerRequest}){
+  const [group,setGroup]=useState('chest'),[baseRows,setBaseRows]=useState(makeRows(3)),[extraRows,setExtraRows]=useState(makeRows(5)),[history,setHistory]=useState(false),[error,setError]=useState(''),[trainerState,setTrainerState]=useState('');
   const gymHistory=[...sessions].filter(s=>s.type==='gym').sort((a,b)=>b.date.localeCompare(a.date)||b.number-a.number);
 
-  useEffect(()=>{const t=gymTemplates[group];setBaseRows(normalizeRows(t?.baseRows,3));setExtraRows(normalizeRows(t?.extraRows,5));setError('');},[group]);
+  useEffect(()=>{const t=gymTemplates[group];setBaseRows(normalizeRows(t?.baseRows,3));setExtraRows(normalizeRows(t?.extraRows,5));setError('');},[group,gymTemplates]);
 
   function update(kind,index,field,value){const setter=kind==='base'?setBaseRows:setExtraRows;setter(cur=>cur.map((row,i)=>i===index?{...row,[field]:value}:row));}
-  function save(){
+  async function save(){
     if(![...baseRows,...extraRows].some(r=>r.exercise)){setError('Выбери хотя бы одно упражнение.');return;}
-    setGymTemplates(cur=>({...cur,[group]:{baseRows,extraRows}}));
-    onSave({type:'gym',date:dateKey,gymGroup:group,baseRows,extraRows,title:GYM_GROUPS.find(g=>g.id===group)?.label||'Тренажёрка'});
+    await onSaveTemplate(group,baseRows,extraRows);
+    await onSave({type:'gym',date:dateKey,gymGroup:group,baseRows,extraRows,title:GYM_GROUPS.find(g=>g.id===group)?.label||'Тренажёрка'});
+  }
+  async function trainer(){
+    setTrainerState('loading');
+    try{await onTrainerRequest();setTrainerState('sent');}
+    catch{setTrainerState('error');}
   }
   if(history)return <GymHistory sessions={gymHistory} onBack={()=>setHistory(false)}/>;
 
@@ -250,7 +335,11 @@ function GymTraining({dateKey,setDateKey,sessions,gymTemplates,setGymTemplates,o
     <ScreenBack onBack={onBack} title="Тренировка"/>
     <label className="date-control compact-date"><span>Дата</span><input type="date" value={dateKey} onChange={e=>setDateKey(e.target.value)}/></label>
     <div className="gym-tabs">{GYM_GROUPS.map(g=><button key={g.id} className={group===g.id?'active':''} onClick={()=>setGroup(g.id)}><span>{g.icon}</span>{g.label}</button>)}</div>
-    <button className="previous-button" onClick={()=>setHistory(true)}><span>◴</span>Предыдущие тренировки<b>›</b></button>
+    <div className="gym-actions">
+      <button className="previous-button" onClick={()=>setHistory(true)}><span>◴</span>Предыдущие тренировки<b>›</b></button>
+      <button className="trainer-button" onClick={trainer} disabled={trainerState==='loading'||trainerState==='sent'}><span>♟</span>{trainerState==='sent'?'Заявка отправлена':'Заказать тренера'}</button>
+    </div>
+    {trainerState==='error'&&<p className="error-line">Не удалось отправить заявку. Попробуй ещё раз.</p>}
     <ExerciseBlock title="База" subtitle="Основные упражнения на выбранную группу" rows={baseRows} options={BASE_EXERCISES[group]} kind="base" onChange={update} accent="mint"/>
     <ExerciseBlock title="Доп" subtitle="Дельты, руки, пресс и другие мелкие группы" rows={extraRows} options={ACCESSORY_EXERCISES} kind="extra" onChange={update} accent="violet"/>
     <div className="loaded-note"><span>↻</span><div><strong>{gymTemplates[group]?'Загружены данные с прошлой тренировки':'Первый раз — выбери упражнения'}</strong><small>После сохранения приложение запомнит упражнения, подходы и рабочий вес.</small></div></div>
@@ -290,7 +379,7 @@ function ReadonlyExerciseBlock({title,rows}){
 }
 
 function SimpleTraining({type,dateKey,setDateKey,sessions,onBack,onSave}){
-  const meta=activityMeta(type),[title,setTitle]=useState(''),[value,setValue]=useState('');
+  const meta=activityMeta(type),[title,setTitle]=useState(''),[value,setValue]=useState(''),[saving,setSaving]=useState(false);
   const list=[...sessions].filter(s=>s.type===type).sort((a,b)=>b.date.localeCompare(a.date)||b.number-a.number);
   const previous=list.slice(0,5);
   let valueLabel='',placeholder='',totalLabel='',totalValue='';
@@ -298,7 +387,7 @@ function SimpleTraining({type,dateKey,setDateKey,sessions,onBack,onSave}){
   else if(type==='workout'){valueLabel='Длительность, минут';placeholder='45';totalLabel='Общее время';const m=list.reduce((s,x)=>s+(Number(x.duration)||0),0);totalValue=`${(m/60).toFixed(m%60?1:0)} ч`;}
   else{valueLabel='Количество шагов';placeholder='20000';totalLabel='Всего шагов';totalValue=list.reduce((s,x)=>s+(Number(x.steps)||0),0).toLocaleString('ru-RU');}
 
-  function save(){const p={type,date:dateKey,title:title.trim()||meta.label};if(type==='bike')p.distance=Number(value)||0;if(type==='workout')p.duration=Number(value)||0;if(type==='walk')p.steps=Number(value)||0;onSave(p);}
+  async function save(){setSaving(true);const p={type,date:dateKey,title:title.trim()||meta.label};if(type==='bike')p.distance=Number(value)||0;if(type==='workout')p.duration=Number(value)||0;if(type==='walk')p.steps=Number(value)||0;await onSave(p);setSaving(false);}
   const ph=type==='bike'?'Вечерняя поездка':type==='workout'?'Турники у моря':'Прогулка по набережной';
 
   return <main className="sub-screen simple-training-screen">
@@ -308,7 +397,7 @@ function SimpleTraining({type,dateKey,setDateKey,sessions,onBack,onSave}){
       <label className="date-control embedded"><span>Дата</span><input type="date" value={dateKey} onChange={e=>setDateKey(e.target.value)}/></label>
       <label className="dark-field"><span>Название — необязательно</span><input value={title} onChange={e=>setTitle(e.target.value)} placeholder={ph}/></label>
       <label className="dark-field"><span>{valueLabel} — необязательно</span><input inputMode="decimal" value={value} onChange={e=>setValue(e.target.value)} placeholder={placeholder}/></label>
-      <button className="gradient-button save-simple" onClick={save}>Сохранить тренировку</button>
+      <button className="gradient-button save-simple" onClick={save} disabled={saving}>{saving?'Сохраняю…':'Сохранить тренировку'}</button>
     </section>
     <section className="recent-section"><header><h2>Последние 5</h2><span>{list.length} всего</span></header>
       {!previous.length&&<div className="empty-state compact-empty">Пока нет сохранённых тренировок.</div>}
@@ -356,3 +445,48 @@ function Statistics({sessions}){
   </main>;
 }
 function StatCard({icon,accent,title,value,unit}){return <article className={`stat-card ${accent}`}><span className="stat-icon">{icon}</span><small>{title}</small><strong>{value}</strong><em>{unit}</em></article>;}
+
+function Members({members,profile,onRefresh}){
+  const [installPrompt,setInstallPrompt]=useState(null);
+  const [installState,setInstallState]=useState('');
+
+  useEffect(()=>{
+    function handler(e){e.preventDefault();setInstallPrompt(e);}
+    window.addEventListener('beforeinstallprompt',handler);
+    return ()=>window.removeEventListener('beforeinstallprompt',handler);
+  },[]);
+
+  async function install(){
+    if(!installPrompt){setInstallState('В Chrome открой меню ⋮ → «Добавить на главный экран» / «Установить приложение».');return;}
+    await installPrompt.prompt();
+    const choice=await installPrompt.userChoice;
+    setInstallState(choice.outcome==='accepted'?'Установка запущена.':'Установка отменена.');
+    setInstallPrompt(null);
+  }
+
+  return <main className="tab-screen members-screen">
+    <div className="members-head">
+      <div><p className="eyebrow-dark">Рейтинг</p><h1>Участники</h1></div>
+      <strong>{members.length}</strong>
+    </div>
+    <p className="members-caption">Участников всего: {members.length}. Выше — тот, у кого больше баллов.</p>
+
+    <div className="leaderboard">
+      {members.map((m,index)=><article key={m.id} className={`leader-row ${m.id===profile?.id?'me':''}`}>
+        <span className="rank-place">{index+1}</span>
+        <span className="member-avatar">{m.name?.trim()?.[0]?.toUpperCase()||'У'}</span>
+        <div><strong>{m.name}{m.id===profile?.id?' · вы':''}</strong><small>{index===0?'Лидер рейтинга':'Участник'}</small></div>
+        <b>★ {m.points||0}</b>
+      </article>)}
+    </div>
+
+    <section className="install-card">
+      <div><strong>Установить на Android</strong><small>После установки «Форма» будет открываться как отдельное приложение.</small></div>
+      <button onClick={install}>Установить</button>
+      {installState&&<p>{installState}</p>}
+    </section>
+
+    <div className="account-actions"><button onClick={onRefresh}>Обновить рейтинг</button><button className="logout" onClick={()=>supabase.auth.signOut()}>Выйти</button></div>
+    <p className="inactive-rule">Если участник 30 дней не получает баллы, аккаунт автоматически удаляется. Для возвращения нужно зарегистрироваться заново.</p>
+  </main>;
+}
