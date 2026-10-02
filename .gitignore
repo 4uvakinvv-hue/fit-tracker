@@ -1,7 +1,6 @@
 node_modules/
-.expo/
 dist/
-web-build/
+.vite/
 npm-debug.log*
 .DS_Store
 .env
