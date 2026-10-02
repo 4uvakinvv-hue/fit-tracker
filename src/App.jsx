@@ -116,11 +116,43 @@ export default function App(){
   const [selectedDateKey,setSelectedDateKey]=useState(localDateKey());
   const [draftDateKey,setDraftDateKey]=useState(localDateKey());
   const [loading,setLoading]=useState(true);
+  const [loadError,setLoadError]=useState('');
 
   useEffect(()=>{
-    supabase.auth.getSession().then(({data})=>setAuthSession(data.session||null));
-    const {data:{subscription}}=supabase.auth.onAuthStateChange((_event,next)=>setAuthSession(next));
-    return ()=>subscription.unsubscribe();
+    let active=true;
+    const fallback=setTimeout(()=>{
+      if(!active)return;
+      setAuthSession(current=>current===undefined?null:current);
+      setLoading(false);
+    },3500);
+
+    supabase.auth.getSession()
+      .then(({data,error})=>{
+        if(!active)return;
+        clearTimeout(fallback);
+        if(error){
+          setLoadError('Не удалось проверить вход. Попробуй ещё раз.');
+          setAuthSession(null);
+        }else{
+          setAuthSession(data.session||null);
+        }
+      })
+      .catch(()=>{
+        if(!active)return;
+        clearTimeout(fallback);
+        setLoadError('Не удалось проверить вход. Попробуй ещё раз.');
+        setAuthSession(null);
+      });
+
+    const {data:{subscription}}=supabase.auth.onAuthStateChange((_event,next)=>{
+      if(active)setAuthSession(next);
+    });
+
+    return ()=>{
+      active=false;
+      clearTimeout(fallback);
+      subscription.unsubscribe();
+    };
   },[]);
 
   useEffect(()=>{
@@ -130,25 +162,39 @@ export default function App(){
 
   async function loadData(){
     setLoading(true);
+    setLoadError('');
     const userId=authSession.user.id;
-    const [profileRes,membersRes,sessionsRes,plansRes,templatesRes]=await Promise.all([
-      supabase.from('profiles').select('*').eq('id',userId).single(),
-      supabase.from('profiles').select('id,name,points,joined_at,last_points_at').order('points',{ascending:false}).order('joined_at',{ascending:true}),
-      supabase.from('sessions').select('*').eq('user_id',userId).order('date',{ascending:true}).order('number',{ascending:true}),
-      supabase.from('plans').select('*').eq('user_id',userId),
-      supabase.from('gym_templates').select('*').eq('user_id',userId),
-    ]);
 
-    if(profileRes.data)setProfile(profileRes.data);
-    setMembers(membersRes.data||[]);
-    setSessions((sessionsRes.data||[]).map(mapSession));
-    const plans={};
-    (plansRes.data||[]).forEach(p=>{plans[p.date]={type:p.type,status:p.status,customTitle:p.custom_title||'',updatedAt:p.updated_at};});
-    setSchedule(plans);
-    const templates={};
-    (templatesRes.data||[]).forEach(t=>{templates[t.gym_group]={baseRows:t.base_rows||[],extraRows:t.extra_rows||[]};});
-    setGymTemplates(templates);
-    setLoading(false);
+    try{
+      const queries=Promise.all([
+        supabase.from('profiles').select('*').eq('id',userId).single(),
+        supabase.from('profiles').select('id,name,points,joined_at,last_points_at').order('points',{ascending:false}).order('joined_at',{ascending:true}),
+        supabase.from('sessions').select('*').eq('user_id',userId).order('date',{ascending:true}).order('number',{ascending:true}),
+        supabase.from('plans').select('*').eq('user_id',userId),
+        supabase.from('gym_templates').select('*').eq('user_id',userId),
+      ]);
+
+      const timeout=new Promise((_,reject)=>setTimeout(()=>reject(new Error('timeout')),8000));
+      const [profileRes,membersRes,sessionsRes,plansRes,templatesRes]=await Promise.race([queries,timeout]);
+
+      if(profileRes.error)throw profileRes.error;
+      if(profileRes.data)setProfile(profileRes.data);
+      setMembers(membersRes.data||[]);
+      setSessions((sessionsRes.data||[]).map(mapSession));
+
+      const plans={};
+      (plansRes.data||[]).forEach(p=>{plans[p.date]={type:p.type,status:p.status,customTitle:p.custom_title||'',updatedAt:p.updated_at};});
+      setSchedule(plans);
+
+      const templates={};
+      (templatesRes.data||[]).forEach(t=>{templates[t.gym_group]={baseRows:t.base_rows||[],extraRows:t.extra_rows||[]};});
+      setGymTemplates(templates);
+    }catch(err){
+      console.error('Forma load error',err);
+      setLoadError('Не удалось связаться с общей базой. Проверь интернет и нажми «Повторить».');
+    }finally{
+      setLoading(false);
+    }
   }
 
   async function savePlan(date,type,customTitle='',status='planned'){
@@ -214,6 +260,7 @@ export default function App(){
 
   if(authSession===undefined||loading)return <main className="onboarding dark-screen"><Brand/><p className="loading-copy">Загружаем Форму…</p></main>;
   if(!authSession)return <AuthScreen/>;
+  if(loadError)return <main className="onboarding dark-screen"><Brand/><h1>Связь с базой</h1><p className="soft-text">{loadError}</p><div className="glass-card onboarding-form"><button className="gradient-button" onClick={loadData}>Повторить</button><button className="secondary-dark" onClick={()=>supabase.auth.signOut()}>Выйти из аккаунта</button></div></main>;
 
   return <div className="app-shell-dark">
     {screen==='home'&&<Home schedule={schedule} sessions={sessions} profile={profile} selectedDateKey={selectedDateKey} setSelectedDateKey={setSelectedDateKey} onSavePlan={savePlan} onDeletePlan={deletePlan} onProposal={sendProposal} onOpenWorkout={openAdd}/>}
