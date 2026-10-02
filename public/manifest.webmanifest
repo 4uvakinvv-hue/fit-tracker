@@ -2,15 +2,15 @@
   "name": "Форма — тренировки и регулярность",
   "short_name": "Форма",
   "description": "Планирование тренировок, история, баллы и статистика",
-  "start_url": "/fit-tracker/",
-  "scope": "/fit-tracker/",
+  "start_url": "./",
+  "scope": "./",
   "display": "standalone",
   "background_color": "#070c14",
   "theme_color": "#0b1421",
   "lang": "ru",
   "icons": [
     {
-      "src": "/fit-tracker/icon.svg",
+      "src": "./icon.svg",
       "sizes": "any",
       "type": "image/svg+xml",
       "purpose": "any maskable"
