@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { supabase } from './supabase.js';
 
+const APP_VERSION = '0.4.2';
+
 const ACTIVITIES = [
   { id: 'gym', label: 'Тренажёрка', icon: '🏋︎', accent: 'violet' },
   { id: 'bike', label: 'Велосипед', icon: '◉', accent: 'amber' },
@@ -102,11 +104,12 @@ function AuthScreen(){
       <button className="gradient-button" disabled={busy}>{busy?'Подожди…':mode==='register'?'Зарегистрироваться':'Войти'}</button>
       {message&&<p className="auth-message">{message}</p>}
     </form>
+    <p className="build-version">Версия {APP_VERSION}</p>
   </main>;
 }
 
 export default function App(){
-  const [authSession,setAuthSession]=useState(undefined);
+  const [authSession,setAuthSession]=useState(null);
   const [profile,setProfile]=useState(null);
   const [members,setMembers]=useState([]);
   const [sessions,setSessions]=useState([]);
@@ -115,34 +118,17 @@ export default function App(){
   const [screen,setScreen]=useState('home');
   const [selectedDateKey,setSelectedDateKey]=useState(localDateKey());
   const [draftDateKey,setDraftDateKey]=useState(localDateKey());
-  const [loading,setLoading]=useState(true);
+  const [loading,setLoading]=useState(false);
   const [loadError,setLoadError]=useState('');
 
   useEffect(()=>{
     let active=true;
-    const fallback=setTimeout(()=>{
-      if(!active)return;
-      setAuthSession(current=>current===undefined?null:current);
-      setLoading(false);
-    },3500);
 
+    // Никогда не блокируем первый экран ожиданием Supabase:
+    // новый пользователь сразу видит регистрацию.
     supabase.auth.getSession()
-      .then(({data,error})=>{
-        if(!active)return;
-        clearTimeout(fallback);
-        if(error){
-          setLoadError('Не удалось проверить вход. Попробуй ещё раз.');
-          setAuthSession(null);
-        }else{
-          setAuthSession(data.session||null);
-        }
-      })
-      .catch(()=>{
-        if(!active)return;
-        clearTimeout(fallback);
-        setLoadError('Не удалось проверить вход. Попробуй ещё раз.');
-        setAuthSession(null);
-      });
+      .then(({data})=>{ if(active && data.session) setAuthSession(data.session); })
+      .catch(()=>{});
 
     const {data:{subscription}}=supabase.auth.onAuthStateChange((_event,next)=>{
       if(active)setAuthSession(next);
@@ -150,14 +136,13 @@ export default function App(){
 
     return ()=>{
       active=false;
-      clearTimeout(fallback);
       subscription.unsubscribe();
     };
   },[]);
 
   useEffect(()=>{
     if(authSession?.user){loadData();}
-    else if(authSession===null){setLoading(false);setProfile(null);setMembers([]);setSessions([]);setSchedule({});}
+    else {setLoading(false);setProfile(null);setMembers([]);setSessions([]);setSchedule({});}
   },[authSession?.user?.id]);
 
   async function loadData(){
@@ -258,8 +243,8 @@ export default function App(){
     if(error)throw error;
   }
 
-  if(authSession===undefined||loading)return <main className="onboarding dark-screen"><Brand/><p className="loading-copy">Загружаем Форму…</p></main>;
   if(!authSession)return <AuthScreen/>;
+  if(loading)return <main className="onboarding dark-screen"><Brand/><p className="loading-copy">Загружаем Форму…</p><p className="build-version">Версия {APP_VERSION}</p></main>;
   if(loadError)return <main className="onboarding dark-screen"><Brand/><h1>Связь с базой</h1><p className="soft-text">{loadError}</p><div className="glass-card onboarding-form"><button className="gradient-button" onClick={loadData}>Повторить</button><button className="secondary-dark" onClick={()=>supabase.auth.signOut()}>Выйти из аккаунта</button></div></main>;
 
   return <div className="app-shell-dark">
