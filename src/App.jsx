@@ -1,15 +1,37 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
-const TABS = [
-  ['today', 'Сегодня'],
-  ['workout', 'Тренировки'],
-  ['nutrition', 'Питание'],
-  ['progress', 'Прогресс'],
-  ['profile', 'Профиль'],
+const ACTIVITY_TYPES = [
+  { id: 'gym', label: 'Тренажёрка', icon: '🏋︎', accent: 'violet' },
+  { id: 'walk', label: 'Прогулка', icon: '🚶', accent: 'green' },
+  { id: 'bike', label: 'Велосипед', icon: '◉', accent: 'amber' },
+  { id: 'workout', label: 'Воркаут', icon: '⌗', accent: 'coral' },
 ];
 
-const todayKey = () => new Date().toISOString().slice(0, 10);
 const uid = () => crypto.randomUUID?.() ?? String(Date.now() + Math.random());
+
+function localDateKey(date = new Date()) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
+function dateFromKey(key) {
+  const [y, m, d] = key.split('-').map(Number);
+  return new Date(y, m - 1, d, 12, 0, 0);
+}
+
+function addDays(date, amount) {
+  const result = new Date(date);
+  result.setDate(result.getDate() + amount);
+  return result;
+}
+
+function daysBetween(aKey, bKey) {
+  const a = dateFromKey(aKey);
+  const b = dateFromKey(bKey);
+  return Math.round((b - a) / 86400000);
+}
 
 function useStoredState(key, initialValue) {
   const [value, setValue] = useState(() => {
@@ -28,401 +50,427 @@ function useStoredState(key, initialValue) {
   return [value, setValue];
 }
 
-function NumberInput({ label, value, onChange, placeholder }) {
-  return (
-    <label className="field">
-      <span>{label}</span>
-      <input
-        inputMode="decimal"
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder={placeholder}
-      />
-    </label>
-  );
+function activityMeta(type) {
+  return ACTIVITY_TYPES.find((item) => item.id === type);
+}
+
+function calculatePoints(activities) {
+  const completed = Object.entries(activities)
+    .filter(([, item]) => item?.status === 'completed')
+    .map(([date]) => date)
+    .sort();
+
+  let points = 0;
+
+  completed.forEach((date, index) => {
+    points += 10;
+    if (index === 0) return;
+
+    const gap = daysBetween(completed[index - 1], date);
+
+    if (gap === 1) points += 15;
+    else if (gap === 2) points += 10;
+    else if (gap === 3) points += 5;
+    else if (gap >= 7) points += 20;
+    else if (gap >= 4) points += 2;
+  });
+
+  return points;
+}
+
+function scoreHint(activities) {
+  const completed = Object.entries(activities)
+    .filter(([, item]) => item?.status === 'completed')
+    .map(([date]) => date)
+    .sort();
+
+  if (!completed.length) return 'Первая тренировка — уже сильный шаг';
+
+  const gapFromLast = daysBetween(completed.at(-1), localDateKey());
+
+  if (gapFromLast >= 7) return 'Возвращение после паузы даст большой бонус';
+  if (gapFromLast <= 1) return 'Серия держится. Это очень хорошо';
+  if (gapFromLast === 2) return 'Идеальный ритм: тренировка через день';
+  return 'Норма — примерно одна тренировка через день';
 }
 
 function Onboarding({ onSave }) {
   const [name, setName] = useState('');
-  const [weight, setWeight] = useState('');
-  const [targetWeight, setTargetWeight] = useState('');
-  const [calories, setCalories] = useState('2200');
 
-  function submit(e) {
-    e.preventDefault();
+  function submit(event) {
+    event.preventDefault();
     if (!name.trim()) return;
-    onSave({
-      name: name.trim(),
-      weight: Number(weight) || null,
-      targetWeight: Number(targetWeight) || null,
-      calories: Number(calories) || 2200,
-    });
+    onSave({ name: name.trim() });
   }
 
   return (
-    <main className="onboarding">
-      <div className="brand-mark">С</div>
-      <p className="eyebrow">Стройка</p>
-      <h1>Собираем тело как проект.</h1>
-      <p className="muted">
-        Тренировки, питание и прогресс. Данные пока хранятся только на этом устройстве.
-      </p>
+    <main className="onboarding dark-screen">
+      <div className="logo-lockup">
+        <span className="logo-mark"><i /><i /></span>
+        <span>Форма</span>
+      </div>
+      <p className="onboarding-kicker">Тренировки. Питание. Прогресс.</p>
+      <h1>Начнём с движения.</h1>
+      <p className="soft-text">Главная задача — сделать тренировку простым следующим действием.</p>
 
-      <form className="card form-stack" onSubmit={submit}>
-        <label className="field">
+      <form className="glass-card onboarding-form" onSubmit={submit}>
+        <label className="dark-field">
           <span>Как тебя зовут</span>
           <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Имя" />
         </label>
-        <div className="two-cols">
-          <NumberInput label="Вес сейчас, кг" value={weight} onChange={setWeight} placeholder="96" />
-          <NumberInput label="Цель, кг" value={targetWeight} onChange={setTargetWeight} placeholder="88" />
-        </div>
-        <NumberInput label="Калории в день" value={calories} onChange={setCalories} placeholder="2200" />
-        <button className="primary" type="submit">Начать</button>
+        <button className="gradient-button" type="submit">Начать</button>
       </form>
     </main>
   );
 }
 
 export default function App() {
-  const [tab, setTab] = useState('today');
-  const [profile, setProfile] = useStoredState('stroyka.profile', null);
-  const [workouts, setWorkouts] = useStoredState('stroyka.workouts', []);
-  const [meals, setMeals] = useStoredState('stroyka.meals', []);
-  const [weights, setWeights] = useStoredState('stroyka.weights', []);
-  const [installPrompt, setInstallPrompt] = useState(null);
-
-  useEffect(() => {
-    const handler = (event) => {
-      event.preventDefault();
-      setInstallPrompt(event);
-    };
-    window.addEventListener('beforeinstallprompt', handler);
-    return () => window.removeEventListener('beforeinstallprompt', handler);
-  }, []);
+  const [profile, setProfile] = useStoredState('forma.profile', null);
+  const [activities, setActivities] = useStoredState('forma.activities', {});
+  const [proposals, setProposals] = useStoredState('forma.activityProposals', []);
+  const [screen, setScreen] = useState('home');
+  const [selectedDateKey, setSelectedDateKey] = useState(localDateKey());
 
   if (!profile) {
-    return <Onboarding onSave={(data) => {
-      setProfile(data);
-      if (data.weight) {
-        setWeights([{ id: uid(), date: todayKey(), value: data.weight }]);
-      }
-    }} />;
+    return <Onboarding onSave={setProfile} />;
   }
 
-  const todayMeals = meals.filter((m) => m.date === todayKey());
-  const todayWorkouts = workouts.filter((w) => w.date === todayKey());
-
-  const nutrition = todayMeals.reduce(
-    (acc, item) => ({
-      calories: acc.calories + item.calories,
-      protein: acc.protein + item.protein,
-      fat: acc.fat + item.fat,
-      carbs: acc.carbs + item.carbs,
-    }),
-    { calories: 0, protein: 0, fat: 0, carbs: 0 }
-  );
-
-  const latestWeight = weights[0]?.value ?? profile.weight ?? '—';
-
-  async function installApp() {
-    if (!installPrompt) return;
-    installPrompt.prompt();
-    await installPrompt.userChoice;
-    setInstallPrompt(null);
-  }
+  const common = {
+    profile,
+    activities,
+    setActivities,
+    proposals,
+    setProposals,
+    selectedDateKey,
+    setSelectedDateKey,
+  };
 
   return (
-    <div className="app-shell">
-      <div className="content">
-        {tab === 'today' && (
-          <Today
-            profile={profile}
-            nutrition={nutrition}
-            workouts={todayWorkouts}
-            latestWeight={latestWeight}
-            onWorkout={() => setTab('workout')}
-            onFood={() => setTab('nutrition')}
-          />
-        )}
-        {tab === 'workout' && <Workouts workouts={workouts} setWorkouts={setWorkouts} />}
-        {tab === 'nutrition' && <Nutrition meals={meals} setMeals={setMeals} target={profile.calories} />}
-        {tab === 'progress' && <Progress weights={weights} setWeights={setWeights} workouts={workouts} />}
-        {tab === 'profile' && (
-          <Profile
-            profile={profile}
-            setProfile={setProfile}
-            installPrompt={installPrompt}
-            installApp={installApp}
-          />
-        )}
-      </div>
+    <div className="app-shell-dark">
+      {screen === 'home' && <Home {...common} onOpenWorkout={() => setScreen('choose-workout')} />}
+      {screen === 'choose-workout' && <WorkoutPicker {...common} onBack={() => setScreen('home')} />}
+      {screen === 'history' && <History activities={activities} onBack={() => setScreen('home')} />}
 
-      <nav className="tabbar">
-        {TABS.map(([key, label]) => (
-          <button
-            key={key}
-            className={tab === key ? 'active' : ''}
-            onClick={() => setTab(key)}
-          >
-            <span className="tab-dot" />
-            {label}
+      {screen !== 'choose-workout' && (
+        <nav className="bottom-nav">
+          <button className={screen === 'home' ? 'active' : ''} onClick={() => setScreen('home')}>
+            <span className="nav-icon home-icon">⌂</span>
+            Главная
           </button>
-        ))}
-      </nav>
+          <button className={screen === 'history' ? 'active' : ''} onClick={() => setScreen('history')}>
+            <span className="nav-icon">▥</span>
+            История
+          </button>
+        </nav>
+      )}
     </div>
   );
 }
 
-function PageHeader({ eyebrow, title, aside }) {
+function Home({
+  profile,
+  activities,
+  setActivities,
+  proposals,
+  setProposals,
+  selectedDateKey,
+  setSelectedDateKey,
+  onOpenWorkout,
+}) {
+  const selectedDate = dateFromKey(selectedDateKey);
+  const selectedActivity = activities[selectedDateKey] || null;
+  const points = useMemo(() => calculatePoints(activities), [activities]);
+  const touchStart = useRef(null);
+  const wheelLock = useRef(false);
+
+  const dates = Array.from({ length: 11 }, (_, index) => addDays(selectedDate, index - 5));
+
+  function shiftDate(amount) {
+    setSelectedDateKey(localDateKey(addDays(selectedDate, amount)));
+  }
+
+  function handleWheel(event) {
+    if (wheelLock.current || Math.abs(event.deltaY) < 8) return;
+    wheelLock.current = true;
+    shiftDate(event.deltaY > 0 ? 1 : -1);
+    setTimeout(() => {
+      wheelLock.current = false;
+    }, 130);
+  }
+
+  function handleTouchStart(event) {
+    touchStart.current = event.touches[0]?.clientY ?? null;
+  }
+
+  function handleTouchEnd(event) {
+    if (touchStart.current == null) return;
+    const end = event.changedTouches[0]?.clientY ?? touchStart.current;
+    const delta = touchStart.current - end;
+    touchStart.current = null;
+
+    if (Math.abs(delta) < 24) return;
+    const steps = Math.min(3, Math.max(1, Math.round(Math.abs(delta) / 52)));
+    shiftDate(delta > 0 ? steps : -steps);
+  }
+
+  function setActivityType(type) {
+    if (!type) {
+      setActivities((current) => {
+        const copy = { ...current };
+        delete copy[selectedDateKey];
+        return copy;
+      });
+      return;
+    }
+
+    const isPast = selectedDateKey < localDateKey();
+    setActivities((current) => ({
+      ...current,
+      [selectedDateKey]: {
+        type,
+        status: current[selectedDateKey]?.status || (isPast ? 'completed' : 'planned'),
+        updatedAt: Date.now(),
+      },
+    }));
+  }
+
+  function setStatus(status) {
+    if (!selectedActivity) return;
+    setActivities((current) => ({
+      ...current,
+      [selectedDateKey]: {
+        ...current[selectedDateKey],
+        status,
+        updatedAt: Date.now(),
+      },
+    }));
+  }
+
   return (
-    <header className="page-header">
-      <div>
-        <p className="eyebrow">{eyebrow}</p>
-        <h1>{title}</h1>
-      </div>
-      {aside}
-    </header>
+    <main className="main-screen">
+      <header className="topbar">
+        <div>
+          <div className="logo-lockup compact">
+            <span className="logo-mark"><i /><i /></span>
+            <span>Форма</span>
+          </div>
+          <p className="brand-subtitle">Тренировки. Питание. Прогресс.</p>
+        </div>
+
+        <div className="score-wrap">
+          <div className="score-card"><span>★</span><strong>Баллы: {points}</strong></div>
+          <small>{scoreHint(activities)}</small>
+        </div>
+      </header>
+
+      <section
+        className="date-wheel"
+        onWheel={handleWheel}
+        onTouchStart={handleTouchStart}
+        onTouchEnd={handleTouchEnd}
+      >
+        <div className="wheel-fade wheel-fade-top" />
+        <div className="wheel-fade wheel-fade-bottom" />
+
+        {dates.map((date) => {
+          const key = localDateKey(date);
+          const item = activities[key];
+          const meta = item ? activityMeta(item.type) : null;
+          const selected = key === selectedDateKey;
+          const today = key === localDateKey();
+
+          return (
+            <button
+              key={key}
+              className={`date-row ${selected ? 'selected' : ''}`}
+              onClick={() => setSelectedDateKey(key)}
+            >
+              <span className="weekday">{new Intl.DateTimeFormat('ru-RU', { weekday: 'short' }).format(date)}</span>
+              <span className="date-label">
+                {new Intl.DateTimeFormat('ru-RU', { day: 'numeric', month: 'short' }).format(date)}
+                {today && <em>сегодня</em>}
+              </span>
+              <span className={`activity-label ${meta ? meta.accent : ''}`}>
+                {meta ? <><b>{meta.icon}</b>{meta.label}</> : <span className="empty-dash">—</span>}
+              </span>
+              <span className={`status-dot ${item?.status || ''}`}>
+                {item?.status === 'completed' ? '✓' : ''}
+              </span>
+            </button>
+          );
+        })}
+      </section>
+
+      <section className="glass-card editor-card">
+        <p className="section-label">Активность · {new Intl.DateTimeFormat('ru-RU', { day: 'numeric', month: 'long' }).format(selectedDate)}</p>
+
+        <div className="select-wrap">
+          <span className={`select-icon ${activityMeta(selectedActivity?.type)?.accent || ''}`}>
+            {activityMeta(selectedActivity?.type)?.icon || '＋'}
+          </span>
+          <select value={selectedActivity?.type || ''} onChange={(e) => setActivityType(e.target.value)}>
+            <option value="">Выбрать активность</option>
+            {ACTIVITY_TYPES.map((type) => (
+              <option key={type.id} value={type.id}>{type.label}</option>
+            ))}
+          </select>
+          <span className="select-chevron">⌄</span>
+        </div>
+
+        {selectedActivity && (
+          <div className="status-switch">
+            <button
+              className={selectedActivity.status === 'planned' ? 'active' : ''}
+              onClick={() => setStatus('planned')}
+            >
+              Запланировано
+            </button>
+            <button
+              className={selectedActivity.status === 'completed' ? 'active completed' : ''}
+              onClick={() => setStatus('completed')}
+            >
+              Выполнено
+            </button>
+          </div>
+        )}
+
+        <ProposalBox proposals={proposals} setProposals={setProposals} />
+      </section>
+
+      <button className="gradient-button workout-cta" onClick={onOpenWorkout}>
+        <span>🏋︎</span>
+        Перейти к тренировке
+        <b>›</b>
+      </button>
+
+      <p className="helper-text">
+        Выбранная тренировка автоматически запишется на {new Intl.DateTimeFormat('ru-RU', { day: 'numeric', month: 'long' }).format(selectedDate)}.
+      </p>
+    </main>
   );
 }
 
-function Today({ profile, nutrition, workouts, latestWeight, onWorkout, onFood }) {
-  const progress = Math.min(100, Math.round((nutrition.calories / profile.calories) * 100) || 0);
+function ProposalBox({ proposals, setProposals }) {
+  const [open, setOpen] = useState(false);
+  const [value, setValue] = useState('');
+  const [sent, setSent] = useState(false);
+
+  function submit() {
+    if (!value.trim()) return;
+    setProposals([
+      ...proposals,
+      { id: uid(), title: value.trim(), status: 'pending', createdAt: Date.now() },
+    ]);
+    setValue('');
+    setSent(true);
+  }
+
+  if (!open) {
+    return (
+      <button className="proposal-box" onClick={() => setOpen(true)}>
+        <span className="proposal-plus">＋</span>
+        <span>
+          <strong>Предложить свой вид активности</strong>
+          <small>Отправим на рассмотрение администратору</small>
+        </span>
+      </button>
+    );
+  }
 
   return (
-    <>
-      <PageHeader eyebrow="Стройка" title={`Привет, ${profile.name}`} />
-      <p className="date-line">
-        {new Intl.DateTimeFormat('ru-RU', { weekday: 'long', day: 'numeric', month: 'long' }).format(new Date())}
+    <div className="proposal-form">
+      <input
+        value={value}
+        onChange={(e) => {
+          setValue(e.target.value);
+          setSent(false);
+        }}
+        placeholder="Например: плавание"
+      />
+      <button onClick={submit}>Отправить</button>
+      {sent && <small>Сохранено в очередь на согласование</small>}
+    </div>
+  );
+}
+
+function WorkoutPicker({ activities, setActivities, selectedDateKey, onBack }) {
+  const selectedDate = dateFromKey(selectedDateKey);
+
+  function choose(type) {
+    const isPast = selectedDateKey < localDateKey();
+
+    setActivities((current) => ({
+      ...current,
+      [selectedDateKey]: {
+        type,
+        status: isPast ? 'completed' : 'planned',
+        updatedAt: Date.now(),
+      },
+    }));
+
+    onBack();
+  }
+
+  return (
+    <main className="picker-screen">
+      <button className="back-button" onClick={onBack}>‹ Назад</button>
+      <p className="eyebrow-dark">
+        {new Intl.DateTimeFormat('ru-RU', { weekday: 'long', day: 'numeric', month: 'long' }).format(selectedDate)}
+      </p>
+      <h1>Выбери тренировку</h1>
+      <p className="picker-copy">
+        После выбора активность сразу появится в календаре. Если на эту дату уже что-то было записано — выбор обновится.
       </p>
 
-      <section className="hero-card">
-        <div>
-          <p className="card-label">Калории</p>
-          <div className="metric"><strong>{nutrition.calories}</strong><span> / {profile.calories} ккал</span></div>
-        </div>
-        <div className="progress-track"><div style={{ width: `${progress}%` }} /></div>
-        <div className="macro-row">
-          <span>Б {nutrition.protein} г</span>
-          <span>Ж {nutrition.fat} г</span>
-          <span>У {nutrition.carbs} г</span>
-        </div>
-        <button className="primary" onClick={onFood}>Добавить еду</button>
-      </section>
-
-      <section className="card">
-        <div className="card-head">
-          <div>
-            <p className="card-label">Тренировка</p>
-            <h2>{workouts.length ? `${workouts.length} упражн.` : 'Ещё не было'}</h2>
-          </div>
-          <span className="round-number">{workouts.length}</span>
-        </div>
-        <button className="secondary" onClick={onWorkout}>Открыть тренировку</button>
-      </section>
-
-      <section className="card card-inline">
-        <div>
-          <p className="card-label">Вес</p>
-          <div className="metric"><strong>{latestWeight}</strong><span> кг</span></div>
-        </div>
-        <div className="goal">цель {profile.targetWeight || '—'} кг</div>
-      </section>
-    </>
-  );
-}
-
-function Workouts({ workouts, setWorkouts }) {
-  const [name, setName] = useState('');
-  const [sets, setSets] = useState('3');
-  const [reps, setReps] = useState('10');
-  const [weight, setWeight] = useState('');
-
-  function add(e) {
-    e.preventDefault();
-    if (!name.trim()) return;
-    setWorkouts([
-      {
-        id: uid(),
-        date: todayKey(),
-        name: name.trim(),
-        sets: Number(sets) || 0,
-        reps: Number(reps) || 0,
-        weight: Number(weight) || 0,
-      },
-      ...workouts,
-    ]);
-    setName('');
-    setWeight('');
-  }
-
-  const today = workouts.filter((w) => w.date === todayKey());
-
-  return (
-    <>
-      <PageHeader eyebrow="Сегодня" title="Тренировка" />
-      <form className="card form-stack" onSubmit={add}>
-        <label className="field">
-          <span>Упражнение</span>
-          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Жим лёжа" />
-        </label>
-        <div className="three-cols">
-          <NumberInput label="Подходы" value={sets} onChange={setSets} placeholder="3" />
-          <NumberInput label="Повторы" value={reps} onChange={setReps} placeholder="10" />
-          <NumberInput label="Вес" value={weight} onChange={setWeight} placeholder="80" />
-        </div>
-        <button className="primary">Добавить упражнение</button>
-      </form>
-
-      <div className="section-title">
-        <h2>Сегодня</h2><span>{today.length}</span>
+      <div className="activity-grid">
+        {ACTIVITY_TYPES.map((type) => (
+          <button key={type.id} className={`activity-choice ${type.accent}`} onClick={() => choose(type.id)}>
+            <span>{type.icon}</span>
+            <strong>{type.label}</strong>
+            {type.id === 'walk' && <small>от 20 000 шагов</small>}
+          </button>
+        ))}
       </div>
-      {today.length === 0 && <div className="empty">Пока пусто. Добавь первое упражнение.</div>}
-      {today.map((item) => (
-        <article className="list-card" key={item.id}>
-          <div>
-            <strong>{item.name}</strong>
-            <p>{item.sets} × {item.reps} · {item.weight} кг</p>
-          </div>
-          <button className="delete" onClick={() => setWorkouts(workouts.filter((w) => w.id !== item.id))}>×</button>
-        </article>
-      ))}
-    </>
+    </main>
   );
 }
 
-function Nutrition({ meals, setMeals, target }) {
-  const [name, setName] = useState('');
-  const [calories, setCalories] = useState('');
-  const [protein, setProtein] = useState('');
-  const [fat, setFat] = useState('');
-  const [carbs, setCarbs] = useState('');
-
-  function add(e) {
-    e.preventDefault();
-    if (!name.trim()) return;
-    setMeals([
-      {
-        id: uid(),
-        date: todayKey(),
-        name: name.trim(),
-        calories: Number(calories) || 0,
-        protein: Number(protein) || 0,
-        fat: Number(fat) || 0,
-        carbs: Number(carbs) || 0,
-      },
-      ...meals,
-    ]);
-    setName('');
-    setCalories('');
-    setProtein('');
-    setFat('');
-    setCarbs('');
-  }
-
-  const today = meals.filter((m) => m.date === todayKey());
-  const total = today.reduce((sum, m) => sum + m.calories, 0);
+function History({ activities, onBack }) {
+  const rows = Object.entries(activities)
+    .sort(([a], [b]) => b.localeCompare(a));
 
   return (
-    <>
-      <PageHeader eyebrow="Сегодня" title="Питание" aside={<span className="pill">{total}/{target}</span>} />
-      <form className="card form-stack" onSubmit={add}>
-        <label className="field">
-          <span>Что съел</span>
-          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Омлет, 3 яйца" />
-        </label>
-        <NumberInput label="Калории" value={calories} onChange={setCalories} placeholder="320" />
-        <div className="three-cols">
-          <NumberInput label="Белки" value={protein} onChange={setProtein} placeholder="25" />
-          <NumberInput label="Жиры" value={fat} onChange={setFat} placeholder="20" />
-          <NumberInput label="Углеводы" value={carbs} onChange={setCarbs} placeholder="4" />
+    <main className="history-screen">
+      <header className="history-header">
+        <div>
+          <p className="eyebrow-dark">Активности</p>
+          <h1>История</h1>
         </div>
-        <button className="primary">Добавить</button>
-      </form>
+      </header>
 
-      {today.map((item) => (
-        <article className="list-card" key={item.id}>
-          <div>
-            <strong>{item.name}</strong>
-            <p>{item.calories} ккал · Б {item.protein} · Ж {item.fat} · У {item.carbs}</p>
-          </div>
-          <button className="delete" onClick={() => setMeals(meals.filter((m) => m.id !== item.id))}>×</button>
-        </article>
-      ))}
-    </>
-  );
-}
+      <div className="history-placeholder">
+        <strong>Историю распишем следующим этапом.</strong>
+        <p>Пока здесь просто видны уже записанные активности, чтобы вкладка не была пустой.</p>
+      </div>
 
-function Progress({ weights, setWeights, workouts }) {
-  const [value, setValue] = useState('');
+      <div className="history-list">
+        {rows.length === 0 && <p className="empty-history">Пока тренировок нет.</p>}
+        {rows.map(([date, item]) => {
+          const meta = activityMeta(item.type);
+          return (
+            <article key={date} className="history-row">
+              <span className={`history-icon ${meta?.accent || ''}`}>{meta?.icon}</span>
+              <div>
+                <strong>{meta?.label}</strong>
+                <small>{new Intl.DateTimeFormat('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' }).format(dateFromKey(date))}</small>
+              </div>
+              <em className={item.status}>{item.status === 'completed' ? 'Готово' : 'План'}</em>
+            </article>
+          );
+        })}
+      </div>
 
-  function add(e) {
-    e.preventDefault();
-    if (!Number(value)) return;
-    setWeights([{ id: uid(), date: todayKey(), value: Number(value) }, ...weights]);
-    setValue('');
-  }
-
-  return (
-    <>
-      <PageHeader eyebrow="История" title="Прогресс" />
-      <form className="card form-stack" onSubmit={add}>
-        <NumberInput label="Вес сегодня, кг" value={value} onChange={setValue} placeholder="95.4" />
-        <button className="primary">Записать вес</button>
-      </form>
-
-      <section className="stats-grid">
-        <div className="mini-card"><span>Тренировок</span><strong>{new Set(workouts.map((w) => w.date)).size}</strong></div>
-        <div className="mini-card"><span>Замеров</span><strong>{weights.length}</strong></div>
-      </section>
-
-      <div className="section-title"><h2>Вес</h2></div>
-      {weights.slice(0, 10).map((item) => (
-        <article className="list-card" key={item.id}>
-          <div><strong>{item.value} кг</strong><p>{item.date}</p></div>
-        </article>
-      ))}
-    </>
-  );
-}
-
-function Profile({ profile, setProfile, installPrompt, installApp }) {
-  const [draft, setDraft] = useState(profile);
-
-  function save(e) {
-    e.preventDefault();
-    setProfile({
-      ...draft,
-      weight: Number(draft.weight) || null,
-      targetWeight: Number(draft.targetWeight) || null,
-      calories: Number(draft.calories) || 2200,
-    });
-  }
-
-  return (
-    <>
-      <PageHeader eyebrow="Настройки" title="Профиль" />
-      <form className="card form-stack" onSubmit={save}>
-        <label className="field">
-          <span>Имя</span>
-          <input value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} />
-        </label>
-        <div className="two-cols">
-          <NumberInput label="Вес, кг" value={draft.weight ?? ''} onChange={(v) => setDraft({ ...draft, weight: v })} />
-          <NumberInput label="Цель, кг" value={draft.targetWeight ?? ''} onChange={(v) => setDraft({ ...draft, targetWeight: v })} />
-        </div>
-        <NumberInput label="Калории в день" value={draft.calories} onChange={(v) => setDraft({ ...draft, calories: v })} />
-        <button className="primary">Сохранить</button>
-      </form>
-
-      <section className="card">
-        <p className="card-label">Приложение</p>
-        <h2>Установить на Android</h2>
-        <p className="muted">После установки «Стройка» будет открываться отдельным приложением с рабочего стола.</p>
-        <button className="secondary" disabled={!installPrompt} onClick={installApp}>
-          {installPrompt ? 'Установить приложение' : 'Уже установлено или установка доступна через меню Chrome'}
-        </button>
-      </section>
-    </>
+      <button className="history-back" onClick={onBack}>На главную</button>
+    </main>
   );
 }
