@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 
 const TABS = [
   ['today', 'Сегодня'],
@@ -113,17 +113,14 @@ export default function App() {
   const todayMeals = meals.filter((m) => m.date === todayKey());
   const todayWorkouts = workouts.filter((w) => w.date === todayKey());
 
-  const nutrition = useMemo(
-    () => todayMeals.reduce(
-      (acc, item) => ({
-        calories: acc.calories + item.calories,
-        protein: acc.protein + item.protein,
-        fat: acc.fat + item.fat,
-        carbs: acc.carbs + item.carbs,
-      }),
-      { calories: 0, protein: 0, fat: 0, carbs: 0 }
-    ),
-    [todayMeals]
+  const nutrition = todayMeals.reduce(
+    (acc, item) => ({
+      calories: acc.calories + item.calories,
+      protein: acc.protein + item.protein,
+      fat: acc.fat + item.fat,
+      carbs: acc.carbs + item.carbs,
+    }),
+    { calories: 0, protein: 0, fat: 0, carbs: 0 }
   );
 
   const latestWeight = weights[0]?.value ?? profile.weight ?? '—';
