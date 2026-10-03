@@ -9,7 +9,7 @@ permissions:
   contents: write
 
 concurrency:
-  group: forma-android-v0.4.2
+  group: forma-android-v0.5.0
   cancel-in-progress: true
 
 jobs:
@@ -41,25 +41,25 @@ jobs:
 
       - name: Stamp Android version
         run: |
-          sed -i 's/versionCode 1/versionCode 42/' android/app/build.gradle
-          sed -i 's/versionName "1.0"/versionName "0.4.2"/' android/app/build.gradle
+          sed -i 's/versionCode 1/versionCode 50/' android/app/build.gradle
+          sed -i 's/versionName "1.0"/versionName "0.5.0"/' android/app/build.gradle
 
       - name: Build APK
         run: |
           cd android
           chmod +x gradlew
           ./gradlew assembleDebug
-          cp app/build/outputs/apk/debug/app-debug.apk app/build/outputs/apk/debug/forma-v0.4.2.apk
+          cp app/build/outputs/apk/debug/app-debug.apk app/build/outputs/apk/debug/forma-v0.5.0.apk
 
       - name: Upload workflow artifact
         uses: actions/upload-artifact@v4
         with:
           name: forma-android
-          path: android/app/build/outputs/apk/debug/forma-v0.4.2.apk
+          path: android/app/build/outputs/apk/debug/forma-v0.5.0.apk
 
       - name: Publish latest APK
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release delete android-v0.4.2 -y --cleanup-tag || true
-          gh release create android-v0.4.2 android/app/build/outputs/apk/debug/forma-v0.4.2.apk --title "Форма Android 0.4.2" --notes "Актуальная Android-сборка приложения Форма." --prerelease
+          gh release delete android-v0.5.0 -y --cleanup-tag || true
+          gh release create android-v0.5.0 android/app/build/outputs/apk/debug/forma-v0.5.0.apk --title "Форма Android 0.5.0" --notes "Актуальная Android-сборка приложения Форма." --prerelease
