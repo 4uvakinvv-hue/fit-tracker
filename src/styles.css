@@ -559,3 +559,239 @@
   color:#d7e2ee;
   font-size:13px;
 }
+
+
+/* Forma 1.1 — seasonal interface. Splash intentionally remains neutral. */
+.splash-screen{
+  background:
+    radial-gradient(circle at 18% 0%,rgba(65,118,192,.15),transparent 34%),
+    linear-gradient(180deg,#0b1421 0%,#060a11 100%)!important;
+  --mint:#65f0b5;
+  --cyan:#48e7e2;
+}
+
+.app-shell-dark.season-autumn,.auth-screen.season-autumn{
+  --season-primary:#ffad43;
+  --season-secondary:#f47732;
+  --season-bright:#ffd067;
+  --season-panel:rgba(60,34,23,.88);
+  --season-panel-strong:rgba(39,23,18,.96);
+  --season-soft:rgba(116,63,34,.38);
+  --season-border:rgba(255,166,77,.28);
+  --season-muted:#bca08d;
+  --season-active:#ff9d32;
+  --season-glow:rgba(255,126,36,.22);
+  --mint:#ffad43;
+  --cyan:#f47732;
+  --amber:#ffc44f;
+  --violet:#cb82ef;
+  --coral:#ff745f;
+  background:
+    radial-gradient(circle at 12% -6%,rgba(255,122,31,.28),transparent 34%),
+    radial-gradient(circle at 90% 7%,rgba(255,183,71,.16),transparent 26%),
+    radial-gradient(circle at 22% 82%,rgba(115,46,17,.24),transparent 30%),
+    linear-gradient(180deg,#27160f 0%,#120d0c 47%,#08090c 100%)!important;
+}
+.app-shell-dark.season-winter,.auth-screen.season-winter{
+  --season-primary:#65caff;
+  --season-secondary:#2d8cff;
+  --season-bright:#b9edff;
+  --season-panel:rgba(15,52,91,.88);
+  --season-panel-strong:rgba(8,31,61,.96);
+  --season-soft:rgba(54,119,184,.28);
+  --season-border:rgba(118,205,255,.30);
+  --season-muted:#9bbbd4;
+  --season-active:#5bc7ff;
+  --season-glow:rgba(52,157,255,.22);
+  --mint:#6ed2ff;
+  --cyan:#4db7ff;
+  --amber:#c8efff;
+  --violet:#a59bff;
+  --coral:#7ebdff;
+  background:
+    radial-gradient(circle at 50% -10%,rgba(56,147,255,.32),transparent 37%),
+    radial-gradient(circle at 93% 14%,rgba(107,219,255,.14),transparent 28%),
+    linear-gradient(180deg,#08254a 0%,#07182d 50%,#050d18 100%)!important;
+}
+.app-shell-dark.season-spring,.auth-screen.season-spring{
+  --season-primary:#5fd36f;
+  --season-secondary:#43b979;
+  --season-bright:#b7e875;
+  --season-panel:rgba(26,62,43,.86);
+  --season-panel-strong:rgba(15,38,30,.96);
+  --season-soft:rgba(91,155,89,.25);
+  --season-border:rgba(123,217,126,.27);
+  --season-muted:#9fb7a3;
+  --season-active:#65d77a;
+  --season-glow:rgba(74,207,104,.18);
+  --mint:#65d77a;
+  --cyan:#54c9a8;
+  --amber:#d8d86d;
+  --violet:#a9a4ee;
+  --coral:#ef9a79;
+  background:
+    radial-gradient(circle at 18% -8%,rgba(86,200,97,.22),transparent 34%),
+    radial-gradient(circle at 92% 11%,rgba(184,219,105,.12),transparent 27%),
+    linear-gradient(180deg,#153525 0%,#0c1d17 50%,#07100d 100%)!important;
+}
+.app-shell-dark.season-summer,.auth-screen.season-summer{
+  --season-primary:#23c8d8;
+  --season-secondary:#ffb62f;
+  --season-bright:#ffe46d;
+  --season-panel:rgba(13,75,91,.84);
+  --season-panel-strong:rgba(7,44,60,.95);
+  --season-soft:rgba(38,154,174,.26);
+  --season-border:rgba(91,219,232,.29);
+  --season-muted:#9bc8d0;
+  --season-active:#21c6d5;
+  --season-glow:rgba(24,193,221,.21);
+  --mint:#29ccd7;
+  --cyan:#4bdde4;
+  --amber:#ffd34f;
+  --violet:#b28df0;
+  --coral:#ff8267;
+  background:
+    radial-gradient(circle at 15% -4%,rgba(32,198,220,.28),transparent 34%),
+    radial-gradient(circle at 94% 9%,rgba(255,205,63,.16),transparent 24%),
+    linear-gradient(180deg,#07556d 0%,#07303d 48%,#06151d 100%)!important;
+}
+
+.app-shell-dark .season-brand-label,.auth-screen .season-brand-label{
+  color:var(--season-primary);
+  font-size:12px;
+  text-transform:uppercase;
+  letter-spacing:.08em;
+  font-weight:900;
+}
+
+.app-shell-dark .score-card{
+  border-color:var(--season-border);
+  background:linear-gradient(180deg,var(--season-soft),var(--season-panel-strong));
+  box-shadow:inset 0 1px rgba(255,255,255,.06),0 10px 28px var(--season-glow);
+}
+.app-shell-dark .score-card span{color:var(--season-bright)}
+.app-shell-dark .score-wrap small{color:var(--season-muted)}
+
+.app-shell-dark .date-wheel-shell{
+  border-color:var(--season-border);
+  background:linear-gradient(180deg,var(--season-panel),var(--season-panel-strong));
+  box-shadow:inset 0 0 34px var(--season-glow),0 18px 46px rgba(0,0,0,.24);
+}
+.app-shell-dark .wheel-date-row{
+  background:color-mix(in srgb,var(--season-soft) 72%,transparent);
+  color:color-mix(in srgb,var(--season-muted) 88%,#fff 12%);
+}
+.app-shell-dark .wheel-date-row.selected{
+  color:#fff;
+  background:linear-gradient(90deg,color-mix(in srgb,var(--season-active) 34%,var(--season-panel-strong)),var(--season-panel));
+  outline-color:var(--season-primary);
+  box-shadow:0 0 28px var(--season-glow),inset 0 0 18px color-mix(in srgb,var(--season-primary) 12%,transparent);
+}
+.app-shell-dark .wheel-date-label em{color:var(--season-primary)}
+.app-shell-dark .wheel-fade-top{
+  background:linear-gradient(180deg,var(--season-panel-strong) 0%,color-mix(in srgb,var(--season-panel-strong) 92%,transparent) 20%,transparent 100%);
+}
+.app-shell-dark .wheel-fade-bottom{
+  background:linear-gradient(0deg,var(--season-panel-strong) 0%,color-mix(in srgb,var(--season-panel-strong) 92%,transparent) 20%,transparent 100%);
+}
+
+.app-shell-dark .gradient-button,.auth-screen .gradient-button{
+  background:linear-gradient(100deg,var(--season-primary),var(--season-secondary));
+  color:#160e08;
+  box-shadow:0 14px 32px var(--season-glow);
+}
+.app-shell-dark .glass-card,.auth-screen .glass-card,
+.app-shell-dark .exercise-block,
+.app-shell-dark .previous-season,
+.app-shell-dark .master-history-row,
+.app-shell-dark .history-accordion{
+  background:linear-gradient(160deg,var(--season-panel),var(--season-panel-strong));
+  border-color:var(--season-border);
+}
+.app-shell-dark .activity-choice{
+  background:linear-gradient(160deg,color-mix(in srgb,var(--season-panel) 87%,#fff 3%),var(--season-panel-strong));
+  border-color:var(--season-border);
+}
+.app-shell-dark .back-button,.app-shell-dark .secondary-dark,
+.app-shell-dark .previous-button{
+  background:var(--season-panel);
+  border-color:var(--season-border);
+}
+.app-shell-dark .eyebrow-dark{color:var(--season-primary)}
+.app-shell-dark .date-control input,
+.app-shell-dark .dark-field input,
+.app-shell-dark .workout-description-field textarea{
+  background:var(--season-panel-strong);
+  border-color:var(--season-border);
+}
+.app-shell-dark .bottom-nav{
+  background:linear-gradient(180deg,color-mix(in srgb,var(--season-panel) 92%,transparent),var(--season-panel-strong));
+  border-top-color:var(--season-border);
+  box-shadow:0 -8px 28px rgba(0,0,0,.22);
+}
+.app-shell-dark .bottom-nav button.active{color:var(--season-primary)}
+.app-shell-dark .rank-summary-card,.app-shell-dark .season-card{
+  background:linear-gradient(135deg,color-mix(in srgb,var(--season-primary) 16%,var(--season-panel)),var(--season-panel-strong));
+  border-color:var(--season-border);
+}
+.app-shell-dark .rank-summary-card small,.app-shell-dark .season-card span{color:var(--season-primary)}
+.app-shell-dark .leader-row{
+  background:linear-gradient(135deg,var(--season-panel),var(--season-panel-strong));
+  border-color:var(--season-border);
+}
+.app-shell-dark .leader-row.me{
+  border-color:var(--season-primary);
+  box-shadow:0 0 24px var(--season-glow);
+}
+.app-shell-dark .member-avatar{
+  background:linear-gradient(145deg,color-mix(in srgb,var(--season-primary) 24%,var(--season-panel)),var(--season-panel-strong));
+}
+.app-shell-dark .points-modal{
+  background:linear-gradient(160deg,var(--season-panel),var(--season-panel-strong));
+  border-color:var(--season-border);
+}
+.app-shell-dark .points-modal header small{color:var(--season-primary)}
+.app-shell-dark .points-events article{background:var(--season-panel-strong);border-color:var(--season-border)}
+.app-shell-dark .trainer-button{
+  border-color:var(--season-border);
+  background:linear-gradient(135deg,color-mix(in srgb,var(--season-primary) 18%,var(--season-panel)),var(--season-panel-strong));
+  color:var(--season-bright);
+}
+
+/* Hikes */
+.hike{color:#8fdf8b!important}
+.activity-choice.hike .activity-svg{color:#8fdf8b}
+.hike-fields{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.hike-points-note{color:var(--season-primary,#8fdf8b);font-size:10px;line-height:1.4}
+.hike-metric-hero em{display:block;color:#8699b1;font-size:10px;font-style:normal;margin-top:4px}
+.hike-history-detail{
+  display:grid;
+  grid-template-columns:minmax(0,1fr) auto auto;
+  gap:10px;
+  align-items:center;
+  color:#dce7f2;
+}
+.hike-history-detail strong{min-width:0;overflow:hidden;text-overflow:ellipsis}
+.hike-history-detail span{white-space:nowrap;color:#9fb0c5}
+.hike-history-detail small{grid-column:1/-1;color:var(--season-primary,#8fdf8b)}
+.hike-stat-card{grid-column:1/-1}
+.hike-stat-values{
+  display:grid;
+  grid-template-columns:repeat(3,1fr);
+  gap:8px;
+  margin-top:8px;
+}
+.hike-stat-values>span{
+  min-width:0;
+  padding:9px 8px;
+  border-radius:12px;
+  background:rgba(255,255,255,.045);
+}
+.hike-stat-values strong{font-size:21px!important;margin:0!important}
+.hike-stat-values em{font-size:9px!important}
+
+@media(max-width:420px){
+  .hike-fields{grid-template-columns:1fr}
+  .hike-history-detail{grid-template-columns:1fr auto}
+  .hike-history-detail span:last-of-type{grid-column:2}
+}
