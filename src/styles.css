@@ -534,3 +534,28 @@
   .splash-brand .logo-lockup{font-size:38px}
   .splash-brand .brand-app-icon{width:66px;height:66px}
 }
+
+
+/* Forma 0.7 — workout text/history functional styles */
+.workout-description-field textarea{
+  width:100%;
+  min-height:150px;
+  resize:vertical;
+  border:1px solid #455d7c;
+  background:#0d1a2a;
+  color:#f1f6fd;
+  border-radius:12px;
+  padding:12px;
+  outline:none;
+  font:inherit;
+  font-size:14px;
+  line-height:1.45;
+}
+.workout-description-field textarea::placeholder{color:#6f819a}
+.workout-history-button{width:100%;margin-top:12px}
+.workout-history-text{
+  white-space:pre-wrap;
+  line-height:1.55;
+  color:#d7e2ee;
+  font-size:13px;
+}
