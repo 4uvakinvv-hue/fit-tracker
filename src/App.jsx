@@ -245,6 +245,7 @@ export default function App(){
 
   useEffect(()=>{
     let active=true;
+    let initialized=false;
     const timeout=new Promise(resolve=>setTimeout(()=>resolve({data:{session:null}}),2600));
     const minimum=new Promise(resolve=>setTimeout(resolve,500));
 
@@ -253,6 +254,7 @@ export default function App(){
       minimum
     ]).then(([result])=>{
       if(!active)return;
+      initialized=true;
       setAuthSession(result?.data?.session||null);
       setBooting(false);
     });
@@ -261,7 +263,7 @@ export default function App(){
       if(!active)return;
       if(next)setBooting(true);
       setAuthSession(next);
-      if(!next)setBooting(false);
+      if(!next&&initialized)setBooting(false);
     });
 
     return ()=>{active=false;subscription.unsubscribe();};
