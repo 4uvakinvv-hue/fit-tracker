@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { supabase } from './supabase.js';
 
-const APP_VERSION = '0.4.2';
+const APP_VERSION = '0.5.0';
 
 const ACTIVITIES = [
   { id: 'gym', label: 'Тренажёрка', icon: '🏋︎', accent: 'violet' },
-  { id: 'bike', label: 'Велосипед', icon: '◉', accent: 'amber' },
-  { id: 'workout', label: 'Воркаут', icon: '⌗', accent: 'coral' },
+  { id: 'bike', label: 'Велосипед', icon: '🚴', accent: 'amber' },
+  { id: 'workout', label: 'Воркаут', icon: '┬', accent: 'coral' },
   { id: 'walk', label: 'Прогулка', icon: '🚶', accent: 'green' },
 ];
 
@@ -63,9 +63,66 @@ function sessionValue(s){
   if(s.type==='gym')return GYM_GROUPS.find(g=>g.id===s.gymGroup)?.label||'Тренажёрка';
   return '';
 }
-function mapSession(row){return {...row,gymGroup:row.gym_group,baseRows:row.base_rows||[],extraRows:row.extra_rows||[]};}
+function mapSession(row){return {...row,gymGroup:row.gym_group,baseRows:row.base_rows||[],extraRows:row.extra_rows||[],confirmed:row.confirmed!==false};}
 
-function Brand({compact=false}){return <div className={`logo-lockup ${compact?'compact':''}`}><span className="logo-mark"><i/><i/></span><span>Форма</span></div>;}
+function isFuture(key){return key>localDateKey();}
+function isQualifyingSession(s){
+  return s.confirmed!==false && s.date<=localDateKey() && (s.type!=='walk' || Number(s.steps||0)>=10000);
+}
+function isStatsSession(s){return isQualifyingSession(s);}
+function withDynamicNumbers(list){
+  const eligible=[...list].filter(isQualifyingSession).sort((a,b)=>a.date.localeCompare(b.date)||String(a.created_at||'').localeCompare(String(b.created_at||''))||String(a.id).localeCompare(String(b.id)));
+  const numberMap=new Map(eligible.map((s,i)=>[s.id,i+1]));
+  return list.map(s=>({...s,displayNumber:numberMap.get(s.id)||null}));
+}
+function seasonMeta(date=new Date()){
+  const m=date.getMonth()+1;
+  let start,name;
+  if(m===12){start=new Date(date.getFullYear(),11,1,12);name='зима';}
+  else if(m<=2){start=new Date(date.getFullYear()-1,11,1,12);name='зима';}
+  else if(m<=5){start=new Date(date.getFullYear(),2,1,12);name='весна';}
+  else if(m<=8){start=new Date(date.getFullYear(),5,1,12);name='лето';}
+  else {start=new Date(date.getFullYear(),8,1,12);name='осень';}
+  const end=addDays(addMonths(start,3),-1);
+  const day=daysBetween(localDateKey(start),localDateKey(date))+1;
+  const total=daysBetween(localDateKey(start),localDateKey(end))+1;
+  const previousStart=addMonths(start,-3);
+  const pm=previousStart.getMonth()+1;
+  const previousName=pm===12?'зима':pm===3?'весна':pm===6?'лето':'осень';
+  return {name,start:localDateKey(start),end:localDateKey(end),day,total,previousName};
+}
+function pointEvents(sessions){
+  const season=seasonMeta();
+  const ordered=[...sessions]
+    .filter(s=>isQualifyingSession(s)&&s.date>=season.start&&s.date<=season.end)
+    .sort((a,b)=>a.date.localeCompare(b.date)||String(a.created_at||'').localeCompare(String(b.created_at||''))||String(a.id).localeCompare(String(b.id)));
+  let prev=null;
+  return ordered.map(s=>{
+    const reasons=[];
+    let delta=(s.type==='gym'||s.type==='bike')?5:3;
+    reasons.push(`${activityMeta(s.type)?.label||'Активность'}: +${delta}`);
+    if(prev){
+      const gap=daysBetween(prev.date,s.date);
+      let interval=0,reason='';
+      if(gap===1){interval=2;reason='Тренировка на следующий день';}
+      else if(gap===2){interval=1;reason='Перерыв один день';}
+      else if(gap>=6&&gap<=13){interval=-Math.floor((gap-4)/2);reason=`Перерыв ${gap-1} дн.`;}
+      else if(gap>=14){interval=10;reason='Возвращение после 14+ дней';}
+      if(interval!==0){delta+=interval;reasons.push(`${reason}: ${interval>0?'+':''}${interval}`);}
+    }
+    if(s.type==='bike'&&Number(s.distance||0)>100){delta+=5;reasons.push('Велосипед более 100 км: +5');}
+    if(s.type==='walk'&&Number(s.steps||0)>30000){delta+=5;reasons.push('Прогулка более 30 000 шагов: +5');}
+    prev=s;
+    return {id:s.id,date:s.date,delta,reasons:reasons.join(' · ')};
+  });
+}
+function ActivityGlyph({type,className=''}) {
+  if(type==='bike') return <svg className={`activity-svg ${className}`} viewBox="0 0 64 64" aria-hidden="true"><circle cx="16" cy="43" r="10"/><circle cx="49" cy="43" r="10"/><path d="M16 43 27 24l10 19H16Zm11-19h11l11 19M25 18h9m4 6 6-7h6m-1 0 5 2"/></svg>;
+  if(type==='workout') return <svg className={`activity-svg ${className}`} viewBox="0 0 64 64" aria-hidden="true"><path d="M10 12v42M54 12v42M10 16h44"/><circle cx="32" cy="25" r="5"/><path d="M32 30v15M32 33 21 22M32 33l11-11M32 45l-8 9M32 45l8 9"/></svg>;
+  const meta=activityMeta(type);
+  return <span className={className}>{meta?.icon||'•'}</span>;
+}
+function Brand({compact=false}){return <div className={`logo-lockup ${compact?'compact':''}`}><img className="brand-app-icon" src={`${import.meta.env.BASE_URL}icon.svg`} alt=""/><span>Форма</span></div>;}
 
 function AuthScreen(){
   const [mode,setMode]=useState('register');
