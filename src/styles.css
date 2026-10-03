@@ -121,3 +121,238 @@
   .bottom-nav button{font-size:9px}
   .nav-icon{font-size:20px}
 }
+
+
+/* Forma 0.5 — navigation, wheel, seasons, points */
+.brand-app-icon{
+  width:48px;
+  height:48px;
+  border-radius:13px;
+  object-fit:cover;
+  flex:0 0 48px;
+}
+.logo-lockup.compact .brand-app-icon{width:43px;height:43px;border-radius:12px}
+.score-card{cursor:pointer;color:#fff}
+.score-card:active{transform:scale(.98)}
+
+.activity-svg{
+  width:28px;
+  height:28px;
+  fill:none;
+  stroke:currentColor;
+  stroke-width:3;
+  stroke-linecap:round;
+  stroke-linejoin:round;
+  display:block;
+}
+.inline-activity .activity-svg{width:20px;height:20px}
+.activity-label .activity-svg{width:18px;height:18px;flex:0 0 18px}
+.activity-popover .activity-svg{width:22px;height:22px;flex:0 0 22px}
+.activity-choice>.activity-svg{
+  width:44px;
+  height:44px;
+  margin-bottom:18px;
+}
+.metric-hero>.activity-svg{width:60px;height:60px;padding:12px}
+.stat-icon .activity-svg{width:31px;height:31px}
+.history-type-icon .activity-svg{width:24px;height:24px}
+
+.date-wheel-scroll{
+  touch-action:pan-y;
+  scroll-behavior:auto;
+  -webkit-overflow-scrolling:touch;
+  scroll-snap-type:y mandatory;
+}
+.wheel-date-row,
+.wheel-date-row.selected{
+  height:39px;
+  transform-origin:center center;
+  will-change:transform,opacity;
+  transition:background .08s ease,color .08s ease,outline-color .08s ease;
+}
+.wheel-date-row.selected{
+  outline:2px solid #79b7ff;
+  background:linear-gradient(90deg,rgba(52,75,109,.98),rgba(25,44,69,.98));
+}
+.wheel-fade{
+  height:43%;
+  z-index:8;
+}
+.wheel-fade-top{
+  background:linear-gradient(180deg,#0c1624 0%,rgba(12,22,36,.96) 14%,rgba(12,22,36,.78) 40%,rgba(12,22,36,.36) 72%,transparent 100%);
+}
+.wheel-fade-bottom{
+  background:linear-gradient(0deg,#08101a 0%,rgba(8,16,26,.96) 14%,rgba(8,16,26,.78) 40%,rgba(8,16,26,.36) 72%,transparent 100%);
+}
+.wheel-center-line{height:39px}
+.wheel-date-row.selected .wheel-date-label{font-size:15px}
+
+.modal-backdrop{
+  position:fixed;
+  inset:0;
+  z-index:300;
+  background:rgba(2,6,11,.74);
+  backdrop-filter:blur(7px);
+  display:flex;
+  align-items:flex-end;
+  justify-content:center;
+  padding:18px;
+}
+.points-modal{
+  width:min(100%,560px);
+  max-height:78vh;
+  overflow:auto;
+  border-radius:25px;
+  padding:18px;
+  background:linear-gradient(160deg,#17283d,#0b1523);
+  border:1px solid rgba(105,151,207,.32);
+  box-shadow:0 30px 80px rgba(0,0,0,.55);
+}
+.points-modal>header{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:12px;
+  margin-bottom:10px;
+}
+.points-modal h2{margin:2px 0 0;font-size:24px}
+.points-modal header small{color:#73e6bd;text-transform:capitalize}
+.points-modal header button{
+  width:38px;height:38px;border-radius:50%;
+  background:#20324a;color:#b9c7d8;font-size:24px
+}
+.points-events{display:grid;gap:8px}
+.points-events article{
+  min-height:64px;
+  border-radius:15px;
+  padding:10px 12px;
+  display:grid;
+  grid-template-columns:1fr auto;
+  gap:10px;
+  align-items:center;
+  background:rgba(13,26,42,.82);
+  border:1px solid rgba(103,139,186,.15);
+}
+.points-events strong,.points-events small{display:block}
+.points-events strong{font-size:12px}
+.points-events small{color:#8294ac;font-size:9px;line-height:1.4;margin-top:3px}
+.points-events b{font-size:18px}
+.points-events b.plus{color:var(--mint)}
+.points-events b.minus{color:#ff8a80}
+
+.exercise-row select,
+.exercise-row input{
+  font-size:14px;
+  font-weight:650;
+}
+.exercise-row select{padding-left:10px}
+.exercise-row input{text-align:center;font-size:15px}
+.exercise-head{font-size:10px}
+@media(max-width:420px){
+  .exercise-row select,.exercise-row input{font-size:13px}
+  .exercise-head,.exercise-row{grid-template-columns:minmax(0,1fr) 68px 72px}
+}
+
+.gym-bottom-actions{
+  display:grid;
+  gap:8px;
+  margin-top:10px;
+}
+.gym-bottom-actions .previous-button{margin:0}
+.gym-bottom-actions .trainer-button{width:100%}
+
+.history-row-controls{
+  display:grid;
+  grid-template-columns:minmax(0,1fr) 44px;
+  align-items:stretch;
+}
+.history-main-button{
+  width:100%;
+  min-height:67px;
+  padding:10px 8px 10px 12px;
+  display:grid;
+  grid-template-columns:37px minmax(0,1fr) auto 18px;
+  gap:8px;
+  align-items:center;
+  background:transparent;
+  color:#eef5ff;
+  text-align:left;
+}
+.delete-training-button{
+  margin:9px 9px 9px 0;
+  border-radius:12px;
+  background:#28181d;
+  color:#ff8e87;
+  font-size:22px;
+}
+.walk-rule{color:#7f91aa;font-size:9px;line-height:1.4}
+
+.rank-summary-card{
+  width:100%;
+  min-height:92px;
+  margin-top:18px;
+  padding:14px 15px;
+  border-radius:20px;
+  display:grid;
+  grid-template-columns:1fr auto 16px;
+  gap:14px;
+  align-items:center;
+  text-align:left;
+  color:#eef7ff;
+  background:linear-gradient(135deg,rgba(25,65,70,.95),rgba(18,31,49,.97));
+  border:1px solid rgba(99,235,193,.3);
+}
+.rank-summary-card small,.rank-summary-card strong,.rank-summary-card span,.rank-summary-card b{display:block}
+.rank-summary-card small{color:#78e3be;font-size:9px;text-transform:capitalize}
+.rank-summary-card strong{font-size:22px;margin-top:3px}
+.rank-summary-card>div:nth-child(2){text-align:right}
+.rank-summary-card span{color:#8193aa;font-size:9px}
+.rank-summary-card b{font-size:20px;margin-top:3px}
+.rank-summary-card em{font-style:normal;color:#8293a9;font-size:10px;font-weight:600}
+.rank-summary-card i{font-style:normal;font-size:27px;color:#8da0b8}
+
+.season-card{
+  margin-top:16px;
+  min-height:64px;
+  padding:13px 15px;
+  border-radius:18px;
+  background:linear-gradient(135deg,rgba(28,68,65,.92),rgba(17,31,47,.94));
+  border:1px solid rgba(101,240,181,.25);
+}
+.season-card strong,.season-card span{display:block}
+.season-card strong{font-size:16px;text-transform:capitalize}
+.season-card span{color:#8fa2b9;font-size:10px;margin-top:4px}
+.leaderboard-scroll{
+  max-height:48vh;
+  overflow-y:auto;
+  overscroll-behavior:contain;
+  scrollbar-width:none;
+  padding-right:2px;
+}
+.leaderboard-scroll::-webkit-scrollbar{display:none}
+.previous-season{
+  margin-top:20px;
+  padding:15px;
+  border-radius:20px;
+  background:rgba(15,28,44,.82);
+  border:1px solid rgba(101,137,184,.18);
+}
+.previous-season header small{color:#7f91aa;font-size:9px}
+.previous-season header h2{margin:2px 0 10px;font-size:18px;text-transform:capitalize}
+.previous-row{
+  min-height:42px;
+  display:grid;
+  grid-template-columns:28px 1fr auto;
+  align-items:center;
+  gap:8px;
+  border-top:1px solid rgba(116,146,184,.1);
+}
+.previous-row span{color:#8091a9;font-size:10px;text-align:center}
+.previous-row strong{font-size:11px}
+.previous-row b{color:#ffd45c;font-size:11px}
+
+.install-card,.account-actions{display:none!important}
+.members-screen .inactive-rule{margin-top:18px}
+
+.bottom-nav.four{grid-template-columns:repeat(4,1fr)}
+.sub-screen,.tab-screen{padding-bottom:32px}
