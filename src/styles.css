@@ -356,3 +356,181 @@
 
 .bottom-nav.four{grid-template-columns:repeat(4,1fr)}
 .sub-screen,.tab-screen{padding-bottom:32px}
+
+
+/* Forma 0.6 — seasonal palette, splash, auth and workout notes */
+.season-autumn{
+  --mint:#f4b45f;
+  --cyan:#e88d5b;
+  --violet:#c995d1;
+  --amber:#ffc76b;
+  --coral:#ff856f;
+  background:
+    radial-gradient(circle at 12% 0%,rgba(178,91,48,.20),transparent 33%),
+    radial-gradient(circle at 95% 14%,rgba(224,160,77,.10),transparent 28%),
+    linear-gradient(180deg,#18121a 0%,#0b0d12 56%,#14100e 100%);
+}
+.season-winter{
+  --mint:#89dcff;
+  --cyan:#74c8ff;
+  --violet:#aab7ff;
+  --amber:#e9f4ff;
+  --coral:#a5d4ff;
+  background:
+    radial-gradient(circle at 14% 0%,rgba(105,177,240,.20),transparent 34%),
+    radial-gradient(circle at 100% 13%,rgba(191,226,255,.10),transparent 30%),
+    linear-gradient(180deg,#0c1726 0%,#071018 58%,#0a1420 100%);
+}
+.season-spring{
+  --mint:#7ee7aa;
+  --cyan:#7fded4;
+  --violet:#d9a6ea;
+  --amber:#ffd77d;
+  --coral:#ff9ca6;
+  background:
+    radial-gradient(circle at 14% 0%,rgba(100,205,143,.18),transparent 34%),
+    radial-gradient(circle at 98% 12%,rgba(236,164,205,.10),transparent 30%),
+    linear-gradient(180deg,#111c19 0%,#0a1012 58%,#111814 100%);
+}
+.season-summer{
+  --mint:#67edbc;
+  --cyan:#57e4e6;
+  --violet:#b99cff;
+  --amber:#ffd55c;
+  --coral:#ff886d;
+  background:
+    radial-gradient(circle at 14% 0%,rgba(37,179,170,.21),transparent 34%),
+    radial-gradient(circle at 100% 10%,rgba(255,199,76,.10),transparent 30%),
+    linear-gradient(180deg,#081c20 0%,#071012 58%,#09171a 100%);
+}
+
+.splash-screen{
+  position:fixed;
+  inset:0;
+  z-index:9999;
+  display:grid;
+  place-items:center;
+  min-height:100vh;
+  padding:24px;
+}
+.splash-brand{
+  display:grid;
+  justify-items:center;
+  gap:10px;
+  transform:translateY(-3vh);
+}
+.splash-brand .logo-lockup{font-size:42px}
+.splash-brand .brand-app-icon{width:72px;height:72px;border-radius:19px}
+.splash-brand p{
+  margin:0;
+  color:#8c9ab0;
+  font-size:12px;
+  letter-spacing:.02em;
+}
+
+.auth-screen{min-height:100vh}
+.login-form,.register-form{margin-top:18px}
+.register-entry{
+  margin:14px 2px 0;
+  min-height:52px;
+  padding:8px 10px 8px 13px;
+  border-radius:16px;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  background:rgba(20,33,50,.72);
+  border:1px solid rgba(118,150,191,.15);
+}
+.register-entry span{color:#8b9bb2;font-size:11px}
+.register-entry button{
+  min-height:36px;
+  padding:0 12px;
+  border-radius:11px;
+  background:#21354e;
+  color:#eef5ff;
+  font-size:11px;
+  font-weight:850;
+}
+.register-form{
+  animation:forma-expand .18s ease-out;
+}
+.auth-global-message{
+  margin:12px 2px 0;
+  padding:11px 13px;
+  border-radius:13px;
+  background:rgba(26,45,65,.72);
+  border:1px solid rgba(105,145,190,.18);
+}
+@keyframes forma-expand{
+  from{opacity:0;transform:translateY(-6px)}
+  to{opacity:1;transform:translateY(0)}
+}
+
+.exercise-head,
+.exercise-row{
+  grid-template-columns:minmax(0,1fr) 72px 78px 34px;
+}
+.exercise-row-wrap{display:grid;gap:0}
+.exercise-note-button{
+  width:34px;
+  height:41px;
+  border-radius:10px;
+  background:#182a41;
+  color:#8fa4be;
+  border:1px solid #405774;
+  font-size:18px;
+  display:grid;
+  place-items:center;
+}
+.exercise-note-button.has-note{
+  color:var(--mint);
+  border-color:color-mix(in srgb,var(--mint) 55%,transparent);
+}
+.exercise-comment-row{
+  display:grid;
+  grid-template-columns:minmax(0,1fr) auto;
+  gap:7px;
+  padding:1px 0 7px;
+}
+.exercise-comment-row input{
+  min-width:0;
+  height:41px;
+  border-radius:10px;
+  border:1px solid #455d7c;
+  background:#0d1a2a;
+  color:#f1f6fd;
+  padding:0 10px;
+  outline:none;
+  font-size:12px;
+}
+.exercise-comment-row button{
+  height:41px;
+  border-radius:10px;
+  padding:0 11px;
+  background:linear-gradient(100deg,var(--mint),var(--cyan));
+  color:#0d1110;
+  font-size:10px;
+  font-weight:900;
+}
+.readonly-row-wrap{
+  border-top:1px solid rgba(110,139,177,.1);
+}
+.readonly-row-wrap .readonly-row{border-top:0}
+.readonly-comment{
+  padding:0 0 8px;
+  color:#8fa0b7;
+  font-size:9px;
+  line-height:1.4;
+}
+
+@media(max-width:420px){
+  .exercise-head,
+  .exercise-row{
+    grid-template-columns:minmax(0,1fr) 62px 67px 32px;
+    gap:5px;
+  }
+  .exercise-note-button{width:32px}
+  .splash-brand .logo-lockup{font-size:38px}
+  .splash-brand .brand-app-icon{width:66px;height:66px}
+}
