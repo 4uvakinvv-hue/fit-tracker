@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { supabase } from './supabase.js';
 import { App as NativeApp } from '@capacitor/app';
 
-const APP_VERSION = '0.5.0';
+const APP_VERSION = '0.6.0';
 
 const ACTIVITIES = [
   { id: 'gym', label: 'Тренажёрка', icon: '🏋︎', accent: 'violet' },
@@ -44,8 +44,8 @@ function formatDate(key,options={day:'numeric',month:'long'}){return new Intl.Da
 function formatDateShort(key){return new Intl.DateTimeFormat('ru-RU',{day:'numeric',month:'short'}).format(dateFromKey(key));}
 function activityMeta(type){return ACTIVITIES.find(a=>a.id===type);}
 function activityLabel(item){return item?.customTitle||activityMeta(item?.type)?.label||'';}
-function makeRows(n){return Array.from({length:n},()=>({exercise:'',sets:'',weight:''}));}
-function normalizeRows(rows,n){return Array.from({length:n},(_,i)=>({exercise:rows?.[i]?.exercise||'',sets:rows?.[i]?.sets??'',weight:rows?.[i]?.weight??''}));}
+function makeRows(n){return Array.from({length:n},()=>({exercise:'',sets:'',weight:'',comment:''}));}
+function normalizeRows(rows,n){return Array.from({length:n},(_,i)=>({exercise:rows?.[i]?.exercise||'',sets:rows?.[i]?.sets??'',weight:rows?.[i]?.weight??'',comment:''}));}
 function mapSession(row){return {...row,gymGroup:row.gym_group,baseRows:row.base_rows||[],extraRows:row.extra_rows||[],confirmed:row.confirmed!==false};}
 function isFuture(key){return key>localDateKey();}
 function isQualifyingSession(s){return s.confirmed!==false&&s.date<=localDateKey()&&(s.type!=='walk'||Number(s.steps||0)>=10000);}
@@ -58,6 +58,14 @@ function withDynamicNumbers(list){
     .sort((a,b)=>a.date.localeCompare(b.date)||String(a.created_at||'').localeCompare(String(b.created_at||''))||String(a.id).localeCompare(String(b.id)));
   const map=new Map(eligible.map((s,i)=>[s.id,i+1]));
   return list.map(s=>({...s,displayNumber:map.get(s.id)||null}));
+}
+
+function seasonKey(date=new Date()){
+  const m=date.getMonth()+1;
+  if(m===12||m<=2)return 'winter';
+  if(m<=5)return 'spring';
+  if(m<=8)return 'summer';
+  return 'autumn';
 }
 
 function seasonMeta(date=new Date()){
@@ -145,50 +153,79 @@ function Brand({compact=false}){
   </div>;
 }
 
-function AuthScreen(){
-  const [mode,setMode]=useState('register');
-  const [name,setName]=useState('');
-  const [email,setEmail]=useState('');
-  const [password,setPassword]=useState('');
-  const [message,setMessage]=useState('');
-  const [busy,setBusy]=useState(false);
-
-  async function submit(e){
-    e.preventDefault();
-    setBusy(true);setMessage('');
-    try{
-      if(mode==='register'){
-        if(!name.trim())throw new Error('Укажи имя.');
-        const {data,error}=await supabase.auth.signUp({email:email.trim(),password,options:{data:{name:name.trim()}}});
-        if(error)throw error;
-        if(!data.session)setMessage('Регистрация создана. Подтверди e-mail по ссылке в письме, затем войди.');
-      }else{
-        const {error}=await supabase.auth.signInWithPassword({email:email.trim(),password});
-        if(error)throw error;
-      }
-    }catch(err){setMessage(err.message||'Не получилось выполнить вход.');}
-    finally{setBusy(false);}
-  }
-
-  return <main className="onboarding dark-screen">
-    <Brand/><p className="brand-subtitle">Тренировки. Питание. Прогресс.</p>
-    <h1>{mode==='register'?'Регистрация':'Вход'}</h1>
-    <p className="soft-text">Один аккаунт — одна история тренировок, баллы и место среди участников.</p>
-    <div className="auth-tabs">
-      <button className={mode==='register'?'active':''} onClick={()=>setMode('register')}>Регистрация</button>
-      <button className={mode==='login'?'active':''} onClick={()=>setMode('login')}>Вход</button>
-    </div>
-    <form className="glass-card onboarding-form" onSubmit={submit}>
-      {mode==='register'&&<label className="dark-field"><span>Имя</span><input value={name} onChange={e=>setName(e.target.value)} placeholder="Как тебя показывать участникам"/></label>}
-      <label className="dark-field"><span>E-mail</span><input type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="you@example.com" required/></label>
-      <label className="dark-field"><span>Пароль</span><input type="password" value={password} onChange={e=>setPassword(e.target.value)} placeholder="Минимум 6 символов" minLength={6} required/></label>
-      <button className="gradient-button" disabled={busy}>{busy?'Подожди…':mode==='register'?'Зарегистрироваться':'Войти'}</button>
-      {message&&<p className="auth-message">{message}</p>}
-    </form>
-    <p className="build-version">Версия {APP_VERSION}</p>
+function SplashScreen(){
+  return <main className={`splash-screen season-${seasonKey()}`}>
+    <div className="splash-brand"><Brand/><p>Тренировки. Питание. Прогресс.</p></div>
   </main>;
 }
 
+function AuthScreen(){
+  const [loginEmail,setLoginEmail]=useState('');
+  const [loginPassword,setLoginPassword]=useState('');
+  const [registerOpen,setRegisterOpen]=useState(false);
+  const [name,setName]=useState('');
+  const [registerEmail,setRegisterEmail]=useState('');
+  const [registerPassword,setRegisterPassword]=useState('');
+  const [message,setMessage]=useState('');
+  const [busy,setBusy]=useState('');
+
+  async function login(e){
+    e.preventDefault();
+    setBusy('login');setMessage('');
+    try{
+      const {error}=await supabase.auth.signInWithPassword({email:loginEmail.trim(),password:loginPassword});
+      if(error)throw error;
+    }catch(err){setMessage(err.message||'Не получилось войти.');}
+    finally{setBusy('');}
+  }
+
+  async function register(e){
+    e.preventDefault();
+    setBusy('register');setMessage('');
+    try{
+      if(!name.trim())throw new Error('Укажи имя.');
+      const {data,error}=await supabase.auth.signUp({
+        email:registerEmail.trim(),
+        password:registerPassword,
+        options:{
+          data:{name:name.trim(),app_name:'Форма'},
+          emailRedirectTo:'https://4uvakinvv-hue.github.io/fit-tracker/'
+        }
+      });
+      if(error)throw error;
+      if(!data.session)setMessage('Аккаунт создан. На почту отправлено письмо подтверждения для приложения «Форма».');
+    }catch(err){setMessage(err.message||'Не получилось зарегистрироваться.');}
+    finally{setBusy('');}
+  }
+
+  return <main className={`onboarding dark-screen auth-screen season-${seasonKey()}`}>
+    <Brand/>
+    <p className="brand-subtitle">Тренировки. Питание. Прогресс.</p>
+    <h1>Вход</h1>
+    <p className="soft-text">Уже зарегистрированы — просто войдите. Новый участник может создать аккаунт ниже на этом же экране.</p>
+
+    <form className="glass-card onboarding-form login-form" onSubmit={login}>
+      <label className="dark-field"><span>E-mail</span><input type="email" value={loginEmail} onChange={e=>setLoginEmail(e.target.value)} placeholder="you@example.com" required/></label>
+      <label className="dark-field"><span>Пароль</span><input type="password" value={loginPassword} onChange={e=>setLoginPassword(e.target.value)} placeholder="Пароль" required/></label>
+      <button className="gradient-button" disabled={busy==='login'}>{busy==='login'?'Входим…':'Войти'}</button>
+    </form>
+
+    <div className="register-entry">
+      <span>Впервые в «Форме»?</span>
+      <button onClick={()=>{setRegisterOpen(v=>!v);setMessage('');}}>{registerOpen?'Свернуть регистрацию':'Регистрация'}</button>
+    </div>
+
+    {registerOpen&&<form className="glass-card onboarding-form register-form" onSubmit={register}>
+      <label className="dark-field"><span>Имя</span><input value={name} onChange={e=>setName(e.target.value)} placeholder="Имя в рейтинге" required/></label>
+      <label className="dark-field"><span>E-mail</span><input type="email" value={registerEmail} onChange={e=>setRegisterEmail(e.target.value)} placeholder="you@example.com" required/></label>
+      <label className="dark-field"><span>Пароль</span><input type="password" value={registerPassword} onChange={e=>setRegisterPassword(e.target.value)} placeholder="Минимум 6 символов" minLength={6} required/></label>
+      <button className="gradient-button" disabled={busy==='register'}>{busy==='register'?'Создаём аккаунт…':'Создать аккаунт'}</button>
+    </form>}
+
+    {message&&<p className="auth-message auth-global-message">{message}</p>}
+    <p className="build-version">Версия {APP_VERSION}</p>
+  </main>;
+}
 export default function App(){
   const [authSession,setAuthSession]=useState(null);
   const [profile,setProfile]=useState(null);
@@ -202,13 +239,31 @@ export default function App(){
   const [draftDateKey,setDraftDateKey]=useState(localDateKey());
   const [loading,setLoading]=useState(false);
   const [loadError,setLoadError]=useState('');
+  const [booting,setBooting]=useState(true);
 
   const numberedSessions=useMemo(()=>withDynamicNumbers(sessions),[sessions]);
 
   useEffect(()=>{
     let active=true;
-    supabase.auth.getSession().then(({data})=>{if(active&&data.session)setAuthSession(data.session);}).catch(()=>{});
-    const {data:{subscription}}=supabase.auth.onAuthStateChange((_event,next)=>{if(active)setAuthSession(next);});
+    const timeout=new Promise(resolve=>setTimeout(()=>resolve({data:{session:null}}),2600));
+    const minimum=new Promise(resolve=>setTimeout(resolve,500));
+
+    Promise.all([
+      Promise.race([supabase.auth.getSession().catch(()=>({data:{session:null}})),timeout]),
+      minimum
+    ]).then(([result])=>{
+      if(!active)return;
+      setAuthSession(result?.data?.session||null);
+      setBooting(false);
+    });
+
+    const {data:{subscription}}=supabase.auth.onAuthStateChange((_event,next)=>{
+      if(!active)return;
+      if(next)setBooting(true);
+      setAuthSession(next);
+      if(!next)setBooting(false);
+    });
+
     return ()=>{active=false;subscription.unsubscribe();};
   },[]);
 
@@ -305,6 +360,7 @@ export default function App(){
       setLoadError('Не удалось связаться с общей базой. Проверь интернет и нажми «Повторить».');
     }finally{
       setLoading(false);
+      setBooting(false);
     }
   }
 
@@ -411,11 +467,11 @@ export default function App(){
     if(error)throw error;
   }
 
+  if(booting||(authSession&&loading))return <SplashScreen/>;
   if(!authSession)return <AuthScreen/>;
-  if(loading)return <main className="onboarding dark-screen"><Brand/><p className="loading-copy">Загружаем Форму…</p><p className="build-version">Версия {APP_VERSION}</p></main>;
   if(loadError)return <main className="onboarding dark-screen"><Brand/><h1>Связь с базой</h1><p className="soft-text">{loadError}</p><div className="glass-card onboarding-form"><button className="gradient-button" onClick={loadData}>Повторить</button></div></main>;
 
-  return <div className="app-shell-dark">
+  return <div className={`app-shell-dark season-${seasonKey()}`}>
     {screen==='home'&&<Home schedule={schedule} sessions={numberedSessions} profile={profile} selectedDateKey={selectedDateKey} setSelectedDateKey={setSelectedDateKey} onSavePlan={savePlan} onDeletePlan={deletePlan} onProposal={sendProposal} onOpenWorkout={openAdd}/>}
     {screen==='history'&&<History sessions={numberedSessions} onDelete={deleteSession}/>}
     {screen==='stats'&&<Statistics sessions={numberedSessions} profile={profile} memberCount={members.length} onOpenMembers={()=>navigate('members')}/>}
@@ -656,7 +712,9 @@ function GymTraining({dateKey,setDateKey,sessions,gymTemplates,onSaveTemplate,on
       setError('Выбери хотя бы одно упражнение.');
       return;
     }
-    await onSaveTemplate(group,baseRows,extraRows);
+    const templateBase=baseRows.map(({comment,...row})=>row);
+    const templateExtra=extraRows.map(({comment,...row})=>row);
+    await onSaveTemplate(group,templateBase,templateExtra);
     await onSave({type:'gym',date:dateKey,gymGroup:group,baseRows,extraRows,title:GYM_GROUPS.find(g=>g.id===group)?.label||'Тренажёрка'});
   }
 
@@ -689,17 +747,27 @@ function GymTraining({dateKey,setDateKey,sessions,gymTemplates,onSaveTemplate,on
 }
 
 function ExerciseBlock({title,subtitle,rows,options,kind,onChange,accent}){
+  const [openComment,setOpenComment]=useState(null);
+
   return <section className={`exercise-block ${accent}`}>
     <header><div><h2>{title}</h2><p>{subtitle}</p></div><span>{rows.length} упражнений</span></header>
-    <div className="exercise-head"><span>Упражнение</span><span>Подходы</span><span>Вес</span></div>
-    <div className="exercise-rows">{rows.map((row,i)=><div className="exercise-row" key={i}>
-      <select value={row.exercise} onChange={e=>onChange(kind,i,'exercise',e.target.value)}><option value="">Выбрать упражнение</option>{options.map(o=><option key={o}>{o}</option>)}</select>
-      <input inputMode="numeric" value={row.sets} onChange={e=>onChange(kind,i,'sets',e.target.value)} placeholder="3"/>
-      <div className="weight-input"><input inputMode="decimal" value={row.weight} onChange={e=>onChange(kind,i,'weight',e.target.value)} placeholder="0"/><small>кг</small></div>
+    <div className="exercise-head"><span>Упражнение</span><span>Подходы</span><span>Вес</span><span></span></div>
+
+    <div className="exercise-rows">{rows.map((row,i)=><div className="exercise-row-wrap" key={i}>
+      <div className="exercise-row">
+        <select value={row.exercise} onChange={e=>onChange(kind,i,'exercise',e.target.value)}><option value="">Выбрать упражнение</option>{options.map(o=><option key={o}>{o}</option>)}</select>
+        <input inputMode="numeric" value={row.sets} onChange={e=>onChange(kind,i,'sets',e.target.value)} placeholder="3"/>
+        <div className="weight-input"><input inputMode="decimal" value={row.weight} onChange={e=>onChange(kind,i,'weight',e.target.value)} placeholder="0"/><small>кг</small></div>
+        <button className={`exercise-note-button ${row.comment?'has-note':''}`} onClick={()=>setOpenComment(openComment===i?null:i)} type="button" aria-label="Комментарий">▤</button>
+      </div>
+
+      {openComment===i&&<div className="exercise-comment-row">
+        <input value={row.comment||''} onChange={e=>onChange(kind,i,'comment',e.target.value)} placeholder="Комментарий к упражнению"/>
+        <button type="button" onClick={()=>setOpenComment(null)}>Сохранить</button>
+      </div>}
     </div>)}</div>
   </section>;
 }
-
 function GymHistory({sessions,onBack}){
   const ordered=[...sessions].sort((a,b)=>b.date.localeCompare(a.date)||String(b.created_at||'').localeCompare(String(a.created_at||'')));
   const [openId,setOpenId]=useState(ordered[0]?.id||null);
@@ -729,10 +797,12 @@ function ReadonlyExerciseBlock({title,rows}){
   return <section className="readonly-block">
     <h3>{title}</h3>
     <div className="readonly-head"><span>Упражнение</span><span>Подх.</span><span>Вес</span></div>
-    {visible.map((r,i)=><div className="readonly-row" key={i}><span>{r.exercise}</span><span>{r.sets||'—'}</span><span>{r.weight||'—'} кг</span></div>)}
+    {visible.map((r,i)=><div className="readonly-row-wrap" key={i}>
+      <div className="readonly-row"><span>{r.exercise}</span><span>{r.sets||'—'}</span><span>{r.weight||'—'} кг</span></div>
+      {r.comment&&<div className="readonly-comment">▤ {r.comment}</div>}
+    </div>)}
   </section>;
 }
-
 function SimpleTraining({type,dateKey,setDateKey,sessions,onBack,onSave}){
   const meta=activityMeta(type);
   const [title,setTitle]=useState('');
