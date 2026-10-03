@@ -2,13 +2,14 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { supabase } from './supabase.js';
 import { App as NativeApp } from '@capacitor/app';
 
-const APP_VERSION = '0.7.0';
+const APP_VERSION = '1.1';
 
 const ACTIVITIES = [
   { id: 'gym', label: 'Тренажёрка', icon: '🏋︎', accent: 'violet' },
   { id: 'bike', label: 'Велосипед', icon: '🚴', accent: 'amber' },
   { id: 'workout', label: 'Воркаут', icon: '┬', accent: 'coral' },
   { id: 'walk', label: 'Прогулка', icon: '🚶', accent: 'green' },
+  { id: 'hike', label: 'Поход', icon: '△', accent: 'hike' },
 ];
 
 const GYM_GROUPS = [
@@ -46,7 +47,7 @@ function activityMeta(type){return ACTIVITIES.find(a=>a.id===type);}
 function activityLabel(item){return item?.customTitle||activityMeta(item?.type)?.label||'';}
 function makeRows(n){return Array.from({length:n},()=>({exercise:'',sets:'',weight:'',comment:''}));}
 function normalizeRows(rows,n){return Array.from({length:n},(_,i)=>({exercise:rows?.[i]?.exercise||'',sets:rows?.[i]?.sets??'',weight:rows?.[i]?.weight??'',comment:''}));}
-function mapSession(row){return {...row,gymGroup:row.gym_group,baseRows:row.base_rows||[],extraRows:row.extra_rows||[],workoutText:row.workout_text||'',confirmed:row.confirmed!==false};}
+function mapSession(row){return {...row,gymGroup:row.gym_group,baseRows:row.base_rows||[],extraRows:row.extra_rows||[],workoutText:row.workout_text||'',hikeDays:Number(row.hike_days)||0,hikeDistance:Number(row.hike_distance)||0,confirmed:row.confirmed!==false};}
 function isFuture(key){return key>localDateKey();}
 function isQualifyingSession(s){return s.confirmed!==false&&s.date<=localDateKey()&&(s.type!=='walk'||Number(s.steps||0)>=10000);}
 function isStatsSession(s){return isQualifyingSession(s);}
@@ -95,8 +96,12 @@ function pointEvents(sessions){
   let rawBalance=0;
   const events=ordered.map(s=>{
     const reasons=[];
-    let delta=(s.type==='gym'||s.type==='bike')?5:3;
-    reasons.push(`${activityMeta(s.type)?.label||'Активность'}: +${delta}`);
+    let delta=s.type==='hike'
+      ?5*Math.max(Number(s.hikeDays)||1,1)
+      :(s.type==='gym'||s.type==='bike')?5:3;
+    reasons.push(s.type==='hike'
+      ?`Поход: ${Math.max(Number(s.hikeDays)||1,1)} дн. × 5 = +${delta}`
+      :`${activityMeta(s.type)?.label||'Активность'}: +${delta}`);
 
     if(prev){
       const gap=daysBetween(prev.date,s.date);
@@ -158,6 +163,7 @@ function sessionValue(s){
   if(s.type==='bike')return s.distance?`${s.distance} км`:'Без километража';
   if(s.type==='walk')return s.steps?`${Number(s.steps).toLocaleString('ru-RU')} шагов`:'Без шагов';
   if(s.type==='workout')return s.workoutText?'Описание':'Воркаут';
+  if(s.type==='hike')return `${Math.max(Number(s.hikeDays)||1,1)} дн. · ${Number(s.hikeDistance||0).toLocaleString('ru-RU')} км`;
   if(s.type==='gym')return GYM_GROUPS.find(g=>g.id===s.gymGroup)?.label||'Тренажёрка';
   return '';
 }
@@ -165,6 +171,7 @@ function sessionValue(s){
 function ActivityGlyph({type,className=''}) {
   if(type==='bike') return <svg className={`activity-svg ${className}`} viewBox="0 0 64 64" aria-hidden="true"><circle cx="16" cy="43" r="10"/><circle cx="49" cy="43" r="10"/><path d="M16 43 27 24l10 19H16Zm11-19h11l11 19M25 18h9m4 6 6-7h6m-1 0 5 2"/></svg>;
   if(type==='workout') return <svg className={`activity-svg ${className}`} viewBox="0 0 64 64" aria-hidden="true"><path d="M10 12v42M54 12v42M10 16h44"/><circle cx="32" cy="25" r="5"/><path d="M32 30v15M32 33 21 22M32 33l11-11M32 45l-8 9M32 45l8 9"/></svg>;
+  if(type==='hike') return <svg className={`activity-svg ${className}`} viewBox="0 0 64 64" aria-hidden="true"><path d="M5 51 23 23l9 14 8-12 19 26H5Z"/><path d="m18 31 5-8 5 8m8 2 4-8 5 7"/><path d="M12 51h40"/></svg>;
   const meta=activityMeta(type);
   return <span className={className}>{meta?.icon||'•'}</span>;
 }
@@ -177,7 +184,7 @@ function Brand({compact=false}){
 }
 
 function SplashScreen(){
-  return <main className={`splash-screen season-${seasonKey()}`}>
+  return <main className="splash-screen">
     <div className="splash-brand"><Brand/><p>Тренировки. Питание. Прогресс.</p></div>
   </main>;
 }
@@ -223,7 +230,7 @@ function AuthScreen(){
 
   return <main className={`onboarding dark-screen auth-screen season-${seasonKey()}`}>
     <Brand/>
-    <p className="brand-subtitle">Тренировки. Питание. Прогресс.</p>
+    <p className="brand-subtitle season-brand-label">Сезон {seasonMeta().name.toUpperCase()}</p>
     <h1>Вход</h1>
     <p className="soft-text">Уже зарегистрированы — просто войдите. Новый участник может создать аккаунт ниже на этом же экране.</p>
 
@@ -475,6 +482,8 @@ export default function App(){
       duration:null,
       steps:payload.steps??null,
       workout_text:payload.workoutText||null,
+      hike_days:payload.hikeDays??null,
+      hike_distance:payload.hikeDistance??null,
       gym_group:payload.gymGroup||null,
       base_rows:payload.baseRows||null,
       extra_rows:payload.extraRows||null,
@@ -544,12 +553,14 @@ export default function App(){
     {screen==='workout'&&<WorkoutTraining dateKey={draftDateKey} setDateKey={setDraftDateKey} sessions={numberedSessions} onBack={()=>goBack('add-training')} onHistory={()=>navigate('workout-history')} onSave={saveSession}/>}
     {screen==='workout-history'&&<WorkoutHistory sessions={numberedSessions.filter(s=>s.type==='workout'&&isHistorySession(s))} onBack={()=>goBack('workout')}/>}
     {screen==='walk'&&<SimpleTraining type="walk" dateKey={draftDateKey} setDateKey={setDraftDateKey} sessions={numberedSessions} onBack={()=>goBack('add-training')} onSave={saveSession}/>}
+    {screen==='hike'&&<HikeTraining dateKey={draftDateKey} setDateKey={setDraftDateKey} sessions={numberedSessions} onBack={()=>goBack('add-training')} onHistory={()=>navigate('hike-history')} onSave={saveSession}/>}
+    {screen==='hike-history'&&<HikeHistory sessions={numberedSessions.filter(s=>s.type==='hike'&&isHistorySession(s))} onBack={()=>goBack('hike')}/>}
     <BottomNav screen={screen} onNavigate={navigate}/>
   </div>;
 }
 
 function BottomNav({screen,onNavigate}){
-  const active=['add-training','gym','gym-history','bike','workout','workout-history','walk'].includes(screen)?'home':screen;
+  const active=['add-training','gym','gym-history','bike','workout','workout-history','walk','hike','hike-history'].includes(screen)?'home':screen;
   const items=[['home','⌂','Главная'],['history','▥','История'],['stats','▤','Статистика'],['members','♟','Участники']];
   return <nav className="bottom-nav four">
     {items.map(([key,icon,label])=><button key={key} className={active===key?'active':''} onClick={()=>onNavigate(key)}><span className="nav-icon">{icon}</span>{label}</button>)}
@@ -563,7 +574,7 @@ function Home({schedule,sessions,profile,selectedDateKey,setSelectedDateKey,onSa
 
   return <main className="main-screen home-no-scroll">
     <header className="topbar">
-      <div><Brand compact/><p className="brand-subtitle">Тренировки. Питание. Прогресс.</p></div>
+      <div><Brand compact/><p className="brand-subtitle season-brand-label">Сезон {season.name.toUpperCase()}</p></div>
       <div className="score-wrap">
         <button className="score-card" onClick={()=>setPointsOpen(true)}><span>★</span><strong>Баллы: {profile?.points||0}</strong></button>
         <small>{scoreHint(sessions)}</small>
@@ -929,6 +940,94 @@ function WorkoutHistory({sessions,onBack}){
   </main>;
 }
 
+function HikeTraining({dateKey,setDateKey,sessions,onBack,onHistory,onSave}){
+  const [name,setName]=useState('');
+  const [days,setDays]=useState('1');
+  const [distance,setDistance]=useState('');
+  const [saving,setSaving]=useState(false);
+
+  const list=sessions.filter(s=>s.type==='hike'&&isHistorySession(s));
+  const totalDays=list.reduce((sum,s)=>sum+Math.max(Number(s.hikeDays)||1,1),0);
+  const totalDistance=list.reduce((sum,s)=>sum+(Number(s.hikeDistance)||0),0);
+
+  async function save(){
+    if(!name.trim())return;
+    setSaving(true);
+    try{
+      await onSave({
+        type:'hike',
+        date:dateKey,
+        title:name.trim(),
+        hikeDays:Math.max(Number(days)||1,1),
+        hikeDistance:Math.max(Number(distance)||0,0),
+      });
+    }finally{
+      setSaving(false);
+    }
+  }
+
+  return <main className="sub-screen hike-training-screen">
+    <ScreenBack onBack={onBack} title="Поход"/>
+    <section className="metric-hero hike-metric-hero">
+      <ActivityGlyph type="hike" className="hike"/>
+      <div><small>Всего походов</small><strong>{list.length}</strong><em>{totalDays} дн. · {totalDistance.toLocaleString('ru-RU')} км</em></div>
+    </section>
+
+    <section className="glass-card simple-form hike-form">
+      <label className="date-control embedded"><span>Дата начала</span><input type="date" value={dateKey} onChange={e=>setDateKey(e.target.value)}/></label>
+      <label className="dark-field"><span>Название похода</span><input value={name} onChange={e=>setName(e.target.value)} placeholder="Например: Ачишхо" required/></label>
+      <div className="hike-fields">
+        <label className="dark-field"><span>Количество дней</span><input inputMode="numeric" type="number" min="1" value={days} onChange={e=>setDays(e.target.value)} placeholder="1"/></label>
+        <label className="dark-field"><span>Расстояние, км</span><input inputMode="decimal" type="number" min="0" step="0.1" value={distance} onChange={e=>setDistance(e.target.value)} placeholder="18"/></label>
+      </div>
+      <small className="hike-points-note">За каждый день похода начисляется 5 баллов.</small>
+      <button className="gradient-button save-simple" onClick={save} disabled={saving||!name.trim()}>
+        {saving?'Сохраняю…':isFuture(dateKey)?'Запланировать поход':'Сохранить поход'}
+      </button>
+    </section>
+
+    <button className="previous-button workout-history-button" onClick={onHistory}><span>◴</span>Предыдущие походы<b>›</b></button>
+  </main>;
+}
+
+function HikeHistory({sessions,onBack}){
+  const ordered=[...sessions].sort((a,b)=>b.date.localeCompare(a.date)||String(b.created_at||'').localeCompare(String(a.created_at||'')));
+  const [openId,setOpenId]=useState(ordered[0]?.id||null);
+
+  return <main className="sub-screen">
+    <ScreenBack onBack={onBack} title="Предыдущие походы"/>
+    {!ordered.length&&<div className="empty-state">Сохранённых походов пока нет.</div>}
+    <div className="accordion-list">{ordered.map(s=>{
+      const open=s.id===openId;
+      return <article className={`history-accordion ${open?'open':''}`} key={s.id}>
+        <button className="accordion-title" onClick={()=>setOpenId(open?null:s.id)}>
+          <span className="accordion-icon"><ActivityGlyph type="hike" className="hike"/></span>
+          <span><strong>{s.displayNumber?`Тренировка №${s.displayNumber} · `:''}{s.title||'Поход'}</strong><small>{formatDate(s.date,{day:'numeric',month:'long',year:'numeric'})}</small></span>
+          <b>{open?'⌃':'⌄'}</b>
+        </button>
+        {open&&<div className="accordion-body hike-history-detail">
+          <strong>{s.title||'Поход'}</strong>
+          <span>{Math.max(Number(s.hikeDays)||1,1)} дн.</span>
+          <span>{Number(s.hikeDistance||0).toLocaleString('ru-RU')} км</span>
+          <small>Баллы за дни: +{5*Math.max(Number(s.hikeDays)||1,1)}</small>
+        </div>}
+      </article>;
+    })}</div>
+  </main>;
+}
+
+function HikeStats({count,days,distance}){
+  return <article className="stat-card hike hike-stat-card">
+    <span className="stat-icon"><ActivityGlyph type="hike" className="hike"/></span>
+    <small>Походы</small>
+    <div className="hike-stat-values">
+      <span><strong>{count.toLocaleString('ru-RU')}</strong><em>походов</em></span>
+      <span><strong>{days.toLocaleString('ru-RU')}</strong><em>дней</em></span>
+      <span><strong>{Number(distance||0).toLocaleString('ru-RU')}</strong><em>км</em></span>
+    </div>
+  </article>;
+}
+
 function SimpleTraining({type,dateKey,setDateKey,sessions,onBack,onSave}){
   const meta=activityMeta(type);
   const [title,setTitle]=useState('');
@@ -1024,7 +1123,9 @@ function History({sessions,onDelete}){
             ?<><ReadonlyExerciseBlock title="База" rows={s.baseRows||[]}/><ReadonlyExerciseBlock title="Доп" rows={s.extraRows||[]}/></>
             :s.type==='workout'
               ?<p className="workout-history-text">{s.workoutText||'Описание не сохранено.'}</p>
-              :<p>{sessionValue(s)}</p>}
+              :s.type==='hike'
+                ?<div className="hike-history-detail"><strong>{s.title||'Поход'}</strong><span>{Math.max(Number(s.hikeDays)||1,1)} дн.</span><span>{Number(s.hikeDistance||0).toLocaleString('ru-RU')} км</span></div>
+                :<p>{sessionValue(s)}</p>}
         </div>}
       </article>;
     })}</div>
@@ -1054,6 +1155,10 @@ function Statistics({sessions,profile,memberCount,onOpenMembers}){
   const bike=filtered.filter(s=>s.type==='bike').reduce((n,s)=>n+(Number(s.distance)||0),0);
   const steps=filtered.filter(s=>s.type==='walk').reduce((n,s)=>n+(Number(s.steps)||0),0);
   const workoutCount=filtered.filter(s=>s.type==='workout').length;
+  const hikes=filtered.filter(s=>s.type==='hike');
+  const hikeCount=hikes.length;
+  const hikeDays=hikes.reduce((n,s)=>n+(Math.max(Number(s.hikeDays)||1,1)),0);
+  const hikeDistance=hikes.reduce((n,s)=>n+(Number(s.hikeDistance)||0),0);
   const ranges=[['prev-month','Прошедший месяц'],['30d','30 дней'],['6m','6 месяцев'],['1y','Год'],['custom','Свой диапазон']];
 
   return <main className="tab-screen stats-screen">
@@ -1074,6 +1179,7 @@ function Statistics({sessions,profile,memberCount,onOpenMembers}){
       <StatCard type="bike" accent="amber" title="Велосипед" value={bike.toLocaleString('ru-RU')} unit="км"/>
       <StatCard type="walk" accent="green" title="Прогулка" value={steps.toLocaleString('ru-RU')} unit="шагов"/>
       <StatCard type="workout" accent="coral" title="Воркаут" value={workoutCount.toLocaleString('ru-RU')} unit="тренировок"/>
+      <HikeStats count={hikeCount} days={hikeDays} distance={hikeDistance}/>
     </div>
   </main>;
 }
