@@ -213,9 +213,8 @@ export default function App(){
   },[]);
 
   useEffect(()=>{
-    if(!window.history.state?.formaScreen){
-      window.history.replaceState({...window.history.state,formaScreen:'home',formaDepth:0},'');
-    }
+    window.history.replaceState({...window.history.state,formaScreen:'home',formaDepth:0},'');
+    setScreen('home');
     const onPop=e=>setScreen(e.state?.formaScreen||'home');
     window.addEventListener('popstate',onPop);
     return ()=>window.removeEventListener('popstate',onPop);
@@ -287,11 +286,13 @@ export default function App(){
       if(profileRes.data)setProfile({...profileRes.data,points:me?.points||0,rank:me?.rank||null});
       setMembers(leaderboard);
       setPreviousTop5(previousRes.data||[]);
-      setSessions((sessionsRes.data||[]).map(mapSession));
+      const loadedSessions=(sessionsRes.data||[]).map(mapSession);
+      setSessions(loadedSessions);
 
       const plans={};
       (plansRes.data||[]).forEach(p=>{
-        const forcedStatus=isFuture(p.date)?'planned':p.status;
+        const completedOnDate=loadedSessions.some(s=>s.date===p.date&&isQualifyingSession(s));
+        const forcedStatus=completedOnDate?'completed':'planned';
         plans[p.date]={type:p.type,status:forcedStatus,customTitle:p.custom_title||'',updatedAt:p.updated_at};
       });
       setSchedule(plans);
