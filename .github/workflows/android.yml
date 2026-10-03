@@ -9,7 +9,7 @@ permissions:
   contents: write
 
 concurrency:
-  group: forma-android-v0.7.0
+  group: forma-android-v1.1
   cancel-in-progress: true
 
 jobs:
@@ -41,28 +41,28 @@ jobs:
 
       - name: Stamp Android version
         run: |
-          sed -i 's/versionCode 1/versionCode 70/' android/app/build.gradle
-          sed -i 's/versionName "1.0"/versionName "0.7.0"/' android/app/build.gradle
+          sed -i 's/versionCode 1/versionCode 110/' android/app/build.gradle
+          sed -i 's/versionName "1.0"/versionName "1.1"/' android/app/build.gradle
 
       - name: Build APK
         run: |
           cd android
           chmod +x gradlew
           ./gradlew assembleDebug bundleDebug
-          cp app/build/outputs/apk/debug/app-debug.apk app/build/outputs/apk/debug/forma-v0.7.0.apk
-          cp app/build/outputs/bundle/debug/app-debug.aab app/build/outputs/bundle/debug/forma-v0.7.0.aab
+          cp app/build/outputs/apk/debug/app-debug.apk app/build/outputs/apk/debug/forma-v1.1.apk
+          cp app/build/outputs/bundle/debug/app-debug.aab app/build/outputs/bundle/debug/forma-v1.1.aab
 
       - name: Upload workflow artifact
         uses: actions/upload-artifact@v4
         with:
           name: forma-android
           path: |
-            android/app/build/outputs/apk/debug/forma-v0.7.0.apk
-            android/app/build/outputs/bundle/debug/forma-v0.7.0.aab
+            android/app/build/outputs/apk/debug/forma-v1.1.apk
+            android/app/build/outputs/bundle/debug/forma-v1.1.aab
 
       - name: Publish latest APK
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release delete android-v0.7.0 -y --cleanup-tag || true
-          gh release create android-v0.7.0 android/app/build/outputs/apk/debug/forma-v0.7.0.apk android/app/build/outputs/bundle/debug/forma-v0.7.0.aab --title "Форма Android 0.7.0" --notes "Актуальная Android-сборка приложения Форма." --prerelease
+          gh release delete android-v1.1 -y --cleanup-tag || true
+          gh release create android-v1.1 android/app/build/outputs/apk/debug/forma-v1.1.apk android/app/build/outputs/bundle/debug/forma-v1.1.aab --title "Форма Android 1.1" --notes "Актуальная Android-сборка приложения Форма." --prerelease
