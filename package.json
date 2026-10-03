@@ -1,6 +1,6 @@
 {
   "name": "fit-tracker",
-  "version": "0.4.2",
+  "version": "0.5.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -13,7 +13,8 @@
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
     "@capacitor/core": "8.5.2",
-    "@capacitor/android": "8.5.2"
+    "@capacitor/android": "8.5.2",
+    "@capacitor/app": "^8.0.0"
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^5.0.4",
