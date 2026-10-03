@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { supabase } from './supabase.js';
 import { App as NativeApp } from '@capacitor/app';
 
-const APP_VERSION = '0.6.0';
+const APP_VERSION = '0.7.0';
 
 const ACTIVITIES = [
   { id: 'gym', label: 'Тренажёрка', icon: '🏋︎', accent: 'violet' },
@@ -46,7 +46,7 @@ function activityMeta(type){return ACTIVITIES.find(a=>a.id===type);}
 function activityLabel(item){return item?.customTitle||activityMeta(item?.type)?.label||'';}
 function makeRows(n){return Array.from({length:n},()=>({exercise:'',sets:'',weight:'',comment:''}));}
 function normalizeRows(rows,n){return Array.from({length:n},(_,i)=>({exercise:rows?.[i]?.exercise||'',sets:rows?.[i]?.sets??'',weight:rows?.[i]?.weight??'',comment:''}));}
-function mapSession(row){return {...row,gymGroup:row.gym_group,baseRows:row.base_rows||[],extraRows:row.extra_rows||[],confirmed:row.confirmed!==false};}
+function mapSession(row){return {...row,gymGroup:row.gym_group,baseRows:row.base_rows||[],extraRows:row.extra_rows||[],workoutText:row.workout_text||'',confirmed:row.confirmed!==false};}
 function isFuture(key){return key>localDateKey();}
 function isQualifyingSession(s){return s.confirmed!==false&&s.date<=localDateKey()&&(s.type!=='walk'||Number(s.steps||0)>=10000);}
 function isStatsSession(s){return isQualifyingSession(s);}
@@ -92,7 +92,8 @@ function pointEvents(sessions){
     .sort((a,b)=>a.date.localeCompare(b.date)||String(a.created_at||'').localeCompare(String(b.created_at||''))||String(a.id).localeCompare(String(b.id)));
 
   let prev=null;
-  return ordered.map(s=>{
+  let rawBalance=0;
+  const events=ordered.map(s=>{
     const reasons=[];
     let delta=(s.type==='gym'||s.type==='bike')?5:3;
     reasons.push(`${activityMeta(s.type)?.label||'Активность'}: +${delta}`);
@@ -113,16 +114,38 @@ function pointEvents(sessions){
 
     if(s.type==='bike'&&Number(s.distance||0)>100){delta+=5;reasons.push('Велосипед более 100 км: +5');}
     if(s.type==='walk'&&Number(s.steps||0)>30000){delta+=5;reasons.push('Прогулка более 30 000 шагов: +5');}
+
+    rawBalance+=delta;
     prev=s;
     return {id:s.id,date:s.date,delta,reasons:reasons.join(' · ')};
   });
-}
 
+  if(prev){
+    const inactiveDays=daysBetween(prev.date,localDateKey());
+    let decay=0;
+    if(inactiveDays>=45)decay=Math.max(0,rawBalance);
+    else if(inactiveDays>5)decay=Math.min(Math.max(0,rawBalance),Math.floor((inactiveDays-4)/2));
+
+    if(decay>0){
+      events.push({
+        id:`inactivity-${localDateKey()}`,
+        date:localDateKey(),
+        delta:-decay,
+        reasons:inactiveDays>=45
+          ? '45 дней без тренировок: рейтинг обнулён'
+          : `Нет тренировок ${inactiveDays} дн.: снижение рейтинга`
+      });
+    }
+  }
+
+  return events;
+}
 function scoreHint(sessions){
   const completed=sessions.filter(isQualifyingSession);
   if(!completed.length)return 'Первая тренировка — уже сильный шаг';
   const latest=[...completed].sort((a,b)=>b.date.localeCompare(a.date)||String(b.created_at||'').localeCompare(String(a.created_at||'')))[0];
   const gap=daysBetween(latest.date,localDateKey());
+  if(gap>=45)return '45 дней без тренировок — рейтинг обнулён';
   if(gap>=14)return 'Возвращение сейчас даст +10 баллов';
   if(gap<=0)return 'Тренировка сегодня уже в зачёте';
   if(gap===1)return 'Сегодня серия даст ещё +2 балла';
@@ -134,7 +157,7 @@ function scoreHint(sessions){
 function sessionValue(s){
   if(s.type==='bike')return s.distance?`${s.distance} км`:'Без километража';
   if(s.type==='walk')return s.steps?`${Number(s.steps).toLocaleString('ru-RU')} шагов`:'Без шагов';
-  if(s.type==='workout')return s.duration?`${s.duration} мин`:'Без времени';
+  if(s.type==='workout')return s.workoutText?'Описание':'Воркаут';
   if(s.type==='gym')return GYM_GROUPS.find(g=>g.id===s.gymGroup)?.label||'Тренажёрка';
   return '';
 }
@@ -261,7 +284,6 @@ export default function App(){
 
     const {data:{subscription}}=supabase.auth.onAuthStateChange((_event,next)=>{
       if(!active)return;
-      if(next)setBooting(true);
       setAuthSession(next);
       if(!next&&initialized)setBooting(false);
     });
@@ -289,7 +311,39 @@ export default function App(){
   },[]);
 
   useEffect(()=>{
-    if(authSession?.user){loadData();}
+    let handle;
+    NativeApp.addListener('appStateChange',async({isActive})=>{
+      if(!isActive)return;
+
+      try{
+        const timeout=new Promise(resolve=>setTimeout(()=>resolve(null),5000));
+        const refreshed=await Promise.race([
+          supabase.auth.refreshSession().catch(()=>null),
+          timeout
+        ]);
+        const nextSession=refreshed?.data?.session;
+
+        if(nextSession){
+          setAuthSession(nextSession);
+          await loadData(true,nextSession);
+          return;
+        }
+
+        const {data}=await supabase.auth.getSession();
+        if(data?.session){
+          setAuthSession(data.session);
+          await loadData(true,data.session);
+        }
+      }catch(err){
+        console.warn('Forma resume refresh failed',err);
+      }
+    }).then(h=>{handle=h;}).catch(()=>{});
+
+    return ()=>{handle?.remove?.();};
+  },[]);
+
+  useEffect(()=>{
+    if(authSession?.user){loadData(false,authSession);}
     else{
       setLoading(false);setProfile(null);setMembers([]);setPreviousTop5([]);
       setSessions([]);setSchedule({});setGymTemplates({});
@@ -315,11 +369,13 @@ export default function App(){
     else setScreen('home');
   }
 
-  async function loadData(){
-    if(!authSession?.user)return;
-    setLoading(true);
-    setLoadError('');
-    const userId=authSession.user.id;
+  async function loadData(silent=false,sessionOverride=authSession){
+    if(!sessionOverride?.user)return;
+    if(!silent){
+      setLoading(true);
+      setLoadError('');
+    }
+    const userId=sessionOverride.user.id;
 
     try{
       const queries=Promise.all([
@@ -359,10 +415,12 @@ export default function App(){
       setGymTemplates(templates);
     }catch(err){
       console.error('Forma load error',err);
-      setLoadError('Не удалось связаться с общей базой. Проверь интернет и нажми «Повторить».');
+      if(!silent)setLoadError('Не удалось связаться с общей базой. Проверь интернет и нажми «Повторить».');
     }finally{
-      setLoading(false);
-      setBooting(false);
+      if(!silent){
+        setLoading(false);
+        setBooting(false);
+      }
     }
   }
 
@@ -414,8 +472,9 @@ export default function App(){
       date:payload.date,
       title:payload.title||null,
       distance:payload.distance??null,
-      duration:payload.duration??null,
+      duration:null,
       steps:payload.steps??null,
+      workout_text:payload.workoutText||null,
       gym_group:payload.gymGroup||null,
       base_rows:payload.baseRows||null,
       extra_rows:payload.extraRows||null,
@@ -482,14 +541,15 @@ export default function App(){
     {screen==='gym'&&<GymTraining dateKey={draftDateKey} setDateKey={setDraftDateKey} sessions={numberedSessions} gymTemplates={gymTemplates} onSaveTemplate={saveTemplate} onBack={()=>goBack('add-training')} onHistory={()=>navigate('gym-history')} onSave={saveSession} onTrainerRequest={requestTrainer}/>}
     {screen==='gym-history'&&<GymHistory sessions={numberedSessions.filter(s=>s.type==='gym'&&isHistorySession(s))} onBack={()=>goBack('gym')}/>}
     {screen==='bike'&&<SimpleTraining type="bike" dateKey={draftDateKey} setDateKey={setDraftDateKey} sessions={numberedSessions} onBack={()=>goBack('add-training')} onSave={saveSession}/>}
-    {screen==='workout'&&<SimpleTraining type="workout" dateKey={draftDateKey} setDateKey={setDraftDateKey} sessions={numberedSessions} onBack={()=>goBack('add-training')} onSave={saveSession}/>}
+    {screen==='workout'&&<WorkoutTraining dateKey={draftDateKey} setDateKey={setDraftDateKey} sessions={numberedSessions} onBack={()=>goBack('add-training')} onHistory={()=>navigate('workout-history')} onSave={saveSession}/>}
+    {screen==='workout-history'&&<WorkoutHistory sessions={numberedSessions.filter(s=>s.type==='workout'&&isHistorySession(s))} onBack={()=>goBack('workout')}/>}
     {screen==='walk'&&<SimpleTraining type="walk" dateKey={draftDateKey} setDateKey={setDraftDateKey} sessions={numberedSessions} onBack={()=>goBack('add-training')} onSave={saveSession}/>}
     <BottomNav screen={screen} onNavigate={navigate}/>
   </div>;
 }
 
 function BottomNav({screen,onNavigate}){
-  const active=['add-training','gym','gym-history','bike','workout','walk'].includes(screen)?'home':screen;
+  const active=['add-training','gym','gym-history','bike','workout','workout-history','walk'].includes(screen)?'home':screen;
   const items=[['home','⌂','Главная'],['history','▥','История'],['stats','▤','Статистика'],['members','♟','Участники']];
   return <nav className="bottom-nav four">
     {items.map(([key,icon,label])=><button key={key} className={active===key?'active':''} onClick={()=>onNavigate(key)}><span className="nav-icon">{icon}</span>{label}</button>)}
@@ -805,6 +865,70 @@ function ReadonlyExerciseBlock({title,rows}){
     </div>)}
   </section>;
 }
+function WorkoutTraining({dateKey,setDateKey,sessions,onBack,onHistory,onSave}){
+  const [text,setText]=useState('');
+  const [saving,setSaving]=useState(false);
+  const count=sessions.filter(s=>s.type==='workout'&&isQualifyingSession(s)).length;
+
+  async function save(){
+    if(!text.trim())return;
+    setSaving(true);
+    try{
+      await onSave({
+        type:'workout',
+        date:dateKey,
+        title:'Воркаут',
+        workoutText:text.trim(),
+      });
+    }finally{
+      setSaving(false);
+    }
+  }
+
+  return <main className="sub-screen workout-training-screen">
+    <ScreenBack onBack={onBack} title="Воркаут"/>
+
+    <section className="metric-hero">
+      <ActivityGlyph type="workout" className="coral"/>
+      <div><small>Всего воркаутов</small><strong>{count}</strong></div>
+    </section>
+
+    <section className="glass-card simple-form workout-form">
+      <label className="date-control embedded"><span>Дата</span><input type="date" value={dateKey} onChange={e=>setDateKey(e.target.value)}/></label>
+      <label className="dark-field workout-description-field">
+        <span>Опиши свою тренировку</span>
+        <textarea value={text} onChange={e=>setText(e.target.value)} placeholder="Например: подтягивания 5×10, брусья 4×15, пресс..." rows={7}/>
+      </label>
+      <button className="gradient-button save-simple" onClick={save} disabled={saving||!text.trim()}>
+        {saving?'Сохраняю…':isFuture(dateKey)?'Запланировать':'Сохранить тренировку'}
+      </button>
+    </section>
+
+    <button className="previous-button workout-history-button" onClick={onHistory}><span>◴</span>Предыдущие тренировки<b>›</b></button>
+  </main>;
+}
+
+function WorkoutHistory({sessions,onBack}){
+  const ordered=[...sessions].sort((a,b)=>b.date.localeCompare(a.date)||String(b.created_at||'').localeCompare(String(a.created_at||'')));
+  const [openId,setOpenId]=useState(ordered[0]?.id||null);
+
+  return <main className="sub-screen">
+    <ScreenBack onBack={onBack} title="Предыдущие воркауты"/>
+    {!ordered.length&&<div className="empty-state">Сохранённых воркаутов пока нет.</div>}
+    <div className="accordion-list">{ordered.map(s=>{
+      const open=s.id===openId;
+      return <article className={`history-accordion ${open?'open':''}`} key={s.id}>
+        <button className="accordion-title" onClick={()=>setOpenId(open?null:s.id)}>
+          <span className="accordion-icon"><ActivityGlyph type="workout" className="coral"/></span>
+          <span><strong>Тренировка №{s.displayNumber||'—'}</strong><small>{formatDate(s.date,{day:'numeric',month:'long',year:'numeric'})}</small></span>
+          <b>{open?'⌃':'⌄'}</b>
+        </button>
+        {open&&<div className="accordion-body workout-history-text">{s.workoutText||'Описание не сохранено.'}</div>}
+      </article>;
+    })}</div>
+  </main>;
+}
+
 function SimpleTraining({type,dateKey,setDateKey,sessions,onBack,onSave}){
   const meta=activityMeta(type);
   const [title,setTitle]=useState('');
@@ -820,10 +944,6 @@ function SimpleTraining({type,dateKey,setDateKey,sessions,onBack,onSave}){
   if(type==='bike'){
     valueLabel='Километраж, км';placeholder='32.5';totalLabel='Общий пробег';
     totalValue=`${list.reduce((sum,x)=>sum+(Number(x.distance)||0),0).toLocaleString('ru-RU')} км`;
-  }else if(type==='workout'){
-    valueLabel='Длительность, минут';placeholder='45';totalLabel='Общее время';
-    const minutes=list.reduce((sum,x)=>sum+(Number(x.duration)||0),0);
-    totalValue=`${(minutes/60).toFixed(minutes%60?1:0)} ч`;
   }else{
     valueLabel='Количество шагов';placeholder='20000';totalLabel='Всего шагов';
     totalValue=list.reduce((sum,x)=>sum+(Number(x.steps)||0),0).toLocaleString('ru-RU');
@@ -834,13 +954,12 @@ function SimpleTraining({type,dateKey,setDateKey,sessions,onBack,onSave}){
     try{
       const payload={type,date:dateKey,title:title.trim()||meta.label};
       if(type==='bike')payload.distance=Number(value)||0;
-      if(type==='workout')payload.duration=Number(value)||0;
       if(type==='walk')payload.steps=Number(value)||0;
       await onSave(payload);
     }finally{setSaving(false);}
   }
 
-  const placeholderTitle=type==='bike'?'Вечерняя поездка':type==='workout'?'Турники у моря':'Прогулка по набережной';
+  const placeholderTitle=type==='bike'?'Вечерняя поездка':'Прогулка по набережной';
 
   return <main className="sub-screen simple-training-screen">
     <ScreenBack onBack={onBack} title={meta.label}/>
@@ -901,7 +1020,11 @@ function History({sessions,onDelete}){
         </div>
 
         {open&&<div className="master-detail">
-          {s.type==='gym'?<><ReadonlyExerciseBlock title="База" rows={s.baseRows||[]}/><ReadonlyExerciseBlock title="Доп" rows={s.extraRows||[]}/></>:<p>{sessionValue(s)}</p>}
+          {s.type==='gym'
+            ?<><ReadonlyExerciseBlock title="База" rows={s.baseRows||[]}/><ReadonlyExerciseBlock title="Доп" rows={s.extraRows||[]}/></>
+            :s.type==='workout'
+              ?<p className="workout-history-text">{s.workoutText||'Описание не сохранено.'}</p>
+              :<p>{sessionValue(s)}</p>}
         </div>}
       </article>;
     })}</div>
@@ -930,7 +1053,7 @@ function Statistics({sessions,profile,memberCount,onOpenMembers}){
   const gym=filtered.filter(s=>s.type==='gym').length;
   const bike=filtered.filter(s=>s.type==='bike').reduce((n,s)=>n+(Number(s.distance)||0),0);
   const steps=filtered.filter(s=>s.type==='walk').reduce((n,s)=>n+(Number(s.steps)||0),0);
-  const mins=filtered.filter(s=>s.type==='workout').reduce((n,s)=>n+(Number(s.duration)||0),0);
+  const workoutCount=filtered.filter(s=>s.type==='workout').length;
   const ranges=[['prev-month','Прошедший месяц'],['30d','30 дней'],['6m','6 месяцев'],['1y','Год'],['custom','Свой диапазон']];
 
   return <main className="tab-screen stats-screen">
@@ -950,7 +1073,7 @@ function Statistics({sessions,profile,memberCount,onOpenMembers}){
       <StatCard type="gym" accent="violet" title="Тренажёрка" value={gym.toLocaleString('ru-RU')} unit="тренировок"/>
       <StatCard type="bike" accent="amber" title="Велосипед" value={bike.toLocaleString('ru-RU')} unit="км"/>
       <StatCard type="walk" accent="green" title="Прогулка" value={steps.toLocaleString('ru-RU')} unit="шагов"/>
-      <StatCard type="workout" accent="coral" title="Воркаут" value={(mins/60).toFixed(mins%60?1:0)} unit="часов"/>
+      <StatCard type="workout" accent="coral" title="Воркаут" value={workoutCount.toLocaleString('ru-RU')} unit="тренировок"/>
     </div>
   </main>;
 }
@@ -993,6 +1116,6 @@ function Members({members,profile,previousTop5}){
       {previousTop5.map(item=><div className="previous-row" key={`${item.rank}-${item.name}`}><span>{item.rank}</span><strong>{item.name}</strong><b>★ {item.points}</b></div>)}
     </section>
 
-    <p className="inactive-rule">Если участник 30 дней не получает баллы, аккаунт автоматически удаляется. Для возвращения нужна новая регистрация.</p>
+    <p className="inactive-rule">Аккаунты не удаляются. Если 45 дней нет состоявшихся тренировок, сезонный рейтинг становится 0. Рейтинг никогда не уходит ниже нуля.</p>
   </main>;
 }
