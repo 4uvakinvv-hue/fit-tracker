@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { supabase } from './supabase.js';
+import { App as NativeApp } from '@capacitor/app';
 
 const APP_VERSION = '0.5.0';
 
@@ -218,6 +219,17 @@ export default function App(){
     const onPop=e=>setScreen(e.state?.formaScreen||'home');
     window.addEventListener('popstate',onPop);
     return ()=>window.removeEventListener('popstate',onPop);
+  },[]);
+
+  useEffect(()=>{
+    let handle;
+    NativeApp.addListener('backButton',()=>{
+      const depth=window.history.state?.formaDepth||0;
+      if(depth>0)window.history.back();
+      else NativeApp.minimizeApp().catch(()=>{});
+    }).then(h=>{handle=h;}).catch(()=>{});
+
+    return ()=>{handle?.remove?.();};
   },[]);
 
   useEffect(()=>{
