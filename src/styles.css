@@ -1113,3 +1113,6 @@
   .season-title-row strong{font-size:16px}
   .season-motto{font-size:8px}
 }
+
+.season-score-card{position:relative}
+.app-shell-dark.season-autumn > .bottom-nav{position:fixed;z-index:100}
