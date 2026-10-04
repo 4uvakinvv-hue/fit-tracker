@@ -571,12 +571,33 @@ function Home({schedule,sessions,profile,selectedDateKey,setSelectedDateKey,onSa
   const [pointsOpen,setPointsOpen]=useState(false);
   const events=pointEvents(sessions).slice(-10).reverse();
   const season=seasonMeta();
+  const seasonProgress=Math.max(0,Math.min(100,(season.day/season.total)*100));
 
   return <main className="main-screen home-no-scroll">
-    <header className="topbar">
-      <div><Brand compact/><p className="brand-subtitle season-brand-label">Сезон {season.name.toUpperCase()}</p></div>
+    <header className="topbar home-topbar">
+      <div className="home-brand-block">
+        <Brand compact/>
+        <div className="season-title-row">
+          <span>Сезон</span>
+          <strong>{season.name.toUpperCase()}</strong>
+          <i className="season-leaf-icon" aria-hidden="true"/>
+        </div>
+        <p className="season-motto">Движение. Дисциплина. Результат.</p>
+      </div>
+
       <div className="score-wrap">
-        <button className="score-card" onClick={()=>setPointsOpen(true)}><span>★</span><strong>Баллы: {profile?.points||0}</strong></button>
+        <button className="score-card season-score-card" onClick={()=>setPointsOpen(true)}>
+          <div className="score-main-row">
+            <span className="score-star">★</span>
+            <strong>Баллы: {profile?.points||0}</strong>
+            <b>›</b>
+          </div>
+          <div className="score-day-row">
+            <span>День {season.day} из {season.total}</span>
+            <i className="season-leaf-icon small" aria-hidden="true"/>
+          </div>
+          <span className="season-progress-track"><i style={{width:`${seasonProgress}%`}}/></span>
+        </button>
         <small>{scoreHint(sessions)}</small>
       </div>
     </header>
