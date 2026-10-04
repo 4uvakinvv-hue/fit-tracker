@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { supabase } from './supabase.js';
 import { App as NativeApp } from '@capacitor/app';
 
-const APP_VERSION = '1.1.2';
+const APP_VERSION = '1.1.3';
 const ANDROID_APK_URL = 'https://github.com/4uvakinvv-hue/fit-tracker/releases/download/android-current/forma-android.apk';
 const IOS_INSTALL_URL = 'https://4uvakinvv-hue.github.io/fit-tracker/';
 
@@ -544,7 +544,7 @@ export default function App(){
   if(loadError)return <main className="onboarding dark-screen"><Brand/><h1>Связь с базой</h1><p className="soft-text">{loadError}</p><div className="glass-card onboarding-form"><button className="gradient-button" onClick={loadData}>Повторить</button></div></main>;
 
   return <div className={`app-shell-dark season-${seasonKey()}`}>
-    {screen==='home'&&<Home schedule={schedule} sessions={numberedSessions} profile={profile} selectedDateKey={selectedDateKey} setSelectedDateKey={setSelectedDateKey} onSavePlan={savePlan} onDeletePlan={deletePlan} onProposal={sendProposal} onOpenWorkout={openAdd} onAbout={()=>navigate('about')}/>} 
+    {screen==='home'&&<Home schedule={schedule} sessions={numberedSessions} profile={profile} selectedDateKey={selectedDateKey} setSelectedDateKey={setSelectedDateKey} onSavePlan={savePlan} onDeletePlan={deletePlan} onProposal={sendProposal} onOpenWorkout={openAdd} onAbout={()=>navigate('about')} onWhy={()=>navigate('why')}/>} 
     {screen==='history'&&<History sessions={numberedSessions} onDelete={deleteSession}/>}
     {screen==='stats'&&<Statistics sessions={numberedSessions} profile={profile} memberCount={members.length} onOpenMembers={()=>navigate('members')}/>}
     {screen==='members'&&<Members members={members} profile={profile} previousTop5={previousTop5}/>}
@@ -558,19 +558,20 @@ export default function App(){
     {screen==='hike'&&<HikeTraining dateKey={draftDateKey} setDateKey={setDraftDateKey} sessions={numberedSessions} onBack={()=>goBack('add-training')} onHistory={()=>navigate('hike-history')} onSave={saveSession}/>}
     {screen==='hike-history'&&<HikeHistory sessions={numberedSessions.filter(s=>s.type==='hike'&&isHistorySession(s))} onBack={()=>goBack('hike')}/>}
     {screen==='about'&&<AboutScreen onBack={()=>goBack('home')}/>}
+    {screen==='why'&&<WhyScreen onBack={()=>goBack('home')}/>}
     <BottomNav screen={screen} onNavigate={navigate}/>
   </div>;
 }
 
 function BottomNav({screen,onNavigate}){
-  const active=['add-training','gym','gym-history','bike','workout','workout-history','walk','hike','hike-history','about'].includes(screen)?'home':screen;
+  const active=['add-training','gym','gym-history','bike','workout','workout-history','walk','hike','hike-history','about','why'].includes(screen)?'home':screen;
   const items=[['home','⌂','Главная'],['history','▥','История'],['stats','▤','Статистика'],['members','♟','Участники']];
   return <nav className="bottom-nav four">
     {items.map(([key,icon,label])=><button key={key} className={active===key?'active':''} onClick={()=>onNavigate(key)}><span className="nav-icon">{icon}</span>{label}</button>)}
   </nav>;
 }
 
-function Home({schedule,sessions,profile,selectedDateKey,setSelectedDateKey,onSavePlan,onDeletePlan,onProposal,onOpenWorkout,onAbout}){
+function Home({schedule,sessions,profile,selectedDateKey,setSelectedDateKey,onSavePlan,onDeletePlan,onProposal,onOpenWorkout,onAbout,onWhy}){
   const [pointsOpen,setPointsOpen]=useState(false);
   const events=pointEvents(sessions).slice(-10).reverse();
   const season=seasonMeta();
@@ -609,7 +610,10 @@ function Home({schedule,sessions,profile,selectedDateKey,setSelectedDateKey,onSa
 
     <button className="gradient-button workout-cta" onClick={onOpenWorkout}><span>＋</span>Добавить тренировку<b>›</b></button>
     <p className="helper-text">Выбранная дата: {formatDate(selectedDateKey)}.</p>
-    <button className="about-link-button" onClick={onAbout}><span>ⓘ</span>О приложении</button>
+    <div className="home-info-actions">
+      <button className="about-link-button why-link-button" onClick={onWhy}><span>✦</span>О чём это приложение</button>
+      <button className="about-link-button" onClick={onAbout}><span>ⓘ</span>О приложении</button>
+    </div>
 
     {pointsOpen&&<div className="modal-backdrop" onClick={()=>setPointsOpen(false)}>
       <section className="points-modal" onClick={e=>e.stopPropagation()}>
@@ -621,6 +625,59 @@ function Home({schedule,sessions,profile,selectedDateKey,setSelectedDateKey,onSa
         </article>)}</div>
       </section>
     </div>}
+  </main>;
+}
+
+function WhyScreen({onBack}){
+  return <main className="sub-screen why-screen">
+    <ScreenBack onBack={onBack} title="О чём это приложение"/>
+
+    <section className="why-intro glass-card">
+      <span className="why-kicker">Форма</span>
+      <h1>Не про идеальные тренировки.<br/>Про то, чтобы чаще двигаться.</h1>
+      <p>Неважно, что именно ты делаешь: идёшь в зал, катаешься на велосипеде, гуляешь, занимаешься на турниках или уходишь в поход. Всё это — активность.</p>
+    </section>
+
+    <div className="why-flow">
+      <section>
+        <h2>Сделал что-то активное — зафиксируй это</h2>
+        <p>Со временем ты начинаешь видеть не отдельные тренировки, а картину целиком: как часто двигаешься, сколько уже сделал, где выпал из ритма и насколько стал активнее за месяц, полгода или год.</p>
+      </section>
+
+      <section>
+        <h2>Баллы — не оценка твоей физической формы</h2>
+        <p>Они показывают регулярность. За активность начисляются баллы, стабильность поощряется, а длинные паузы постепенно снижают рейтинг.</p>
+        <blockquote>Лучше регулярно делать хоть что-то, чем раз в месяц совершать спортивный подвиг.</blockquote>
+      </section>
+
+      <section>
+        <h2>Здесь засчитывается разная жизнь</h2>
+        <p>Сегодня велосипед. Завтра прогулка. Через день тренажёрка. На выходных поход. Для «Формы» важнее не вид спорта, а то, что ты продолжаешь двигаться.</p>
+      </section>
+
+      <section>
+        <h2>Статистика нужна не для отчёта</h2>
+        <p>Через несколько недель уже трудно вспомнить, сколько ты действительно тренировался, ходил или проехал. «Форма» сохраняет это и показывает реальную картину.</p>
+        <blockquote>«Ого. А я вообще-то нормально двигаюсь» — или наоборот: «Что-то я выпал». И оба вывода полезны.</blockquote>
+      </section>
+
+      <section>
+        <h2>Рейтинг — немного игры</h2>
+        <p>Сезонный рейтинг добавляет азарт: можно догонять друзей, удерживать своё место или просто закончить новый сезон лучше прошлого. Каждый сезон — новый старт.</p>
+      </section>
+
+      <section>
+        <h2>Планы не считаются результатом</h2>
+        <p>Тренировку можно запланировать заранее, но в статистику и рейтинг попадает только то, что реально состоялось.</p>
+      </section>
+    </div>
+
+    <section className="why-final">
+      <span>Главная идея</span>
+      <h2>Не нужно перестраивать жизнь вокруг приложения.</h2>
+      <p>Живи как обычно. Просто замечай свою активность и сохраняй её.</p>
+      <strong>Главная цель — самому двигаться чуть больше, чем раньше.</strong>
+    </section>
   </main>;
 }
 
