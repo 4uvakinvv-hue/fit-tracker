@@ -2,7 +2,9 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { supabase } from './supabase.js';
 import { App as NativeApp } from '@capacitor/app';
 
-const APP_VERSION = '1.1.1';
+const APP_VERSION = '1.1.2';
+const ANDROID_APK_URL = 'https://github.com/4uvakinvv-hue/fit-tracker/releases/download/android-current/forma-android.apk';
+const IOS_INSTALL_URL = 'https://4uvakinvv-hue.github.io/fit-tracker/';
 
 const ACTIVITIES = [
   { id: 'gym', label: 'Тренажёрка', icon: '🏋︎', accent: 'violet' },
@@ -542,7 +544,7 @@ export default function App(){
   if(loadError)return <main className="onboarding dark-screen"><Brand/><h1>Связь с базой</h1><p className="soft-text">{loadError}</p><div className="glass-card onboarding-form"><button className="gradient-button" onClick={loadData}>Повторить</button></div></main>;
 
   return <div className={`app-shell-dark season-${seasonKey()}`}>
-    {screen==='home'&&<Home schedule={schedule} sessions={numberedSessions} profile={profile} selectedDateKey={selectedDateKey} setSelectedDateKey={setSelectedDateKey} onSavePlan={savePlan} onDeletePlan={deletePlan} onProposal={sendProposal} onOpenWorkout={openAdd}/>}
+    {screen==='home'&&<Home schedule={schedule} sessions={numberedSessions} profile={profile} selectedDateKey={selectedDateKey} setSelectedDateKey={setSelectedDateKey} onSavePlan={savePlan} onDeletePlan={deletePlan} onProposal={sendProposal} onOpenWorkout={openAdd} onAbout={()=>navigate('about')}/>} 
     {screen==='history'&&<History sessions={numberedSessions} onDelete={deleteSession}/>}
     {screen==='stats'&&<Statistics sessions={numberedSessions} profile={profile} memberCount={members.length} onOpenMembers={()=>navigate('members')}/>}
     {screen==='members'&&<Members members={members} profile={profile} previousTop5={previousTop5}/>}
@@ -555,19 +557,20 @@ export default function App(){
     {screen==='walk'&&<SimpleTraining type="walk" dateKey={draftDateKey} setDateKey={setDraftDateKey} sessions={numberedSessions} onBack={()=>goBack('add-training')} onSave={saveSession}/>}
     {screen==='hike'&&<HikeTraining dateKey={draftDateKey} setDateKey={setDraftDateKey} sessions={numberedSessions} onBack={()=>goBack('add-training')} onHistory={()=>navigate('hike-history')} onSave={saveSession}/>}
     {screen==='hike-history'&&<HikeHistory sessions={numberedSessions.filter(s=>s.type==='hike'&&isHistorySession(s))} onBack={()=>goBack('hike')}/>}
+    {screen==='about'&&<AboutScreen onBack={()=>goBack('home')}/>}
     <BottomNav screen={screen} onNavigate={navigate}/>
   </div>;
 }
 
 function BottomNav({screen,onNavigate}){
-  const active=['add-training','gym','gym-history','bike','workout','workout-history','walk','hike','hike-history'].includes(screen)?'home':screen;
+  const active=['add-training','gym','gym-history','bike','workout','workout-history','walk','hike','hike-history','about'].includes(screen)?'home':screen;
   const items=[['home','⌂','Главная'],['history','▥','История'],['stats','▤','Статистика'],['members','♟','Участники']];
   return <nav className="bottom-nav four">
     {items.map(([key,icon,label])=><button key={key} className={active===key?'active':''} onClick={()=>onNavigate(key)}><span className="nav-icon">{icon}</span>{label}</button>)}
   </nav>;
 }
 
-function Home({schedule,sessions,profile,selectedDateKey,setSelectedDateKey,onSavePlan,onDeletePlan,onProposal,onOpenWorkout}){
+function Home({schedule,sessions,profile,selectedDateKey,setSelectedDateKey,onSavePlan,onDeletePlan,onProposal,onOpenWorkout,onAbout}){
   const [pointsOpen,setPointsOpen]=useState(false);
   const events=pointEvents(sessions).slice(-10).reverse();
   const season=seasonMeta();
@@ -606,6 +609,7 @@ function Home({schedule,sessions,profile,selectedDateKey,setSelectedDateKey,onSa
 
     <button className="gradient-button workout-cta" onClick={onOpenWorkout}><span>＋</span>Добавить тренировку<b>›</b></button>
     <p className="helper-text">Выбранная дата: {formatDate(selectedDateKey)}.</p>
+    <button className="about-link-button" onClick={onAbout}><span>ⓘ</span>О приложении</button>
 
     {pointsOpen&&<div className="modal-backdrop" onClick={()=>setPointsOpen(false)}>
       <section className="points-modal" onClick={e=>e.stopPropagation()}>
@@ -617,6 +621,63 @@ function Home({schedule,sessions,profile,selectedDateKey,setSelectedDateKey,onSa
         </article>)}</div>
       </section>
     </div>}
+  </main>;
+}
+
+function AboutScreen({onBack}){
+  const [iosHelp,setIosHelp]=useState(false);
+
+  function openAndroid(){
+    window.open(ANDROID_APK_URL,'_blank','noopener,noreferrer');
+  }
+
+  function openIos(){
+    setIosHelp(true);
+    window.open(IOS_INSTALL_URL,'_blank','noopener,noreferrer');
+  }
+
+  return <main className="sub-screen about-screen">
+    <ScreenBack onBack={onBack} title="О приложении"/>
+
+    <section className="about-hero glass-card">
+      <Brand compact/>
+      <p>Некоммерческий проект Василия Чувакина, созданный для повышения личной активности каждого человека.</p>
+    </section>
+
+    <section className="about-copy">
+      <p>«Форма» сделана для личного удобства: здесь можно фиксировать тренировки и другую активность, видеть свою статистику и отслеживать прогресс.</p>
+      <p>Сезонные рейтинги добавляют игровой элемент и помогают сохранять регулярность — не ради соревнования как такового, а ради движения и привычки быть активнее.</p>
+      <p>Приложение спроектировано исходя из видения автора. Предложения по настройке, новым функциям и любая конструктивная обратная связь приветствуются.</p>
+    </section>
+
+    <section className="download-card glass-card">
+      <h2>Установить «Форму»</h2>
+      <p>Выберите своё устройство.</p>
+
+      <button className="platform-download android-download" onClick={openAndroid}>
+        <span className="platform-icon">A</span>
+        <span><strong>Android</strong><small>Скачать установочный APK</small></span>
+        <b>↓</b>
+      </button>
+
+      <button className="platform-download ios-download" onClick={openIos}>
+        <span className="platform-icon apple-mark">●</span>
+        <span><strong>iPhone / iOS</strong><small>Установить через Safari без App Store</small></span>
+        <b>›</b>
+      </button>
+
+      {iosHelp&&<div className="ios-install-help">
+        <strong>На iPhone:</strong>
+        <span>откройте ссылку в Safari → «Поделиться» → «На экран Домой» → «Добавить».</span>
+      </div>}
+    </section>
+
+    <section className="about-signature">
+      <p>С благодарностью всем и каждому, кто пользуется этим приложением.</p>
+      <p>Здоровья вам и яркой жизни.</p>
+      <strong>Чувакин Василий</strong>
+      <small>Форма · версия {APP_VERSION}</small>
+    </section>
   </main>;
 }
 
