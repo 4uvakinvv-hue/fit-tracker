@@ -1116,3 +1116,144 @@
 
 .season-score-card{position:relative}
 .app-shell-dark.season-autumn > .bottom-nav{position:fixed;z-index:100}
+
+
+/* Forma 1.1.2 — About screen and direct installs */
+.about-link-button{
+  align-self:center;
+  margin:2px auto 0;
+  min-height:30px;
+  padding:0 11px;
+  border-radius:999px;
+  background:rgba(255,255,255,.035);
+  border:1px solid rgba(255,255,255,.08);
+  color:#8f9cae;
+  font-size:9px;
+  font-weight:750;
+  display:flex;
+  align-items:center;
+  gap:5px;
+}
+.about-link-button span{font-size:11px;color:var(--season-primary)}
+.about-link-button:active{transform:scale(.98)}
+
+.about-screen{padding-bottom:120px}
+.about-hero{
+  margin-top:8px;
+  padding:18px;
+}
+.about-hero .logo-lockup{font-size:29px}
+.about-hero p{
+  margin:14px 0 0;
+  color:#aeb8c6;
+  font-size:12px;
+  line-height:1.55;
+}
+.about-copy{
+  display:grid;
+  gap:12px;
+  margin:18px 2px 20px;
+}
+.about-copy p{
+  margin:0;
+  color:#c5ceda;
+  font-size:12px;
+  line-height:1.62;
+}
+.download-card{
+  padding:17px;
+  display:grid;
+  gap:10px;
+}
+.download-card h2{
+  margin:0;
+  font-size:20px;
+  letter-spacing:-.02em;
+}
+.download-card>p{
+  margin:0 0 4px;
+  color:#7f8fa5;
+  font-size:10px;
+}
+.platform-download{
+  min-height:64px;
+  width:100%;
+  border-radius:16px;
+  padding:9px 12px;
+  display:grid;
+  grid-template-columns:40px minmax(0,1fr) 18px;
+  align-items:center;
+  gap:10px;
+  text-align:left;
+  color:#f3f7fb;
+  background:linear-gradient(145deg,rgba(31,45,63,.92),rgba(14,24,37,.96));
+  border:1px solid rgba(128,158,197,.17);
+}
+.platform-download .platform-icon{
+  width:40px;
+  height:40px;
+  border-radius:12px;
+  display:grid;
+  place-items:center;
+  font-size:17px;
+  font-weight:950;
+}
+.android-download .platform-icon{
+  color:#0d1710;
+  background:linear-gradient(145deg,#8ce67b,#55c96d);
+}
+.ios-download .platform-icon{
+  color:#101319;
+  background:linear-gradient(145deg,#fff,#bfc8d5);
+}
+.platform-download strong,.platform-download small{display:block}
+.platform-download strong{font-size:12px}
+.platform-download small{
+  margin-top:3px;
+  color:#8798ad;
+  font-size:9px;
+  line-height:1.35;
+}
+.platform-download>b{
+  font-size:20px;
+  color:#8798ad;
+  font-weight:500;
+}
+.ios-install-help{
+  margin-top:2px;
+  padding:11px 12px;
+  border-radius:13px;
+  display:grid;
+  gap:4px;
+  background:rgba(255,255,255,.035);
+  border:1px solid rgba(255,255,255,.07);
+}
+.ios-install-help strong{font-size:10px;color:#e6edf5}
+.ios-install-help span{font-size:9px;color:#93a3b7;line-height:1.45}
+.about-signature{
+  margin:23px 3px 0;
+  padding-top:17px;
+  border-top:1px solid rgba(255,255,255,.08);
+}
+.about-signature p{
+  margin:0 0 6px;
+  color:#9ba8b9;
+  font-size:11px;
+  line-height:1.5;
+}
+.about-signature strong{
+  display:block;
+  margin-top:13px;
+  font-size:14px;
+  color:#eef4f9;
+}
+.about-signature small{
+  display:block;
+  margin-top:4px;
+  color:#68788e;
+  font-size:9px;
+}
+.app-shell-dark.season-autumn .platform-download{
+  background:linear-gradient(145deg,rgba(76,43,28,.88),rgba(34,23,19,.96));
+  border-color:rgba(255,168,82,.18);
+}
