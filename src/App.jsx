@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { supabase } from './supabase.js';
 import { App as NativeApp } from '@capacitor/app';
+import { Health } from '@capgo/capacitor-health';
 
-const APP_VERSION = '1.1.3';
+const APP_VERSION = '1.2.0';
 const ANDROID_APK_URL = 'https://github.com/4uvakinvv-hue/fit-tracker/releases/download/android-current/forma-android.apk';
 const IOS_INSTALL_URL = 'https://4uvakinvv-hue.github.io/fit-tracker/';
 
@@ -10,7 +11,7 @@ const ACTIVITIES = [
   { id: 'gym', label: 'Тренажёрка', icon: '🏋︎', accent: 'violet' },
   { id: 'bike', label: 'Велосипед', icon: '🚴', accent: 'amber' },
   { id: 'workout', label: 'Воркаут', icon: '┬', accent: 'coral' },
-  { id: 'walk', label: 'Прогулка', icon: '🚶', accent: 'green' },
+  { id: 'combat', label: 'Единоборства', icon: '🥊', accent: 'combat' },
   { id: 'hike', label: 'Поход', icon: '△', accent: 'hike' },
 ];
 
@@ -45,11 +46,14 @@ function addYears(date,amount){const r=new Date(date);r.setFullYear(r.getFullYea
 function daysBetween(a,b){return Math.round((dateFromKey(b)-dateFromKey(a))/86400000);}
 function formatDate(key,options={day:'numeric',month:'long'}){return new Intl.DateTimeFormat('ru-RU',options).format(dateFromKey(key));}
 function formatDateShort(key){return new Intl.DateTimeFormat('ru-RU',{day:'numeric',month:'short'}).format(dateFromKey(key));}
-function activityMeta(type){return ACTIVITIES.find(a=>a.id===type);}
+function activityMeta(type){
+  return ACTIVITIES.find(a=>a.id===type)
+    ||(type==='walk'?{id:'walk',label:'Прогулка',icon:'🚶',accent:'green'}:null);
+}
 function activityLabel(item){return item?.customTitle||activityMeta(item?.type)?.label||'';}
 function makeRows(n){return Array.from({length:n},()=>({exercise:'',sets:'',weight:'',comment:''}));}
 function normalizeRows(rows,n){return Array.from({length:n},(_,i)=>({exercise:rows?.[i]?.exercise||'',sets:rows?.[i]?.sets??'',weight:rows?.[i]?.weight??'',comment:''}));}
-function mapSession(row){return {...row,gymGroup:row.gym_group,baseRows:row.base_rows||[],extraRows:row.extra_rows||[],workoutText:row.workout_text||'',hikeDays:Number(row.hike_days)||0,hikeDistance:Number(row.hike_distance)||0,confirmed:row.confirmed!==false};}
+function mapSession(row){return {...row,gymGroup:row.gym_group,baseRows:row.base_rows||[],extraRows:row.extra_rows||[],workoutText:row.workout_text||'',combatType:row.combat_type||'',hikeDays:Number(row.hike_days)||0,hikeDistance:Number(row.hike_distance)||0,confirmed:row.confirmed!==false};}
 function isFuture(key){return key>localDateKey();}
 function isQualifyingSession(s){return s.confirmed!==false&&s.date<=localDateKey()&&(s.type!=='walk'||Number(s.steps||0)>=10000);}
 function isStatsSession(s){return isQualifyingSession(s);}
@@ -100,7 +104,7 @@ function pointEvents(sessions){
     const reasons=[];
     let delta=s.type==='hike'
       ?5*Math.max(Number(s.hikeDays)||1,1)
-      :(s.type==='gym'||s.type==='bike')?5:3;
+      :(s.type==='gym'||s.type==='bike'||s.type==='combat')?5:3;
     reasons.push(s.type==='hike'
       ?`Поход: ${Math.max(Number(s.hikeDays)||1,1)} дн. × 5 = +${delta}`
       :`${activityMeta(s.type)?.label||'Активность'}: +${delta}`);
@@ -165,6 +169,7 @@ function sessionValue(s){
   if(s.type==='bike')return s.distance?`${s.distance} км`:'Без километража';
   if(s.type==='walk')return s.steps?`${Number(s.steps).toLocaleString('ru-RU')} шагов`:'Без шагов';
   if(s.type==='workout')return s.workoutText?'Описание':'Воркаут';
+  if(s.type==='combat')return s.combatType||'Единоборства';
   if(s.type==='hike')return `${Math.max(Number(s.hikeDays)||1,1)} дн. · ${Number(s.hikeDistance||0).toLocaleString('ru-RU')} км`;
   if(s.type==='gym')return GYM_GROUPS.find(g=>g.id===s.gymGroup)?.label||'Тренажёрка';
   return '';
@@ -173,6 +178,7 @@ function sessionValue(s){
 function ActivityGlyph({type,className=''}) {
   if(type==='bike') return <svg className={`activity-svg ${className}`} viewBox="0 0 64 64" aria-hidden="true"><circle cx="16" cy="43" r="10"/><circle cx="49" cy="43" r="10"/><path d="M16 43 27 24l10 19H16Zm11-19h11l11 19M25 18h9m4 6 6-7h6m-1 0 5 2"/></svg>;
   if(type==='workout') return <svg className={`activity-svg ${className}`} viewBox="0 0 64 64" aria-hidden="true"><path d="M10 12v42M54 12v42M10 16h44"/><circle cx="32" cy="25" r="5"/><path d="M32 30v15M32 33 21 22M32 33l11-11M32 45l-8 9M32 45l8 9"/></svg>;
+  if(type==='steps') return <span className={className}>👣</span>;
   if(type==='hike') return <svg className={`activity-svg ${className}`} viewBox="0 0 64 64" aria-hidden="true"><path d="M5 51 23 23l9 14 8-12 19 26H5Z"/><path d="m18 31 5-8 5 8m8 2 4-8 5 7"/><path d="M12 51h40"/></svg>;
   const meta=activityMeta(type);
   return <span className={className}>{meta?.icon||'•'}</span>;
@@ -266,6 +272,9 @@ export default function App(){
   const [sessions,setSessions]=useState([]);
   const [schedule,setSchedule]=useState({});
   const [gymTemplates,setGymTemplates]=useState({});
+  const [dailySteps,setDailySteps]=useState([]);
+  const [stepsStatus,setStepsStatus]=useState('loading');
+  const [stepsSyncing,setStepsSyncing]=useState(false);
   const [screen,setScreen]=useState('home');
   const [selectedDateKey,setSelectedDateKey]=useState(localDateKey());
   const [draftDateKey,setDraftDateKey]=useState(localDateKey());
@@ -335,6 +344,7 @@ export default function App(){
         if(nextSession){
           setAuthSession(nextSession);
           await loadData(true,nextSession);
+          await syncSteps(false,nextSession);
           return;
         }
 
@@ -342,6 +352,7 @@ export default function App(){
         if(data?.session){
           setAuthSession(data.session);
           await loadData(true,data.session);
+          await syncSteps(false,data.session);
         }
       }catch(err){
         console.warn('Forma resume refresh failed',err);
@@ -352,12 +363,95 @@ export default function App(){
   },[]);
 
   useEffect(()=>{
-    if(authSession?.user){loadData(false,authSession);}
-    else{
+    if(authSession?.user){
+      loadData(false,authSession);
+      syncSteps(false,authSession);
+    }else{
       setLoading(false);setProfile(null);setMembers([]);setPreviousTop5([]);
-      setSessions([]);setSchedule({});setGymTemplates({});
+      setSessions([]);setSchedule({});setGymTemplates({});setDailySteps([]);
+      setStepsStatus('loading');
     }
   },[authSession?.user?.id]);
+
+
+  async function syncSteps(requestPermission=false,sessionOverride=authSession){
+    if(!sessionOverride?.user||stepsSyncing)return;
+    setStepsSyncing(true);
+
+    try{
+      const availability=await Health.isAvailable();
+      if(!availability?.available){
+        setStepsStatus('unavailable');
+        return;
+      }
+
+      const authOptions={read:['steps'],write:[],requestHistoryAccess:true};
+      let authorization=await Health.checkAuthorization(authOptions);
+
+      if(!authorization?.readAuthorized?.includes('steps')){
+        if(!requestPermission){
+          setStepsStatus('permission');
+          return;
+        }
+
+        authorization=await Health.requestAuthorization(authOptions);
+        if(!authorization?.readAuthorized?.includes('steps')){
+          setStepsStatus('permission');
+          return;
+        }
+      }
+
+      const start=addYears(new Date(),-1);
+      start.setHours(0,0,0,0);
+      const end=new Date();
+
+      const result=await Health.queryAggregated({
+        dataType:'steps',
+        startDate:start.toISOString(),
+        endDate:end.toISOString(),
+        bucket:'day',
+        aggregation:'sum',
+      });
+
+      const userId=sessionOverride.user.id;
+      const byDate=new Map();
+
+      (result?.samples||[]).forEach(sample=>{
+        const date=localDateKey(new Date(sample.startDate));
+        const value=Math.max(0,Math.round(Number(sample.value)||0));
+        byDate.set(date,Math.max(value,byDate.get(date)||0));
+      });
+
+      const rows=[...byDate.entries()].map(([date,steps])=>({
+        user_id:userId,
+        date,
+        steps,
+        source:'health_connect',
+        updated_at:new Date().toISOString(),
+      }));
+
+      if(rows.length){
+        const {error}=await supabase.from('daily_steps').upsert(rows,{onConflict:'user_id,date'});
+        if(error)throw error;
+      }
+
+      const {data,error}=await supabase
+        .from('daily_steps')
+        .select('date,steps')
+        .eq('user_id',userId)
+        .gte('date',localDateKey(start))
+        .order('date',{ascending:true});
+
+      if(error)throw error;
+      setDailySteps((data||[]).map(x=>({date:x.date,steps:Number(x.steps)||0})));
+      setStepsStatus('ready');
+    }catch(err){
+      console.warn('Forma steps sync failed',err);
+      setStepsStatus('error');
+    }finally{
+      setStepsSyncing(false);
+    }
+  }
 
   function navigate(next){
     if(next===screen)return;
@@ -394,10 +488,11 @@ export default function App(){
         supabase.from('sessions').select('*').eq('user_id',userId).order('date',{ascending:true}).order('created_at',{ascending:true}),
         supabase.from('plans').select('*').eq('user_id',userId),
         supabase.from('gym_templates').select('*').eq('user_id',userId),
+        supabase.from('daily_steps').select('date,steps').eq('user_id',userId).gte('date',localDateKey(addYears(new Date(),-1))).order('date',{ascending:true}),
       ]);
 
       const timeout=new Promise((_,reject)=>setTimeout(()=>reject(new Error('timeout')),9000));
-      const [profileRes,leaderRes,previousRes,sessionsRes,plansRes,templatesRes]=await Promise.race([queries,timeout]);
+      const [profileRes,leaderRes,previousRes,sessionsRes,plansRes,templatesRes,stepsRes]=await Promise.race([queries,timeout]);
 
       if(profileRes.error)throw profileRes.error;
       if(leaderRes.error)throw leaderRes.error;
@@ -422,6 +517,7 @@ export default function App(){
       const templates={};
       (templatesRes.data||[]).forEach(t=>{templates[t.gym_group]={baseRows:t.base_rows||[],extraRows:t.extra_rows||[]};});
       setGymTemplates(templates);
+      setDailySteps((stepsRes.data||[]).map(x=>({date:x.date,steps:Number(x.steps)||0})));
     }catch(err){
       console.error('Forma load error',err);
       if(!silent)setLoadError('Не удалось связаться с общей базой. Проверь интернет и нажми «Повторить».');
@@ -484,6 +580,7 @@ export default function App(){
       duration:null,
       steps:payload.steps??null,
       workout_text:payload.workoutText||null,
+      combat_type:payload.combatType||null,
       hike_days:payload.hikeDays??null,
       hike_distance:payload.hikeDistance??null,
       gym_group:payload.gymGroup||null,
@@ -544,9 +641,9 @@ export default function App(){
   if(loadError)return <main className="onboarding dark-screen"><Brand/><h1>Связь с базой</h1><p className="soft-text">{loadError}</p><div className="glass-card onboarding-form"><button className="gradient-button" onClick={loadData}>Повторить</button></div></main>;
 
   return <div className={`app-shell-dark season-${seasonKey()}`}>
-    {screen==='home'&&<Home schedule={schedule} sessions={numberedSessions} profile={profile} selectedDateKey={selectedDateKey} setSelectedDateKey={setSelectedDateKey} onSavePlan={savePlan} onDeletePlan={deletePlan} onProposal={sendProposal} onOpenWorkout={openAdd} onAbout={()=>navigate('about')} onWhy={()=>navigate('why')}/>} 
+    {screen==='home'&&<Home schedule={schedule} sessions={numberedSessions} profile={profile} dailySteps={dailySteps} stepsStatus={stepsStatus} stepsSyncing={stepsSyncing} onEnableSteps={()=>syncSteps(true,authSession)} selectedDateKey={selectedDateKey} setSelectedDateKey={setSelectedDateKey} onSavePlan={savePlan} onDeletePlan={deletePlan} onProposal={sendProposal} onOpenWorkout={openAdd} onAbout={()=>navigate('about')} onWhy={()=>navigate('why')}/>} 
     {screen==='history'&&<History sessions={numberedSessions} onDelete={deleteSession}/>}
-    {screen==='stats'&&<Statistics sessions={numberedSessions} profile={profile} memberCount={members.length} onOpenMembers={()=>navigate('members')}/>}
+    {screen==='stats'&&<Statistics sessions={numberedSessions} dailySteps={dailySteps} profile={profile} memberCount={members.length} onOpenMembers={()=>navigate('members')}/>}
     {screen==='members'&&<Members members={members} profile={profile} previousTop5={previousTop5}/>}
     {screen==='add-training'&&<AddTraining dateKey={draftDateKey} setDateKey={setDraftDateKey} onProposal={sendProposal} onBack={()=>goBack('home')} onChoose={chooseType}/>}
     {screen==='gym'&&<GymTraining dateKey={draftDateKey} setDateKey={setDraftDateKey} sessions={numberedSessions} gymTemplates={gymTemplates} onSaveTemplate={saveTemplate} onBack={()=>goBack('add-training')} onHistory={()=>navigate('gym-history')} onSave={saveSession} onTrainerRequest={requestTrainer}/>}
@@ -554,7 +651,8 @@ export default function App(){
     {screen==='bike'&&<SimpleTraining type="bike" dateKey={draftDateKey} setDateKey={setDraftDateKey} sessions={numberedSessions} onBack={()=>goBack('add-training')} onSave={saveSession}/>}
     {screen==='workout'&&<WorkoutTraining dateKey={draftDateKey} setDateKey={setDraftDateKey} sessions={numberedSessions} onBack={()=>goBack('add-training')} onHistory={()=>navigate('workout-history')} onSave={saveSession}/>}
     {screen==='workout-history'&&<WorkoutHistory sessions={numberedSessions.filter(s=>s.type==='workout'&&isHistorySession(s))} onBack={()=>goBack('workout')}/>}
-    {screen==='walk'&&<SimpleTraining type="walk" dateKey={draftDateKey} setDateKey={setDraftDateKey} sessions={numberedSessions} onBack={()=>goBack('add-training')} onSave={saveSession}/>}
+    {screen==='combat'&&<CombatTraining dateKey={draftDateKey} setDateKey={setDraftDateKey} sessions={numberedSessions} onBack={()=>goBack('add-training')} onHistory={()=>navigate('combat-history')} onSave={saveSession}/>}
+    {screen==='combat-history'&&<CombatHistory sessions={numberedSessions.filter(s=>s.type==='combat'&&isHistorySession(s))} onBack={()=>goBack('combat')}/>}
     {screen==='hike'&&<HikeTraining dateKey={draftDateKey} setDateKey={setDraftDateKey} sessions={numberedSessions} onBack={()=>goBack('add-training')} onHistory={()=>navigate('hike-history')} onSave={saveSession}/>}
     {screen==='hike-history'&&<HikeHistory sessions={numberedSessions.filter(s=>s.type==='hike'&&isHistorySession(s))} onBack={()=>goBack('hike')}/>}
     {screen==='about'&&<AboutScreen onBack={()=>goBack('home')}/>}
@@ -564,14 +662,14 @@ export default function App(){
 }
 
 function BottomNav({screen,onNavigate}){
-  const active=['add-training','gym','gym-history','bike','workout','workout-history','walk','hike','hike-history','about','why'].includes(screen)?'home':screen;
+  const active=['add-training','gym','gym-history','bike','workout','workout-history','combat','combat-history','hike','hike-history','about','why'].includes(screen)?'home':screen;
   const items=[['home','⌂','Главная'],['history','▥','История'],['stats','▤','Статистика'],['members','♟','Участники']];
   return <nav className="bottom-nav four">
     {items.map(([key,icon,label])=><button key={key} className={active===key?'active':''} onClick={()=>onNavigate(key)}><span className="nav-icon">{icon}</span>{label}</button>)}
   </nav>;
 }
 
-function Home({schedule,sessions,profile,selectedDateKey,setSelectedDateKey,onSavePlan,onDeletePlan,onProposal,onOpenWorkout,onAbout,onWhy}){
+function Home({schedule,sessions,profile,dailySteps,stepsStatus,stepsSyncing,onEnableSteps,selectedDateKey,setSelectedDateKey,onSavePlan,onDeletePlan,onProposal,onOpenWorkout,onAbout,onWhy}){
   const [pointsOpen,setPointsOpen]=useState(false);
   const events=pointEvents(sessions).slice(-10).reverse();
   const season=seasonMeta();
@@ -605,6 +703,16 @@ function Home({schedule,sessions,profile,selectedDateKey,setSelectedDateKey,onSa
         <small>{scoreHint(sessions)}</small>
       </div>
     </header>
+
+    <div className="steps-chip-row">
+      <button className={`today-steps-chip ${stepsStatus}`} onClick={stepsStatus==='ready'?undefined:onEnableSteps} disabled={stepsSyncing}>
+        <span className="steps-foot">👣</span>
+        <span>
+          <strong>{stepsStatus==='ready'?(dailySteps.find(x=>x.date===localDateKey())?.steps||0).toLocaleString('ru-RU'):stepsSyncing?'Синхронизация…':'Шаги за сегодня'}</strong>
+          <small>{stepsStatus==='ready'?'шагов сегодня':stepsStatus==='unavailable'?'Недоступно на этом устройстве':'Подключить автоматический шагомер'}</small>
+        </span>
+      </button>
+    </div>
 
     <DateWheel schedule={schedule} selectedDateKey={selectedDateKey} setSelectedDateKey={setSelectedDateKey} onSavePlan={onSavePlan} onDeletePlan={onDeletePlan} onProposal={onProposal}/>
 
@@ -1079,6 +1187,72 @@ function WorkoutHistory({sessions,onBack}){
   </main>;
 }
 
+function CombatTraining({dateKey,setDateKey,sessions,onBack,onHistory,onSave}){
+  const [combatType,setCombatType]=useState('');
+  const [saving,setSaving]=useState(false);
+  const count=sessions.filter(s=>s.type==='combat'&&isQualifyingSession(s)).length;
+  const suggestions=['Бокс','ММА','Борьба','Самбо','Дзюдо','BJJ','Кикбоксинг','Муай-тай','Карате','Тхэквондо'];
+
+  async function save(){
+    if(!combatType.trim())return;
+    setSaving(true);
+    try{
+      await onSave({
+        type:'combat',
+        date:dateKey,
+        title:combatType.trim(),
+        combatType:combatType.trim(),
+      });
+    }finally{
+      setSaving(false);
+    }
+  }
+
+  return <main className="sub-screen combat-training-screen">
+    <ScreenBack onBack={onBack} title="Единоборства"/>
+
+    <section className="metric-hero combat-metric-hero">
+      <ActivityGlyph type="combat" className="combat"/>
+      <div><small>Всего тренировок</small><strong>{count}</strong></div>
+    </section>
+
+    <section className="glass-card simple-form combat-form">
+      <label className="date-control embedded"><span>Дата</span><input type="date" value={dateKey} onChange={e=>setDateKey(e.target.value)}/></label>
+      <label className="dark-field">
+        <span>Вид единоборства</span>
+        <input list="combat-types" value={combatType} onChange={e=>setCombatType(e.target.value)} placeholder="Например: бокс"/>
+        <datalist id="combat-types">{suggestions.map(x=><option value={x} key={x}/>)}</datalist>
+      </label>
+      <button className="gradient-button save-simple" onClick={save} disabled={saving||!combatType.trim()}>
+        {saving?'Сохраняю…':isFuture(dateKey)?'Запланировать':'Сохранить тренировку'}
+      </button>
+    </section>
+
+    <button className="previous-button workout-history-button" onClick={onHistory}><span>◴</span>Предыдущие тренировки<b>›</b></button>
+  </main>;
+}
+
+function CombatHistory({sessions,onBack}){
+  const ordered=[...sessions].sort((a,b)=>b.date.localeCompare(a.date)||String(b.created_at||'').localeCompare(String(a.created_at||'')));
+  const [openId,setOpenId]=useState(ordered[0]?.id||null);
+
+  return <main className="sub-screen">
+    <ScreenBack onBack={onBack} title="История единоборств"/>
+    {!ordered.length&&<div className="empty-state">Сохранённых тренировок пока нет.</div>}
+    <div className="accordion-list">{ordered.map(s=>{
+      const open=s.id===openId;
+      return <article className={`history-accordion ${open?'open':''}`} key={s.id}>
+        <button className="accordion-title" onClick={()=>setOpenId(open?null:s.id)}>
+          <span className="accordion-icon combat">🥊</span>
+          <span><strong>Тренировка №{s.displayNumber||'—'}</strong><small>{formatDate(s.date,{day:'numeric',month:'long',year:'numeric'})}</small></span>
+          <b>{open?'⌃':'⌄'}</b>
+        </button>
+        {open&&<div className="accordion-body combat-history-detail"><strong>{s.combatType||s.title||'Единоборства'}</strong></div>}
+      </article>;
+    })}</div>
+  </main>;
+}
+
 function HikeTraining({dateKey,setDateKey,sessions,onBack,onHistory,onSave}){
   const [name,setName]=useState('');
   const [days,setDays]=useState('1');
@@ -1264,14 +1438,16 @@ function History({sessions,onDelete}){
               ?<p className="workout-history-text">{s.workoutText||'Описание не сохранено.'}</p>
               :s.type==='hike'
                 ?<div className="hike-history-detail"><strong>{s.title||'Поход'}</strong><span>{Math.max(Number(s.hikeDays)||1,1)} дн.</span><span>{Number(s.hikeDistance||0).toLocaleString('ru-RU')} км</span></div>
-                :<p>{sessionValue(s)}</p>}
+                :s.type==='combat'
+                  ?<div className="combat-history-detail"><strong>{s.combatType||s.title||'Единоборства'}</strong></div>
+                  :<p>{sessionValue(s)}</p>}
         </div>}
       </article>;
     })}</div>
   </main>;
 }
 
-function Statistics({sessions,profile,memberCount,onOpenMembers}){
+function Statistics({sessions,dailySteps,profile,memberCount,onOpenMembers}){
   const [range,setRange]=useState('30d');
   const [customStart,setCustomStart]=useState(localDateKey(addDays(new Date(),-30)));
   const [customEnd,setCustomEnd]=useState(localDateKey());
@@ -1292,8 +1468,9 @@ function Statistics({sessions,profile,memberCount,onOpenMembers}){
   const filtered=sessions.filter(s=>isStatsSession(s)&&s.date>=start&&s.date<=end);
   const gym=filtered.filter(s=>s.type==='gym').length;
   const bike=filtered.filter(s=>s.type==='bike').reduce((n,s)=>n+(Number(s.distance)||0),0);
-  const steps=filtered.filter(s=>s.type==='walk').reduce((n,s)=>n+(Number(s.steps)||0),0);
+  const stepTotal=(dailySteps||[]).filter(x=>x.date>=start&&x.date<=end).reduce((n,x)=>n+(Number(x.steps)||0),0);
   const workoutCount=filtered.filter(s=>s.type==='workout').length;
+  const combatCount=filtered.filter(s=>s.type==='combat').length;
   const hikes=filtered.filter(s=>s.type==='hike');
   const hikeCount=hikes.length;
   const hikeDays=hikes.reduce((n,s)=>n+(Math.max(Number(s.hikeDays)||1,1)),0);
@@ -1316,8 +1493,9 @@ function Statistics({sessions,profile,memberCount,onOpenMembers}){
     <div className="stats-grid-big">
       <StatCard type="gym" accent="violet" title="Тренажёрка" value={gym.toLocaleString('ru-RU')} unit="тренировок"/>
       <StatCard type="bike" accent="amber" title="Велосипед" value={bike.toLocaleString('ru-RU')} unit="км"/>
-      <StatCard type="walk" accent="green" title="Прогулка" value={steps.toLocaleString('ru-RU')} unit="шагов"/>
+      <StatCard type="steps" accent="green" title="Шаги" value={stepTotal.toLocaleString('ru-RU')} unit="шагов"/>
       <StatCard type="workout" accent="coral" title="Воркаут" value={workoutCount.toLocaleString('ru-RU')} unit="тренировок"/>
+      <StatCard type="combat" accent="combat" title="Единоборства" value={combatCount.toLocaleString('ru-RU')} unit="тренировок"/>
       <HikeStats count={hikeCount} days={hikeDays} distance={hikeDistance}/>
     </div>
   </main>;
