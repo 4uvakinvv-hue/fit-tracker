@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { supabase } from './supabase.js';
 import { App as NativeApp } from '@capacitor/app';
 
-const APP_VERSION = '1.1';
+const APP_VERSION = '1.1.1';
 
 const ACTIVITIES = [
   { id: 'gym', label: 'Тренажёрка', icon: '🏋︎', accent: 'violet' },
