@@ -701,6 +701,20 @@ export default function App(){
     await loadData(true);
   }
 
+  async function markNotificationsRead(){
+    if(!isBoss||!authSession?.user)return;
+    const unread=adminNotifications.filter(n=>!n.read_at).map(n=>n.id);
+    if(!unread.length)return;
+    const readAt=new Date().toISOString();
+    const {error}=await supabase
+      .from('admin_notifications')
+      .update({read_at:readAt})
+      .in('id',unread)
+      .eq('recipient_user_id',authSession.user.id);
+    if(error)throw error;
+    setAdminNotifications(cur=>cur.map(n=>unread.includes(n.id)?{...n,read_at:readAt}:n));
+  }
+
   async function requestTrainer(){
     const {error}=await supabase.from('trainer_requests').insert({
       user_id:authSession.user.id,
@@ -715,7 +729,7 @@ export default function App(){
   if(loadError)return <main className="onboarding dark-screen"><Brand/><h1>Связь с базой</h1><p className="soft-text">{loadError}</p><div className="glass-card onboarding-form"><button className="gradient-button" onClick={loadData}>Повторить</button></div></main>;
 
   return <div className={`app-shell-dark season-${seasonKey()} screen-${screen}`}>
-    {screen==='home'&&<Home schedule={schedule} sessions={numberedSessions} profile={profile} dailySteps={dailySteps} saveNotice={saveNotice} isBoss={isBoss} hookahEvents={hookahEvents} canUndoHookah={!!undoHookahId} onHookah={addHookah} onUndoHookah={undoHookah} stepsStatus={stepsStatus} stepsSyncing={stepsSyncing} onEnableSteps={()=>syncSteps(true,authSession)} selectedDateKey={selectedDateKey} setSelectedDateKey={setSelectedDateKey} onSavePlan={savePlan} onDeletePlan={deletePlan} onProposal={sendProposal} onOpenWorkout={openAdd}/>} 
+    {screen==='home'&&<Home schedule={schedule} sessions={numberedSessions} profile={profile} dailySteps={dailySteps} saveNotice={saveNotice} isBoss={isBoss} adminNotifications={adminNotifications} onMarkNotificationsRead={markNotificationsRead} hookahEvents={hookahEvents} canUndoHookah={!!undoHookahId} onHookah={addHookah} onUndoHookah={undoHookah} stepsStatus={stepsStatus} stepsSyncing={stepsSyncing} onEnableSteps={()=>syncSteps(true,authSession)} selectedDateKey={selectedDateKey} setSelectedDateKey={setSelectedDateKey} onSavePlan={savePlan} onDeletePlan={deletePlan} onProposal={sendProposal} onOpenWorkout={openAdd}/>} 
     {screen==='history'&&<History sessions={numberedSessions} onDelete={deleteSession}/>}
     {screen==='stats'&&<Statistics sessions={numberedSessions} dailySteps={dailySteps} isBoss={isBoss} hookahEvents={hookahEvents} hookahStartedOn={hookahStartedOn} profile={profile} memberCount={members.length} onOpenMembers={()=>navigate('members')}/>}
     {screen==='members'&&<Members members={members} profile={profile} previousTop5={previousTop5}/>}
@@ -743,9 +757,11 @@ function BottomNav({screen,onNavigate}){
   </nav>;
 }
 
-function Home({schedule,sessions,profile,dailySteps,saveNotice,isBoss,hookahEvents,canUndoHookah,onHookah,onUndoHookah,stepsStatus,stepsSyncing,onEnableSteps,selectedDateKey,setSelectedDateKey,onSavePlan,onDeletePlan,onProposal,onOpenWorkout}){
+function Home({schedule,sessions,profile,dailySteps,saveNotice,isBoss,adminNotifications,onMarkNotificationsRead,hookahEvents,canUndoHookah,onHookah,onUndoHookah,stepsStatus,stepsSyncing,onEnableSteps,selectedDateKey,setSelectedDateKey,onSavePlan,onDeletePlan,onProposal,onOpenWorkout}){
   const [pointsOpen,setPointsOpen]=useState(false);
+  const [notificationsOpen,setNotificationsOpen]=useState(false);
   const events=pointEvents(sessions,hookahEvents).slice(-10).reverse();
+  const unreadNotifications=(adminNotifications||[]).filter(n=>!n.read_at).length;
   const todayKey=localDateKey();
   const todayHookahs=hookahEvents.filter(h=>h.event_date===todayKey).length;
   const sevenStart=localDateKey(addDays(new Date(),-6));
@@ -757,7 +773,12 @@ function Home({schedule,sessions,profile,dailySteps,saveNotice,isBoss,hookahEven
   return <main className="main-screen home-no-scroll">
     <header className="topbar home-topbar">
       <div className="home-brand-block">
-        <Brand compact/>
+        <div className="brand-admin-row">
+          <Brand compact/>
+          {isBoss&&<button className="admin-bell" onClick={async()=>{setNotificationsOpen(true);await onMarkNotificationsRead();}} aria-label="Уведомления администратора">
+            <span>🔔</span>{unreadNotifications>0&&<b>{unreadNotifications>9?'9+':unreadNotifications}</b>}
+          </button>}
+        </div>
         <div className="season-title-row">
           <span>Сезон</span>
           <strong>{season.name.toUpperCase()}</strong>
@@ -804,6 +825,26 @@ function Home({schedule,sessions,profile,dailySteps,saveNotice,isBoss,hookahEven
     <button className="gradient-button workout-cta" onClick={onOpenWorkout}><span>＋</span>Добавить тренировку<b>›</b></button>
     <p className="helper-text">Выбранная дата: {formatDate(selectedDateKey)}.</p>
     {saveNotice&&<div className="save-toast">✓ {saveNotice}</div>}
+
+    {notificationsOpen&&<div className="modal-backdrop" onClick={()=>setNotificationsOpen(false)}>
+      <section className="admin-notifications-modal" onClick={e=>e.stopPropagation()}>
+        <header>
+          <div><small>Босс</small><h2>Уведомления</h2></div>
+          <button onClick={()=>setNotificationsOpen(false)}>×</button>
+        </header>
+        {!adminNotifications.length&&<div className="empty-state compact-empty">Новых событий пока нет.</div>}
+        <div className="admin-notification-list">
+          {adminNotifications.map(n=><article key={n.id} className={!n.read_at?'unread':''}>
+            <span className="admin-notification-icon">{n.type==='trainer_request'?'♟':'👤'}</span>
+            <div>
+              <strong>{n.title}</strong>
+              <small>{n.member_name||'Пользователь'}{n.member_email?' · '+n.member_email:''}</small>
+              <em>{new Intl.DateTimeFormat('ru-RU',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}).format(new Date(n.created_at))}</em>
+            </div>
+          </article>)}
+        </div>
+      </section>
+    </div>}
 
     {pointsOpen&&<div className="modal-backdrop" onClick={()=>setPointsOpen(false)}>
       <section className="points-modal" onClick={e=>e.stopPropagation()}>
