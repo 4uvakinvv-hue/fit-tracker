@@ -1,4 +1,4 @@
-const CACHE = 'forma-v140';
+const CACHE = 'forma-v141';
 const ROOT = '/fit-tracker/';
 const APP_SHELL = [
   ROOT,
