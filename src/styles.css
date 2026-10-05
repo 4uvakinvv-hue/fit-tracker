@@ -2241,3 +2241,342 @@
 }
 .today-steps-chip.synced strong{color:var(--season-bright)}
 .today-steps-chip.web{opacity:.78}
+
+
+/* Forma 1.5.0 — polish, dense layouts and seasonal depth */
+
+/* Richer seasonal treatment */
+.season-leaf-icon{
+  background:linear-gradient(145deg,#ffd76d 0%,#ff9c32 42%,#d84a1c 78%,#8a2b18 100%)!important;
+  filter:drop-shadow(0 0 6px rgba(255,150,55,.60)) drop-shadow(0 2px 2px rgba(72,22,9,.55))!important;
+}
+.app-shell-dark.season-autumn::before{
+  opacity:.44!important;
+  filter:drop-shadow(0 0 8px rgba(255,129,32,.28)) drop-shadow(0 3px 5px rgba(0,0,0,.34))!important;
+}
+.app-shell-dark.season-autumn::after{
+  content:"";
+  position:fixed;
+  inset:0;
+  z-index:0;
+  pointer-events:none;
+  background:
+    radial-gradient(circle at 12% 12%,rgba(255,141,42,.14),transparent 15%),
+    radial-gradient(circle at 87% 18%,rgba(255,190,83,.10),transparent 17%),
+    radial-gradient(circle at 8% 74%,rgba(180,62,20,.12),transparent 19%),
+    radial-gradient(circle at 92% 78%,rgba(255,120,26,.09),transparent 18%);
+  mix-blend-mode:screen;
+}
+.app-shell-dark.season-autumn>.main-screen,
+.app-shell-dark.season-autumn>.tab-screen,
+.app-shell-dark.season-autumn>.sub-screen{
+  z-index:auto!important;
+}
+
+/* Calendar: seven days must always fit in every week */
+.home-no-scroll .week-calendar-shell{
+  flex:1 1 0!important;
+  min-height:0!important;
+  height:auto!important;
+  margin:1px 0 6px!important;
+  padding:5px!important;
+}
+.week-columns{gap:4px!important}
+.week-column{
+  min-height:0!important;
+  padding:4px 3px!important;
+  border-radius:14px!important;
+}
+.week-column>header{
+  min-height:24px!important;
+  padding:0 1px 3px!important;
+}
+.week-column>header span{font-size:6.5px!important}
+.week-column>header small{font-size:5.8px!important;margin-top:1px!important}
+.week-days{
+  min-height:0!important;
+  grid-template-rows:repeat(7,minmax(0,1fr))!important;
+  gap:2px!important;
+  padding-top:3px!important;
+}
+.week-day{
+  min-height:0!important;
+  height:100%!important;
+  padding:1px 3px!important;
+  border-radius:9px!important;
+  grid-template-columns:minmax(22px,1fr) 20px 16px!important;
+}
+.week-day-date{gap:2px!important}
+.week-day-date b{font-size:6px!important;width:12px!important;flex-basis:12px!important}
+.week-day-date strong{font-size:9.5px!important}
+.week-day-activity{font-size:12px!important}
+.week-day-activity .activity-svg{width:15px!important;height:15px!important}
+.week-day-status{width:14px!important;height:14px!important;font-size:7px!important}
+
+/* Gym header controls: keep the content, lose the wasted height */
+.gym-screen .compact-date{
+  margin:0 0 5px!important;
+  gap:3px!important;
+}
+.gym-screen .compact-date span{font-size:8px!important}
+.gym-screen .compact-date input{
+  height:42px!important;
+  border-radius:12px!important;
+  font-size:13px!important;
+}
+.gym-screen .gym-tabs{
+  margin:3px 0 7px!important;
+  gap:5px!important;
+}
+.gym-screen .gym-tabs button{
+  min-height:44px!important;
+  padding:3px 4px!important;
+  border-radius:13px!important;
+  font-size:9px!important;
+  gap:4px!important;
+}
+.gym-screen .gym-tabs button span{font-size:15px!important}
+
+/* Notifications: real centered modal above the bottom nav with full history */
+.modal-backdrop{
+  z-index:1000!important;
+  align-items:center!important;
+  justify-content:center!important;
+  padding:max(18px,env(safe-area-inset-top)) 14px max(18px,env(safe-area-inset-bottom))!important;
+}
+.admin-notifications-modal{
+  width:min(100%,500px)!important;
+  max-height:min(72dvh,640px)!important;
+  display:flex!important;
+  flex-direction:column!important;
+  overflow:hidden!important;
+  border-radius:24px!important;
+}
+.admin-notifications-modal>header{
+  flex:0 0 auto;
+  min-height:62px!important;
+}
+.admin-notification-list{
+  flex:1 1 auto!important;
+  min-height:0!important;
+  max-height:none!important;
+  overflow-y:auto!important;
+  overscroll-behavior:contain;
+  scrollbar-width:thin;
+}
+.admin-notification-list article{scroll-margin-top:8px}
+.bottom-nav{z-index:100!important}
+
+/* Statistics: preserve current look but keep the whole hookah card visible */
+.stats-screen{
+  padding-top:max(8px,env(safe-area-inset-top))!important;
+  padding-bottom:6px!important;
+}
+.stats-screen>.eyebrow-dark{margin-top:4px!important;margin-bottom:3px!important}
+.stats-screen>h1{font-size:29px!important}
+.stats-screen .rank-summary-card{
+  min-height:68px!important;
+  margin-top:6px!important;
+  padding:8px 12px!important;
+}
+.stats-screen .range-tabs{margin-top:6px!important}
+.stats-screen .range-tabs button{min-height:30px!important}
+.stats-screen .range-caption{margin:3px 2px 0!important}
+.stats-grid-big{
+  margin-top:5px!important;
+  gap:4px!important;
+  grid-auto-rows:minmax(52px,auto)!important;
+  overflow:hidden!important;
+}
+.stat-card{
+  min-height:52px!important;
+  padding:6px 8px!important;
+  border-radius:15px!important;
+  grid-template-columns:31px minmax(0,1fr)!important;
+  gap:6px!important;
+}
+.stat-icon{
+  width:31px!important;
+  height:31px!important;
+  font-size:18px!important;
+}
+.stat-icon .activity-svg{width:21px!important;height:21px!important}
+.stat-copy strong{font-size:16px!important}
+.hike-stat-card{
+  min-height:58px!important;
+  grid-template-columns:31px minmax(0,1fr)!important;
+}
+.hike-stat-values>span{padding:4px 5px!important}
+.hike-stat-values strong{font-size:14px!important}
+.hookah-stat-card{
+  min-height:58px!important;
+  padding:6px 10px!important;
+  gap:7px!important;
+}
+.hookah-stat-card strong{font-size:14px!important}
+.hookah-stat-card small,.hookah-stat-card em{font-size:6.5px!important}
+
+/* Participants: current ranking is a proper scrollable viewport, centered on me */
+.members-screen{
+  overflow-y:auto!important;
+  display:block!important;
+  padding-top:max(8px,env(safe-area-inset-top))!important;
+  padding-bottom:12px!important;
+  overscroll-behavior:contain;
+}
+.members-screen .members-head{align-items:center}
+.members-screen .eyebrow-dark{margin:3px 0 3px!important}
+.members-head h1{font-size:29px!important}
+.members-head>strong{
+  width:44px!important;
+  min-width:44px!important;
+  height:44px!important;
+  border-radius:14px!important;
+}
+.members-screen .season-card{
+  min-height:58px!important;
+  margin-top:8px!important;
+  padding:10px 13px!important;
+}
+.members-caption{
+  margin:6px 0 7px!important;
+  font-size:8.5px!important;
+  line-height:1.35!important;
+}
+.members-screen .leaderboard-scroll{
+  height:260px!important;
+  max-height:260px!important;
+  min-height:54px!important;
+  overflow-y:auto!important;
+  padding:0 2px 2px 0!important;
+  scroll-behavior:smooth;
+  scrollbar-width:thin;
+}
+.members-screen .leaderboard{gap:5px!important}
+.members-screen .leader-row{
+  min-height:48px!important;
+  padding:6px 9px!important;
+  border-radius:14px!important;
+  grid-template-columns:25px 34px minmax(0,1fr) auto!important;
+  gap:7px!important;
+}
+.members-screen .member-avatar{
+  width:34px!important;
+  height:34px!important;
+  font-size:13px!important;
+}
+.members-screen .leader-row strong{font-size:10px!important}
+.members-screen .leader-row small{font-size:7px!important}
+.members-screen .leader-row>b{font-size:10px!important}
+.members-screen .leader-row.me{
+  border-color:#ffb447!important;
+  background:linear-gradient(110deg,rgba(105,50,24,.88),rgba(47,28,23,.96))!important;
+  box-shadow:0 0 0 1px rgba(255,213,118,.24),0 0 16px rgba(255,147,46,.25)!important;
+}
+
+/* Previous season card keeps its own season, independent of the current app theme */
+.previous-season{
+  position:relative;
+  overflow:hidden;
+  margin-top:8px!important;
+  padding:12px!important;
+  border-radius:20px!important;
+}
+.previous-season>*{position:relative;z-index:1}
+.previous-season header h2{margin:2px 0 8px!important;font-size:18px!important}
+.previous-season header small{font-size:8px!important}
+.previous-season-list{
+  display:grid;
+  gap:4px;
+  max-height:180px;
+  overflow-y:auto;
+  scrollbar-width:thin;
+}
+.previous-row{
+  min-height:42px!important;
+  grid-template-columns:24px 34px minmax(0,1fr) auto!important;
+  gap:7px!important;
+  border-radius:12px;
+  padding:4px 7px;
+  border-top:0!important;
+  background:rgba(8,25,34,.32);
+}
+.previous-row.me{
+  background:rgba(255,255,255,.12);
+  box-shadow:inset 0 0 0 1px rgba(255,255,255,.12);
+}
+.previous-avatar{
+  width:32px;
+  height:32px;
+  border-radius:50%;
+  display:grid;
+  place-items:center;
+  font-size:12px;
+  font-weight:900;
+  background:rgba(14,35,48,.55);
+  border:1px solid rgba(255,255,255,.16);
+}
+.previous-row span:first-child{font-size:9px!important}
+.previous-row strong{font-size:10px!important}
+.previous-row b{font-size:10px!important}
+.previous-season-summer{
+  color:#f8fdff;
+  background:
+    linear-gradient(180deg,rgba(3,35,51,.08),rgba(4,43,52,.46)),
+    url('./assets/summer-card.svg') center/cover no-repeat!important;
+  border:1px solid rgba(88,229,255,.72)!important;
+  box-shadow:inset 0 0 34px rgba(31,217,238,.16),0 14px 30px rgba(0,0,0,.20)!important;
+}
+.previous-season-summer::after{
+  content:"";
+  position:absolute;
+  inset:0;
+  background:linear-gradient(90deg,rgba(0,50,65,.52),rgba(0,50,65,.16) 62%,rgba(0,50,65,.05));
+  pointer-events:none;
+}
+.previous-season-summer header small{color:#bfefff!important}
+.previous-season-summer header h2{text-shadow:0 2px 12px rgba(0,60,75,.45)}
+.previous-season-summer .previous-row{background:rgba(9,79,86,.50)}
+.previous-season-summer .previous-row.me{background:rgba(19,92,91,.72)}
+.previous-season-summer .previous-avatar{
+  background:linear-gradient(145deg,#ad6b22,#3f2413);
+  border-color:rgba(255,210,99,.70);
+  box-shadow:0 0 12px rgba(255,195,72,.18);
+}
+.previous-season-winter{
+  background:radial-gradient(circle at 85% 10%,rgba(211,244,255,.20),transparent 28%),linear-gradient(145deg,#12304a,#081828)!important;
+  border-color:rgba(139,220,255,.45)!important;
+}
+.previous-season-spring{
+  background:radial-gradient(circle at 85% 10%,rgba(122,235,166,.18),transparent 30%),linear-gradient(145deg,#16372e,#0d211d)!important;
+  border-color:rgba(126,231,170,.42)!important;
+}
+.previous-season-autumn{
+  background:radial-gradient(circle at 85% 8%,rgba(255,168,68,.18),transparent 31%),linear-gradient(145deg,#482817,#1d1512)!important;
+  border-color:rgba(255,165,72,.42)!important;
+}
+.members-screen .inactive-rule{
+  margin:7px 2px 0!important;
+  font-size:7.5px!important;
+  line-height:1.35!important;
+}
+
+/* On short browser viewports show roughly five ranking rows; outer screen can still scroll. */
+@media(max-height:760px){
+  .members-screen .leaderboard-scroll{height:225px!important;max-height:225px!important}
+}
+@media(max-width:420px){
+  .home-no-scroll .week-calendar-shell{padding:4px!important}
+  .week-columns{gap:3px!important}
+  .week-column{padding:3px 2px!important}
+  .week-column>header{min-height:22px!important}
+  .week-day{grid-template-columns:minmax(20px,1fr) 18px 14px!important;padding:1px 2px!important}
+  .week-day-date b{font-size:5.8px!important}
+  .week-day-date strong{font-size:9px!important}
+  .week-day-activity{font-size:11px!important}
+  .week-day-activity .activity-svg{width:14px!important;height:14px!important}
+  .week-day-status{width:13px!important;height:13px!important}
+  .gym-screen .compact-date input{height:40px!important}
+  .gym-screen .gym-tabs button{min-height:42px!important}
+  .members-screen .leaderboard-scroll{height:245px!important;max-height:245px!important}
+}
