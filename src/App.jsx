@@ -3,7 +3,7 @@ import { supabase } from './supabase.js';
 import { App as NativeApp } from '@capacitor/app';
 import { Health } from '@capgo/capacitor-health';
 
-const APP_VERSION = '1.4.0';
+const APP_VERSION = '1.4.1';
 const ANDROID_APK_URL = 'https://github.com/4uvakinvv-hue/fit-tracker/releases/download/android-current/forma-android.apk';
 const IOS_INSTALL_URL = 'https://4uvakinvv-hue.github.io/fit-tracker/';
 
@@ -308,6 +308,7 @@ export default function App(){
   const [dailySteps,setDailySteps]=useState([]);
   const [isBoss,setIsBoss]=useState(false);
   const [hookahEvents,setHookahEvents]=useState([]);
+  const [adminNotifications,setAdminNotifications]=useState([]);
   const [hookahStartedOn,setHookahStartedOn]=useState(localDateKey());
   const [undoHookahId,setUndoHookahId]=useState(null);
   const [saveNotice,setSaveNotice]=useState('');
@@ -407,7 +408,7 @@ export default function App(){
     }else{
       setLoading(false);setProfile(null);setMembers([]);setPreviousTop5([]);
       setSessions([]);setSchedule({});setGymTemplates({});setDailySteps([]);
-      setIsBoss(false);setHookahEvents([]);setUndoHookahId(null);
+      setIsBoss(false);setHookahEvents([]);setAdminNotifications([]);setUndoHookahId(null);
       setStepsStatus('loading');
     }
   },[authSession?.user?.id]);
@@ -530,10 +531,11 @@ export default function App(){
         supabase.from('daily_steps').select('date,steps').eq('user_id',userId).gte('date',localDateKey(addYears(new Date(),-1))).order('date',{ascending:true}),
         supabase.from('boss_users').select('user_id,hookah_started_on').eq('user_id',userId).maybeSingle(),
         supabase.from('hookah_events').select('id,event_date,smoked_at').eq('user_id',userId).order('smoked_at',{ascending:true}),
+        supabase.from('admin_notifications').select('id,type,title,member_name,member_email,created_at,read_at').eq('recipient_user_id',userId).order('created_at',{ascending:false}).limit(50),
       ]);
 
       const timeout=new Promise((_,reject)=>setTimeout(()=>reject(new Error('timeout')),9000));
-      const [profileRes,leaderRes,previousRes,sessionsRes,plansRes,templatesRes,stepsRes,bossRes,hookahRes]=await Promise.race([queries,timeout]);
+      const [profileRes,leaderRes,previousRes,sessionsRes,plansRes,templatesRes,stepsRes,bossRes,hookahRes,notificationsRes]=await Promise.race([queries,timeout]);
 
       if(profileRes.error)throw profileRes.error;
       if(leaderRes.error)throw leaderRes.error;
@@ -563,6 +565,7 @@ export default function App(){
       setIsBoss(boss);
       setHookahStartedOn(bossRes.data?.hookah_started_on||localDateKey());
       setHookahEvents(boss?(hookahRes.data||[]):[]);
+      setAdminNotifications(boss?(notificationsRes.data||[]):[]);
     }catch(err){
       console.error('Forma load error',err);
       if(!silent)setLoadError('Не удалось связаться с общей базой. Проверь интернет и нажми «Повторить».');
