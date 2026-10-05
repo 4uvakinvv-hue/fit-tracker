@@ -1433,3 +1433,305 @@
   background:linear-gradient(160deg,rgba(84,44,28,.92),rgba(37,23,18,.96));
   border-color:rgba(255,142,78,.24);
 }
+
+
+/* Forma 1.3 — fixed app screens, tonnage, custom gym, hookah, fifth tab */
+.app-shell-dark{
+  height:100dvh;
+  min-height:100dvh;
+  overflow:hidden;
+  padding-bottom:0;
+}
+.app-shell-dark>.main-screen,
+.app-shell-dark>.tab-screen,
+.app-shell-dark>.sub-screen{
+  box-sizing:border-box;
+  height:calc(100dvh - 76px - env(safe-area-inset-bottom));
+  min-height:0;
+}
+.app-shell-dark>.sub-screen{overflow-y:auto;overscroll-behavior:contain}
+.app-shell-dark>.home-no-scroll{
+  overflow:hidden;
+  display:flex;
+  flex-direction:column;
+  padding-top:max(12px,env(safe-area-inset-top));
+  padding-bottom:8px;
+}
+.home-topbar{margin-top:0;margin-bottom:7px}
+.home-no-scroll .date-wheel-shell{
+  flex:1 1 auto;
+  height:auto;
+  min-height:190px;
+  max-height:none;
+  margin-bottom:7px;
+}
+.home-no-scroll .workout-cta{flex:0 0 auto}
+.home-no-scroll .helper-text{margin:4px 0 0}
+
+.home-quick-row{
+  display:flex;
+  justify-content:flex-end;
+  align-items:stretch;
+  gap:8px;
+  margin:0 2px 7px;
+  flex:0 0 auto;
+}
+.home-quick-row .today-steps-chip{
+  flex:0 0 142px;
+  min-width:0;
+  min-height:64px;
+  margin:0;
+}
+.hookah-quick-card{
+  min-width:0;
+  flex:1 1 auto;
+  min-height:64px;
+  padding:7px 8px;
+  border-radius:16px;
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:5px 7px;
+  align-items:center;
+  background:linear-gradient(145deg,rgba(87,47,30,.88),rgba(35,24,20,.96));
+  border:1px solid rgba(255,164,85,.20);
+  box-shadow:0 9px 24px rgba(0,0,0,.17);
+}
+.hookah-money small,.hookah-money strong,
+.hookah-seven small,.hookah-seven strong{display:block}
+.hookah-money small,.hookah-seven small{
+  color:#9a897e;
+  font-size:7px;
+  line-height:1.15;
+}
+.hookah-money strong{
+  margin-top:2px;
+  color:#ffb54e;
+  font-size:14px;
+}
+.hookah-seven strong{
+  margin-top:2px;
+  color:#e9d8ca;
+  font-size:12px;
+}
+.hookah-button{
+  grid-column:1/-1;
+  min-height:25px;
+  padding:0 8px;
+  border-radius:9px;
+  background:linear-gradient(100deg,#ffb34b,#f58a32);
+  color:#1d1008;
+  font-size:8px;
+  font-weight:900;
+}
+.hookah-undo{
+  grid-column:1/-1;
+  min-height:20px;
+  margin-top:-2px;
+  background:transparent;
+  color:#c79072;
+  font-size:7px;
+  text-decoration:underline;
+}
+
+.gym-tabs{grid-template-columns:repeat(4,1fr)}
+.gym-tabs button{min-height:52px;padding:4px;font-size:10px}
+.gym-tabs button span{font-size:17px}
+
+.exercise-head,.exercise-row{
+  grid-template-columns:minmax(0,1fr) 48px 48px 70px 34px;
+  gap:5px;
+}
+.exercise-head{font-size:8px}
+.exercise-row select,.exercise-row input{
+  height:40px;
+  padding-left:6px;
+  padding-right:6px;
+  font-size:10px;
+}
+.exercise-note-button{
+  width:34px;
+  min-width:34px;
+  height:40px;
+}
+.tonnage-summary{
+  min-height:54px;
+  margin:10px 0 0;
+  padding:10px 13px;
+  border-radius:15px;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+  background:linear-gradient(145deg,rgba(24,55,52,.88),rgba(14,30,35,.96));
+  border:1px solid rgba(84,225,190,.24);
+}
+.tonnage-summary span{color:#8ea89f;font-size:9px}
+.tonnage-summary strong{color:#75edc0;font-size:18px}
+.history-tonnage{
+  margin-top:9px;
+  padding:8px 10px;
+  border-radius:11px;
+  background:rgba(83,226,188,.07);
+  color:#94a7ba;
+  font-size:10px;
+}
+.history-tonnage strong{color:#70e2ba}
+
+.readonly-head,.readonly-row{
+  grid-template-columns:minmax(0,1fr) 43px 43px 58px;
+  gap:5px;
+}
+.readonly-row span:last-child{white-space:nowrap}
+
+.bottom-nav.five{grid-template-columns:repeat(5,1fr)}
+.bottom-nav.five{padding-left:5px;padding-right:5px}
+.bottom-nav.five button{font-size:8px}
+.bottom-nav.five .nav-icon{font-size:19px}
+
+/* Keep short top-level screens fixed; only their content areas may scroll. */
+.history-screen,
+.stats-screen,
+.members-screen{
+  overflow:hidden;
+  display:flex;
+  flex-direction:column;
+}
+.history-screen .master-history{
+  flex:1 1 auto;
+  min-height:0;
+  overflow-y:auto;
+  overscroll-behavior:contain;
+  padding-bottom:6px;
+}
+.stats-screen>.eyebrow-dark{margin-top:8px}
+.stats-screen>h1{font-size:30px}
+.stats-screen .rank-summary-card{margin-top:9px}
+.stats-screen .range-tabs{margin-top:9px}
+.stats-screen .range-caption{margin:5px 2px}
+.stats-grid-big{
+  flex:1 1 auto;
+  min-height:0;
+  overflow-y:auto;
+  overscroll-behavior:contain;
+  gap:8px;
+  margin-top:7px;
+  padding-bottom:5px;
+}
+.stat-card{
+  min-height:104px;
+  padding:11px;
+  border-radius:18px;
+}
+.stat-icon{
+  width:34px;
+  height:34px;
+  border-radius:11px;
+  font-size:20px;
+  margin-bottom:8px;
+}
+.stat-card small{font-size:8px}
+.stat-card strong{font-size:20px;margin-top:2px}
+.stat-card em{font-size:8px}
+.stat-card.tonnage .stat-icon{color:#6fe9c0}
+.hike-stat-card{min-height:112px}
+.hike-stat-values{gap:7px}
+.hike-stat-values strong{font-size:18px}
+
+.hookah-stat-card{
+  grid-column:1/-1;
+  min-height:84px;
+  padding:12px 14px;
+  border-radius:18px;
+  display:grid;
+  grid-template-columns:.7fr 1.3fr;
+  align-items:center;
+  gap:12px;
+  background:linear-gradient(145deg,rgba(83,44,29,.88),rgba(32,23,20,.97));
+  border:1px solid rgba(255,153,75,.22);
+}
+.hookah-stat-card small,.hookah-stat-card strong,.hookah-stat-card em{display:block}
+.hookah-stat-card small{font-size:8px;color:#9a887d}
+.hookah-stat-card strong{margin-top:2px;font-size:20px;color:#ffb04a}
+.hookah-stat-card em{margin-top:2px;font-size:8px;font-style:normal;color:#aa9487}
+
+.members-screen>.members-head,
+.members-screen>.season-card,
+.members-screen>.members-caption,
+.members-screen>.previous-season,
+.members-screen>.inactive-rule{flex:0 0 auto}
+.members-screen .leaderboard-scroll{
+  flex:1 1 auto;
+  min-height:0;
+  overflow-y:auto;
+  overscroll-behavior:contain;
+}
+.members-screen .eyebrow-dark{margin-top:8px}
+.members-head h1{font-size:30px}
+.members-head>strong{width:46px;min-width:46px;height:46px;border-radius:15px}
+.members-caption{margin-bottom:9px}
+.previous-season{margin-top:9px}
+.inactive-rule{margin-top:7px}
+
+/* Dedicated About tab */
+.about-tab-screen{
+  overflow-y:auto;
+  overscroll-behavior:contain;
+  padding-top:max(12px,env(safe-area-inset-top));
+  padding-bottom:18px;
+}
+.about-tab-screen>.eyebrow-dark{margin-top:0}
+.about-tab-screen>h1{font-size:30px}
+.about-concept-hero{
+  margin-top:10px;
+  padding:14px;
+}
+.about-concept-hero h2{
+  margin:0 0 8px;
+  font-size:21px;
+  line-height:1.08;
+}
+.about-concept-hero p{font-size:10px;line-height:1.48}
+.about-principles{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:7px;
+  margin:8px 0;
+}
+.about-principles article{
+  padding:10px;
+  border-radius:14px;
+  background:linear-gradient(160deg,var(--season-panel),var(--season-panel-strong));
+  border:1px solid var(--season-border);
+}
+.about-principles strong{display:block;font-size:10px}
+.about-principles p{margin:4px 0 0;color:#9ba8b9;font-size:8px;line-height:1.35}
+.about-main-idea{margin-top:8px;padding:13px}
+.about-main-idea h2{font-size:17px}
+.about-main-idea p,.about-main-idea strong{font-size:9px}
+.about-tab-screen .about-hero{margin-top:8px;padding:13px}
+.about-tab-screen .about-hero p{font-size:9px;margin-top:9px}
+.about-tab-screen .download-card{margin-top:8px;padding:12px;gap:7px}
+.about-tab-screen .download-card h2{font-size:17px}
+.about-tab-screen .platform-download{min-height:53px}
+.about-tab-screen .about-signature{margin-top:10px;padding-top:10px}
+.about-tab-screen .about-signature p{font-size:9px}
+.about-tab-screen .about-signature strong{margin-top:8px;font-size:11px}
+
+@media(max-width:420px){
+  .home-quick-row{gap:5px}
+  .home-quick-row .today-steps-chip{flex-basis:118px;padding:6px 7px;grid-template-columns:24px minmax(0,1fr);gap:5px}
+  .home-quick-row .today-steps-chip .steps-foot{font-size:18px}
+  .home-quick-row .today-steps-chip strong{font-size:9px}
+  .home-quick-row .today-steps-chip small{font-size:7px}
+  .hookah-quick-card{padding:6px;gap:4px 5px}
+  .hookah-money strong{font-size:12px}
+  .hookah-seven strong{font-size:10px}
+  .hookah-button{font-size:7px}
+  .gym-tabs{gap:5px}
+  .gym-tabs button{font-size:9px;gap:4px}
+  .exercise-head,.exercise-row{grid-template-columns:minmax(0,1fr) 42px 42px 61px 31px;gap:4px}
+  .exercise-row select,.exercise-row input{font-size:9px;padding-left:4px;padding-right:4px}
+  .exercise-note-button{width:31px;min-width:31px}
+  .stat-card{min-height:96px;padding:10px}
+  .about-principles{grid-template-columns:1fr 1fr}
+}
