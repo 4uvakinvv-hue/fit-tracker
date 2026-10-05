@@ -3,7 +3,7 @@ import { supabase } from './supabase.js';
 import { App as NativeApp } from '@capacitor/app';
 import { Health } from '@capgo/capacitor-health';
 
-const APP_VERSION = '1.4.1';
+const APP_VERSION = '1.5.0';
 const ANDROID_APK_URL = 'https://github.com/4uvakinvv-hue/fit-tracker/releases/download/android-current/forma-android.apk';
 const IOS_INSTALL_URL = 'https://4uvakinvv-hue.github.io/fit-tracker/';
 
@@ -76,6 +76,11 @@ function workoutTonnage(baseRows=[],extraRows=[]){
   return [...baseRows,...extraRows].reduce((sum,row)=>sum+rowTonnage(row),0);
 }
 function formatKg(value){return Math.round(Number(value)||0).toLocaleString('ru-RU');}
+function stepPoints(steps){
+  const value=Math.max(0,Number(steps)||0);
+  if(value<=10000)return 0;
+  return 2+Math.floor((value-10000)/5000);
+}
 function mapSession(row){return {...row,gymGroup:row.gym_group,baseRows:row.base_rows||[],extraRows:row.extra_rows||[],workoutText:row.workout_text||'',combatType:row.combat_type||'',hikeDays:Number(row.hike_days)||0,hikeDistance:Number(row.hike_distance)||0,confirmed:row.confirmed!==false};}
 function isFuture(key){return key>localDateKey();}
 function isQualifyingSession(s){return s.confirmed!==false&&s.date<=localDateKey()&&(s.type!=='walk'||Number(s.steps||0)>=10000);}
@@ -115,47 +120,80 @@ function seasonMeta(date=new Date()){
   return {name,start:localDateKey(start),end:localDateKey(end),day,total,previousName};
 }
 
-function pointEvents(sessions,hookahEvents=[]){
+function pointEvents(sessions,dailySteps=[],hookahEvents=[]){
   const season=seasonMeta();
-  const ordered=[...sessions]
+  const byDate=new Map();
+
+  function day(date){
+    if(!byDate.has(date))byDate.set(date,{date,base:0,reasons:[],active:false,createdAt:''});
+    return byDate.get(date);
+  }
+
+  sessions
     .filter(s=>isQualifyingSession(s)&&s.date>=season.start&&s.date<=season.end)
-    .sort((a,b)=>a.date.localeCompare(b.date)||String(a.created_at||'').localeCompare(String(b.created_at||''))||String(a.id).localeCompare(String(b.id)));
+    .forEach(s=>{
+      const d=day(s.date);
+      let points=s.type==='hike'
+        ?5*Math.max(Number(s.hikeDays)||1,1)
+        :(s.type==='gym'||s.type==='bike'||s.type==='combat')?5:3;
+      const reasons=[s.type==='hike'
+        ?`Поход: ${Math.max(Number(s.hikeDays)||1,1)} дн. × 5 = +${points}`
+        :`${activityMeta(s.type)?.label||'Активность'}: +${points}`];
 
-  let prev=null;
+      if(s.type==='bike'&&Number(s.distance||0)>100){points+=5;reasons.push('Велосипед более 100 км: +5');}
+      if(s.type==='walk'&&Number(s.steps||0)>30000){points+=5;reasons.push('Прогулка более 30 000 шагов: +5');}
+
+      d.base+=points;
+      d.reasons.push(...reasons);
+      d.active=true;
+      d.createdAt=String(s.created_at||d.createdAt||'');
+    });
+
+  dailySteps
+    .filter(x=>x.date>=season.start&&x.date<=season.end)
+    .forEach(x=>{
+      const points=stepPoints(x.steps);
+      if(points<=0)return;
+      const d=day(x.date);
+      d.base+=points;
+      d.reasons.push(`Шаги: ${Number(x.steps||0).toLocaleString('ru-RU')} — +${points}`);
+      if(Number(x.steps||0)>=15000)d.active=true;
+    });
+
+  const ordered=[...byDate.values()].sort((a,b)=>a.date.localeCompare(b.date));
+  let prevActive=null;
   let rawBalance=0;
-  const events=ordered.map(s=>{
-    const reasons=[];
-    let delta=s.type==='hike'
-      ?5*Math.max(Number(s.hikeDays)||1,1)
-      :(s.type==='gym'||s.type==='bike'||s.type==='combat')?5:3;
-    reasons.push(s.type==='hike'
-      ?`Поход: ${Math.max(Number(s.hikeDays)||1,1)} дн. × 5 = +${delta}`
-      :`${activityMeta(s.type)?.label||'Активность'}: +${delta}`);
-
-    if(prev){
-      const gap=daysBetween(prev.date,s.date);
-      let interval=0;
-      let reason='';
-      if(gap===1){interval=2;reason='Тренировка на следующий день';}
-      else if(gap===2){interval=1;reason='Перерыв один день';}
-      else if(gap>=6&&gap<=13){interval=-Math.floor((gap-4)/2);reason=`Перерыв ${gap-1} дн.`;}
-      else if(gap>=14){interval=10;reason='Возвращение после 14+ дней';}
-      if(interval!==0){
-        delta+=interval;
-        reasons.push(`${reason}: ${interval>0?'+':''}${interval}`);
+  const events=ordered.map(d=>{
+    let delta=d.base;
+    if(d.active){
+      if(prevActive){
+        const gap=daysBetween(prevActive,d.date);
+        let interval=0;
+        let reason='';
+        if(gap===1){interval=2;reason='Активность на следующий день';}
+        else if(gap===2){interval=1;reason='Идеальный ритм: через день';}
+        else if(gap>=6&&gap<=13){interval=-Math.floor((gap-4)/2);reason=`Перерыв ${gap-1} дн.`;}
+        else if(gap>=14){interval=10;reason='Возвращение после 14+ дней';}
+        if(interval!==0){
+          delta+=interval;
+          d.reasons.push(`${reason}: ${interval>0?'+':''}${interval}`);
+        }
       }
+      prevActive=d.date;
     }
 
-    if(s.type==='bike'&&Number(s.distance||0)>100){delta+=5;reasons.push('Велосипед более 100 км: +5');}
-    if(s.type==='walk'&&Number(s.steps||0)>30000){delta+=5;reasons.push('Прогулка более 30 000 шагов: +5');}
-
     rawBalance+=delta;
-    prev=s;
-    return {id:s.id,date:s.date,createdAt:s.created_at||'',delta,reasons:reasons.join(' · ')};
+    return {
+      id:`activity-${d.date}`,
+      date:d.date,
+      createdAt:d.createdAt,
+      delta,
+      reasons:d.reasons.join(' · ')
+    };
   });
 
-  if(prev){
-    const inactiveDays=daysBetween(prev.date,localDateKey());
+  if(prevActive){
+    const inactiveDays=daysBetween(prevActive,localDateKey());
     let decay=0;
     if(inactiveDays>=45)decay=Math.max(0,rawBalance);
     else if(inactiveDays>5)decay=Math.min(Math.max(0,rawBalance),Math.floor((inactiveDays-4)/2));
@@ -166,8 +204,8 @@ function pointEvents(sessions,hookahEvents=[]){
         date:localDateKey(),
         delta:-decay,
         reasons:inactiveDays>=45
-          ? '45 дней без тренировок: рейтинг обнулён'
-          : `Нет тренировок ${inactiveDays} дн.: снижение рейтинга`
+          ?'45 дней без активного дня: спортивный рейтинг обнулён'
+          :`Нет активного дня ${inactiveDays} дн.: снижение рейтинга`
       });
     }
   }
@@ -184,18 +222,23 @@ function pointEvents(sessions,hookahEvents=[]){
 
   return events.sort((a,b)=>a.date.localeCompare(b.date)||String(a.createdAt||'').localeCompare(String(b.createdAt||'')));
 }
-function scoreHint(sessions){
-  const completed=sessions.filter(isQualifyingSession);
-  if(!completed.length)return 'Первая тренировка — уже сильный шаг';
-  const latest=[...completed].sort((a,b)=>b.date.localeCompare(a.date)||String(b.created_at||'').localeCompare(String(a.created_at||'')))[0];
-  const gap=daysBetween(latest.date,localDateKey());
-  if(gap>=45)return '45 дней без тренировок — рейтинг обнулён';
+
+function scoreHint(sessions,dailySteps=[]){
+  const activeDates=[
+    ...sessions.filter(isQualifyingSession).map(s=>s.date),
+    ...dailySteps.filter(x=>Number(x.steps||0)>=15000).map(x=>x.date),
+  ].sort();
+
+  if(!activeDates.length)return 'Первая тренировка или 15 000 шагов — уже сильный шаг';
+  const latest=activeDates[activeDates.length-1];
+  const gap=daysBetween(latest,localDateKey());
+  if(gap>=45)return '45 дней без активного дня — рейтинг обнулён';
   if(gap>=14)return 'Возвращение сейчас даст +10 баллов';
-  if(gap<=0)return 'Тренировка сегодня уже в зачёте';
+  if(gap<=0)return 'Активность сегодня уже в зачёте';
   if(gap===1)return 'Сегодня серия даст ещё +2 балла';
   if(gap===2)return 'Идеальный ритм: через день, +1 балл';
   if(gap<=5)return 'Можно возвращаться без штрафа';
-  return 'Следующая тренировка важнее паузы';
+  return 'Следующий активный день важнее паузы';
 }
 
 function sessionValue(s){
