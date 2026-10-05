@@ -1527,10 +1527,13 @@ function Statistics({sessions,dailySteps,isBoss,hookahEvents,hookahStartedOn,pro
   const hikeCount=hikes.length;
   const hikeDays=hikes.reduce((n,s)=>n+(Math.max(Number(s.hikeDays)||1,1)),0);
   const hikeDistance=hikes.reduce((n,s)=>n+(Number(s.hikeDistance)||0),0);
+  const todayKey=localDateKey();
   const trackedStart=start<hookahStartedOn?hookahStartedOn:start;
-  const hookahInRange=isBoss?hookahEvents.filter(h=>h.event_date>=trackedStart&&h.event_date<=end):[];
+  const trackedEnd=end>todayKey?todayKey:end;
+  const hookahInRange=isBoss?hookahEvents.filter(h=>h.event_date>=trackedStart&&h.event_date<=trackedEnd):[];
   const hookahCount=hookahInRange.length;
-  const hookahDays=end>=trackedStart?daysBetween(trackedStart,end)+1:0;
+  const hookahDays=trackedEnd>=trackedStart?daysBetween(trackedStart,trackedEnd)+1:0;
+  const hookahSlots=hookahDays*2;
   const hookahPossible=hookahDays*1000;
   const hookahByDay=hookahInRange.reduce((map,h)=>{
     map[h.event_date]=(map[h.event_date]||0)+1;
@@ -1562,7 +1565,7 @@ function Statistics({sessions,dailySteps,isBoss,hookahEvents,hookahStartedOn,pro
       <StatCard type="combat" accent="combat" title="Единоборства" value={combatCount.toLocaleString('ru-RU')} unit="тренировок"/>
       <HikeStats count={hikeCount} days={hikeDays} distance={hikeDistance}/>
       {isBoss&&<article className="hookah-stat-card">
-        <div><small>Кальян</small><strong>{hookahCount}</strong><em>выкурено</em></div>
+        <div><small>Кальян</small><strong>{hookahCount} из {hookahSlots}</strong><em>{hookahDays.toLocaleString('ru-RU')} дн. статистики</em></div>
         <div><small>Заработано</small><strong>{hookahEarned.toLocaleString('ru-RU')} ₽</strong><em>из {hookahPossible.toLocaleString('ru-RU')} ₽ возможных</em></div>
       </article>}
     </div>
