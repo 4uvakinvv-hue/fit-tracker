@@ -1,4 +1,26 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 112">
-  <path fill="#000" d="M50 3 57 20 71 10 68 29 90 20 78 42 96 45 76 58 88 70 63 68 59 96 50 88 41 96 37 68 12 70 24 58 4 45 22 42 10 20 32 29 29 10 43 20 50 3Z"/>
-  <path fill="#000" d="M47 82h6v27h-6z"/>
+  <defs>
+    <linearGradient id="leaf" x1="15" y1="8" x2="82" y2="92" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ffd064"/>
+      <stop offset=".28" stop-color="#ff9b31"/>
+      <stop offset=".62" stop-color="#df551e"/>
+      <stop offset="1" stop-color="#8f2f18"/>
+    </linearGradient>
+    <linearGradient id="stem" x1="50" y1="79" x2="50" y2="111" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#c45a25"/>
+      <stop offset="1" stop-color="#6d2719"/>
+    </linearGradient>
+    <filter id="glow" x="-35%" y="-35%" width="170%" height="170%">
+      <feGaussianBlur stdDeviation="2.6" result="b"/>
+      <feColorMatrix in="b" type="matrix" values="1 0 0 0 .35 0 .45 0 0 .08 0 0 .15 0 0 0 0 0 .55 0"/>
+      <feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+  <g filter="url(#glow)">
+    <path fill="url(#leaf)" d="M50 3 57 20 71 10 68 29 90 20 78 42 96 45 76 58 88 70 63 68 59 96 50 88 41 96 37 68 12 70 24 58 4 45 22 42 10 20 32 29 29 10 43 20 50 3Z"/>
+    <path fill="url(#stem)" d="M47 82h6v27h-6z"/>
+    <path d="M50 12v74M50 31 34 21M50 38 67 24M50 49 24 40M50 54 77 43M50 63 26 61M50 67 73 61" fill="none" stroke="#ffd98b" stroke-opacity=".46" stroke-width="1.7" stroke-linecap="round"/>
+    <path d="M50 11v76" fill="none" stroke="#7f2e18" stroke-opacity=".38" stroke-width="2.2" stroke-linecap="round"/>
+    <ellipse cx="35" cy="34" rx="12" ry="7" fill="#fff4c8" opacity=".08" transform="rotate(-26 35 34)"/>
+  </g>
 </svg>
