@@ -413,6 +413,30 @@ export default function App(){
     }
   },[authSession?.user?.id]);
 
+  useEffect(()=>{
+    if(!isBoss||!authSession?.user)return;
+    let active=true;
+
+    const refresh=async()=>{
+      try{
+        const {data,error}=await supabase
+          .from('admin_notifications')
+          .select('id,type,title,member_name,member_email,created_at,read_at')
+          .eq('recipient_user_id',authSession.user.id)
+          .order('created_at',{ascending:false})
+          .limit(50);
+        if(error)throw error;
+        if(active)setAdminNotifications(data||[]);
+      }catch(err){
+        console.warn('Forma admin notifications refresh failed',err);
+      }
+    };
+
+    refresh();
+    const timer=setInterval(refresh,30000);
+    return ()=>{active=false;clearInterval(timer);};
+  },[isBoss,authSession?.user?.id]);
+
 
   async function syncSteps(requestPermission=false,sessionOverride=authSession){
     if(!sessionOverride?.user||stepsSyncing)return;
