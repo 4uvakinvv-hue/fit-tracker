@@ -1007,25 +1007,34 @@ function AddTraining({dateKey,setDateKey,onProposal,onBack,onChoose}){
     setText('');setSent(true);
   }
 
-  return <main className="sub-screen">
+  return <main className="sub-screen add-training-screen">
     <ScreenBack onBack={onBack}/>
-    <p className="eyebrow-dark">Новая запись</p><h1>Добавить тренировку</h1>
-    <label className="date-control"><span>Дата</span><input type="date" value={dateKey} onChange={e=>setDateKey(e.target.value)}/></label>
+    <p className="eyebrow-dark">Новая запись</p>
+    <h1>Добавить тренировку</h1>
 
-    <div className="activity-grid add-grid">
+    <label className="date-control add-date-compact">
+      <span>Дата</span>
+      <input type="date" value={dateKey} onChange={e=>setDateKey(e.target.value)}/>
+    </label>
+
+    <div className="activity-grid add-grid compact-activity-grid">
       {ACTIVITIES.map(a=><button key={a.id} className={`activity-choice ${a.accent}`} onClick={()=>onChoose(a.id)}>
         <ActivityGlyph type={a.id} className={a.accent}/>
         <strong>{a.label}</strong>
-        {a.id==='walk'&&<small>шаги учитываются от 10 000</small>}
       </button>)}
-      <button className="activity-choice other-choice" onClick={()=>setOtherOpen(v=>!v)}><span>＋</span><strong>Другое</strong><small>предложить активность</small></button>
+      <button className="activity-choice other-choice" onClick={()=>{setOtherOpen(true);setSent(false);}}>
+        <span>＋</span><strong>Другое</strong>
+      </button>
     </div>
 
-    {otherOpen&&<section className="glass-card other-form">
-      <label className="dark-field"><span>Название активности</span><input value={text} onChange={e=>{setText(e.target.value);setSent(false);}} placeholder="Например: плавание"/></label>
-      <button className="secondary-dark" onClick={submit}>Отправить на модерацию</button>
-      {sent&&<p className="success-line">Отправлено админу на согласование.</p>}
-    </section>}
+    {otherOpen&&<div className="modal-backdrop" onClick={()=>setOtherOpen(false)}>
+      <section className="other-modal glass-card" onClick={e=>e.stopPropagation()}>
+        <header><h2>Предложить активность</h2><button onClick={()=>setOtherOpen(false)}>×</button></header>
+        <label className="dark-field"><span>Название активности</span><input value={text} onChange={e=>{setText(e.target.value);setSent(false);}} placeholder="Например: плавание" autoFocus/></label>
+        <button className="secondary-dark" onClick={submit}>Отправить на модерацию</button>
+        {sent&&<p className="success-line">Отправлено админу на согласование.</p>}
+      </section>
+    </div>}
   </main>;
 }
 
@@ -1089,8 +1098,6 @@ function GymTraining({dateKey,setDateKey,sessions,gymTemplates,onSaveTemplate,on
       </>}
 
     <div className="tonnage-summary"><span>Тоннаж тренировки</span><strong>{formatKg(workoutTonnage(baseRows,extraRows))} кг</strong></div>
-
-    <div className="loaded-note"><span>↻</span><div><strong>{gymTemplates[group]?'Загружены данные с прошлой тренировки':'Первый раз — выбери упражнения'}</strong><small>После сохранения приложение запомнит упражнения, подходы, повторения и рабочий вес.</small></div></div>
 
     {error&&<p className="error-line">{error}</p>}
     <button className="gradient-button save-training" onClick={save}><span>▣</span>{isFuture(dateKey)?'Запланировать тренировку':'Сохранить тренировку'}<b>›</b></button>
@@ -1375,12 +1382,12 @@ function HikeHistory({sessions,onBack}){
 function HikeStats({count,days,distance}){
   return <article className="stat-card hike hike-stat-card">
     <span className="stat-icon"><ActivityGlyph type="hike" className="hike"/></span>
-    <small>Походы</small>
+    <div className="hike-stat-copy"><small>Походы</small>
     <div className="hike-stat-values">
       <span><strong>{count.toLocaleString('ru-RU')}</strong><em>походов</em></span>
       <span><strong>{days.toLocaleString('ru-RU')}</strong><em>дней</em></span>
       <span><strong>{Number(distance||0).toLocaleString('ru-RU')}</strong><em>км</em></span>
-    </div>
+    </div></div>
   </article>;
 }
 
@@ -1565,7 +1572,7 @@ function Statistics({sessions,dailySteps,isBoss,hookahEvents,hookahStartedOn,pro
 function StatCard({type,accent,title,value,unit}){
   return <article className={`stat-card ${accent}`}>
     <span className="stat-icon"><ActivityGlyph type={type} className={accent}/></span>
-    <small>{title}</small><strong>{value}</strong><em>{unit}</em>
+    <div className="stat-copy"><small>{title}</small><strong>{value}</strong><em>{unit}</em></div>
   </article>;
 }
 
