@@ -418,10 +418,26 @@ export default function App(){
     if(!sessionOverride?.user||stepsSyncing)return;
     setStepsSyncing(true);
 
+    async function loadStoredSteps(){
+      const start=addYears(new Date(),-1);
+      start.setHours(0,0,0,0);
+      const {data,error}=await supabase
+        .from('daily_steps')
+        .select('date,steps')
+        .eq('user_id',sessionOverride.user.id)
+        .gte('date',localDateKey(start))
+        .order('date',{ascending:true});
+      if(error)throw error;
+      const rows=(data||[]).map(x=>({date:x.date,steps:Number(x.steps)||0}));
+      setDailySteps(rows);
+      return rows;
+    }
+
     try{
       const availability=await Health.isAvailable();
       if(!availability?.available){
-        setStepsStatus('unavailable');
+        const stored=await loadStoredSteps();
+        setStepsStatus(stored.length?'synced':'web');
         return;
       }
 
@@ -475,15 +491,7 @@ export default function App(){
         if(error)throw error;
       }
 
-      const {data,error}=await supabase
-        .from('daily_steps')
-        .select('date,steps')
-        .eq('user_id',userId)
-        .gte('date',localDateKey(start))
-        .order('date',{ascending:true});
-
-      if(error)throw error;
-      setDailySteps((data||[]).map(x=>({date:x.date,steps:Number(x.steps)||0})));
+      await loadStoredSteps();
       setStepsStatus('ready');
     }catch(err){
       console.warn('Forma steps sync failed',err);
@@ -811,11 +819,23 @@ function Home({schedule,sessions,profile,dailySteps,saveNotice,isBoss,adminNotif
         <button className="hookah-button" onClick={onHookah}>Выкуренный кальян</button>
         {canUndoHookah&&<button className="hookah-undo" onClick={onUndoHookah}>Отменить последнее</button>}
       </section>}
-      <button className={`today-steps-chip ${stepsStatus}`} onClick={stepsStatus==='ready'?undefined:onEnableSteps} disabled={stepsSyncing}>
+      <button
+        className={`today-steps-chip ${stepsStatus}`}
+        onClick={['permission','error'].includes(stepsStatus)?onEnableSteps:undefined}
+        disabled={stepsSyncing||['ready','synced','web'].includes(stepsStatus)}
+      >
         <span className="steps-foot">👣</span>
         <span>
-          <strong>{stepsStatus==='ready'?(dailySteps.find(x=>x.date===localDateKey())?.steps||0).toLocaleString('ru-RU'):stepsSyncing?'Синхронизация…':'Шаги за сегодня'}</strong>
-          <small>{stepsStatus==='ready'?'шагов сегодня':stepsStatus==='unavailable'?'Недоступно на этом устройстве':'Подключить автоматический шагомер'}</small>
+          <strong>{['ready','synced'].includes(stepsStatus)
+            ?(dailySteps.find(x=>x.date===localDateKey())?.steps||0).toLocaleString('ru-RU')
+            :stepsSyncing?'Синхронизация…':'Шаги за сегодня'}</strong>
+          <small>{
+            stepsStatus==='ready'?'шагов сегодня'
+            :stepsStatus==='synced'?'синхронизировано с приложением'
+            :stepsStatus==='web'?'появятся после синхронизации приложения'
+            :stepsStatus==='unavailable'?'Нет системного источника шагов'
+            :'Подключить автоматический шагомер'
+          }</small>
         </span>
       </button>
     </div>
