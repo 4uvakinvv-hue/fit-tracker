@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { supabase } from './supabase.js';
 import { App as NativeApp } from '@capacitor/app';
 import { Capacitor } from '@capacitor/core';
-import { Geolocation } from '@capacitor/geolocation';
+import { BackgroundGeolocation } from '@capgo/background-geolocation';
 import { Health } from '@capgo/capacitor-health';
 
 const APP_VERSION = '1.6.0';
@@ -1560,11 +1560,11 @@ function RouteResultCard({session,compact=false}){
 function OutdoorTraining({dateKey,setDateKey,sessions,onBack,onSave}){
   const [mode,setMode]=useState('bike'),[manualOpen,setManualOpen]=useState(false),[title,setTitle]=useState(''),[distance,setDistance]=useState(''),[tracking,setTracking]=useState(false),[trackPoints,setTrackPoints]=useState([]),[gpsMessage,setGpsMessage]=useState(''),[gpsInvalid,setGpsInvalid]=useState(false),[result,setResult]=useState(null),[saving,setSaving]=useState(false);
   const watchRef=useRef(null),pointsRef=useRef([]),anomalyRef=useRef(0),invalidRef=useRef(false),startedRef=useRef(null);
-  const meta=OUTDOOR_MODES.find(x=>x.id===mode)||OUTDOOR_MODES[0],history=sessions.filter(s=>s.type===mode&&isHistorySession(s)),distances=history.map(s=>Number(s.distance||(mode==='hike'?s.hikeDistance:0))||0),totalDistance=distances.reduce((a,b)=>a+b,0),avgDistance=average(distances),live=useMemo(()=>summarizeRoute(trackPoints),[trackPoints]),native=Capacitor.isNativePlatform();
-  useEffect(()=>()=>{if(watchRef.current)Geolocation.clearWatch({id:watchRef.current}).catch(()=>{});},[]);
+  const meta=OUTDOOR_MODES.find(x=>x.id===mode)||OUTDOOR_MODES[0],history=sessions.filter(s=>s.type===mode&&isHistorySession(s)),distances=history.map(s=>Number(s.distance||(mode==='hike'?s.hikeDistance:0))||0),totalDistance=distances.reduce((a,b)=>a+b,0),avgDistance=average(distances),live=useMemo(()=>summarizeRoute(trackPoints),[trackPoints]),native=Capacitor.isNativePlatform()&&Capacitor.getPlatform()==='android';
+  useEffect(()=>()=>{if(watchRef.current)BackgroundGeolocation.stop().catch(()=>{});},[]);
   function selectMode(next){if(tracking)return;setMode(next);setManualOpen(false);setResult(null);setGpsInvalid(false);setGpsMessage('');setDistance('');setTitle('');}
   async function stopGps(asInvalid=false){
-    const id=watchRef.current;watchRef.current=null;if(id)await Geolocation.clearWatch({id}).catch(()=>{});setTracking(false);
+    const active=watchRef.current;watchRef.current=null;if(active)await BackgroundGeolocation.stop().catch(()=>{});setTracking(false);
     if(asInvalid){invalidRef.current=true;setGpsInvalid(true);setManualOpen(true);setResult(null);setGpsMessage('Обнаружено повторное сильное превышение скорости. Есть подозрение на моторизированный транспорт или длительную ошибку GPS. Заполните данные вручную.');return;}
     const summary=summarizeRoute(pointsRef.current);if(summary.points.length<2||summary.distance<=0){setGpsMessage('Маршрут не записался. Внесите тренировку вручную.');setManualOpen(true);return;}
     setResult({...summary,type:mode,mode,title:title.trim()||meta.label,date:localDateKey(),routePoints:compactRoutePoints(summary.points),movingDuration:Math.round(summary.movingSeconds),duration:Math.round(summary.totalSeconds),avgSpeed:summary.avgSpeed,maxSpeed:summary.maxSpeed,gpsVerified:true,startedAt:startedRef.current,endedAt:new Date().toISOString()});
@@ -1573,17 +1573,21 @@ function OutdoorTraining({dateKey,setDateKey,sessions,onBack,onSave}){
     setGpsMessage('');setGpsInvalid(false);setResult(null);setManualOpen(false);
     if(!native){setGpsMessage('GPS-запись маршрута сейчас доступна в Android-приложении. Здесь можно внести тренировку вручную.');setManualOpen(true);return;}
     try{
-      const permission=await Geolocation.requestPermissions({permissions:['location']});
-      if(!['granted','limited'].includes(permission.location)){setGpsMessage('Нет разрешения на геолокацию. Разрешите GPS или внесите тренировку вручную.');setManualOpen(true);return;}
-      setDateKey(localDateKey());pointsRef.current=[];anomalyRef.current=0;invalidRef.current=false;startedRef.current=new Date().toISOString();setTrackPoints([]);setTracking(true);
+      setDateKey(localDateKey());pointsRef.current=[];anomalyRef.current=0;invalidRef.current=false;startedRef.current=new Date().toISOString();setTrackPoints([]);
       const selectedMode=mode,limit=(OUTDOOR_MODES.find(x=>x.id===selectedMode)||OUTDOOR_MODES[0]).speedLimit;
-      watchRef.current=await Geolocation.watchPosition({enableHighAccuracy:true,timeout:15000,maximumAge:0,minimumUpdateInterval:2500},(position,err)=>{
-        if(err||!position||invalidRef.current)return;const accuracy=Number(position.coords?.accuracy)||999;if(accuracy>80)return;
-        const point={lat:Number(position.coords.latitude),lng:Number(position.coords.longitude),t:Number(position.timestamp)||Date.now(),accuracy};if(!Number.isFinite(point.lat)||!Number.isFinite(point.lng))return;
+      await BackgroundGeolocation.start({
+        backgroundTitle:`Форма · ${meta.label}`,
+        backgroundMessage:'Идёт запись маршрута. Нажмите, чтобы вернуться в «Форму».',
+        requestPermissions:true,stale:false,distanceFilter:5,minIntervalMs:2500
+      },(position,err)=>{
+        if(err){if(err.code==='NOT_AUTHORIZED'){setGpsMessage('Нет разрешения на геолокацию. Разрешите GPS или внесите тренировку вручную.');setManualOpen(true);}return;}
+        if(!position||invalidRef.current)return;const accuracy=Number(position.accuracy)||999;if(accuracy>80)return;
+        const point={lat:Number(position.latitude),lng:Number(position.longitude),t:Number(position.time)||Date.now(),accuracy};if(!Number.isFinite(point.lat)||!Number.isFinite(point.lng))return;
         const last=pointsRef.current[pointsRef.current.length-1];
-        if(last){const dt=(point.t-last.t)/1000;if(dt<=0)return;const inferred=haversineKm(last,point)/(dt/3600),device=Number(position.coords.speed)>=0?Number(position.coords.speed)*3.6:0,observed=Math.max(inferred,device);if(observed>limit){anomalyRef.current+=1;if(anomalyRef.current>=2)stopGps(true);else setGpsMessage(`Единичный GPS-скачок выше ${limit} км/ч удалён из маршрута. Запись продолжается.`);return;}}
+        if(last){const dt=(point.t-last.t)/1000;if(dt<=0)return;const inferred=haversineKm(last,point)/(dt/3600),device=Number(position.speed)>=0?Number(position.speed)*3.6:0,observed=Math.max(inferred,device);if(observed>limit){anomalyRef.current+=1;if(anomalyRef.current>=2){stopGps(true);}else setGpsMessage(`Единичный GPS-скачок выше ${limit} км/ч удалён из маршрута. Запись продолжается.`);return;}anomalyRef.current=0;}
         pointsRef.current=[...pointsRef.current,point];setTrackPoints(pointsRef.current);
       });
+      watchRef.current='active';setTracking(true);
     }catch(err){console.warn('Forma GPS start failed',err);setTracking(false);setGpsMessage('Не удалось запустить GPS. Проверьте разрешение геолокации или внесите тренировку вручную.');setManualOpen(true);}
   }
   async function saveManual(){setSaving(true);try{const km=Math.max(0,Number(distance)||0),payload={type:mode,date:dateKey,title:title.trim()||meta.label,distance:km,trackingMode:'manual',gpsVerified:false,ratingEligible:dateKey===localDateKey()};if(mode==='hike'){payload.hikeDays=1;payload.hikeDistance=km;}await onSave(payload);}finally{setSaving(false);}}
