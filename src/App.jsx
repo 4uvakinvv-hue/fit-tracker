@@ -56,7 +56,8 @@ function formatDate(key,options={day:'numeric',month:'long'}){return new Intl.Da
 function formatDateShort(key){return new Intl.DateTimeFormat('ru-RU',{day:'numeric',month:'short'}).format(dateFromKey(key));}
 function activityMeta(type){
   return ACTIVITIES.find(a=>a.id===type)
-    ||(type==='walk'?{id:'walk',label:'Прогулка',icon:'🚶',accent:'green'}:null);
+    ||(type==='walk'?{id:'walk',label:'Прогулка',icon:'🚶',accent:'green'}:null)
+    ||(type==='steps'?{id:'steps',label:'Шаги',icon:'👣',accent:'green'}:null);
 }
 function activityLabel(item){return item?.customTitle||activityMeta(item?.type)?.label||'';}
 const ALL_GYM_EXERCISES=[...new Set([...Object.values(BASE_EXERCISES).flat(),...ACCESSORY_EXERCISES])];
@@ -1716,6 +1717,63 @@ function StatCard({type,accent,title,value,unit}){
 }
 
 function Members({members,profile,previousTop5}){
+  const season=seasonMeta();
+  const leaderboardRef=useRef(null);
+  const previousTheme=season.previousName==='лето'?'summer'
+    :season.previousName==='зима'?'winter'
+    :season.previousName==='весна'?'spring':'autumn';
+  const previousVisible=(previousTop5||[]).filter(item=>Number(item.points)>0||item.name===profile?.name);
+
+  useEffect(()=>{
+    const list=leaderboardRef.current;
+    if(!list)return;
+    const timer=requestAnimationFrame(()=>{
+      const me=list.querySelector('.leader-row.me');
+      if(!me)return;
+      const target=me.offsetTop-list.clientHeight/2+me.offsetHeight/2;
+      list.scrollTop=Math.max(0,target);
+    });
+    return ()=>cancelAnimationFrame(timer);
+  },[members.length,profile?.id]);
+
+  return <main className="tab-screen members-screen">
+    <div className="members-head">
+      <div><p className="eyebrow-dark">Рейтинг</p><h1>Участники</h1></div>
+      <strong>{members.length}</strong>
+    </div>
+
+    <section className="season-card">
+      <strong>Сезон {season.name}</strong>
+      <span>День {season.day} из {season.total}</span>
+    </section>
+
+    <p className="members-caption">Участников всего: {members.length}. Рейтинг этого сезона обнуляется в первый день следующего сезона.</p>
+
+    <div className="leaderboard-scroll" ref={leaderboardRef}>
+      <div className="leaderboard">{members.map(m=><article key={m.id} className={`leader-row ${m.id===profile?.id?'me':''}`}>
+        <span className="rank-place">{m.rank}</span>
+        <span className="member-avatar">{m.name?.trim()?.[0]?.toUpperCase()||'У'}</span>
+        <div><strong>{m.name}{m.id===profile?.id?' · вы':''}</strong><small>{m.rank===1?'Лидер сезона':`Место №${m.rank}`}</small></div>
+        <b>★ {m.points||0}</b>
+      </article>)}</div>
+    </div>
+
+    <section className={`previous-season previous-season-${previousTheme}`}>
+      <header><small>Прошлый сезон</small><h2>Топ-5 · {season.previousName}</h2></header>
+      {!previousVisible.length&&<div className="empty-state compact-empty">В прошлом сезоне пока нет данных.</div>}
+      <div className="previous-season-list">
+        {previousVisible.map(item=><div className={`previous-row ${item.name===profile?.name?'me':''}`} key={`${item.rank}-${item.name}`}>
+          <span>{item.rank}</span>
+          <span className="previous-avatar">{item.name?.trim()?.[0]?.toUpperCase()||'У'}</span>
+          <strong>{item.name}{item.name===profile?.name?' · вы':''}</strong>
+          <b>★ {item.points}</b>
+        </div>)}
+      </div>
+    </section>
+
+    <p className="inactive-rule">Аккаунты не удаляются. Если 45 дней нет активного дня, спортивная часть рейтинга становится 0. 15 000+ шагов считаются активным днём. Персональные штрафы могут уменьшать итоговый балл ниже нуля.</p>
+  </main>;
+}){
   const season=seasonMeta();
 
   return <main className="tab-screen members-screen">
