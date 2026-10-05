@@ -713,16 +713,16 @@ export default function App(){
     {screen==='combat-history'&&<CombatHistory sessions={numberedSessions.filter(s=>s.type==='combat'&&isHistorySession(s))} onBack={()=>goBack('combat')}/>}
     {screen==='hike'&&<HikeTraining dateKey={draftDateKey} setDateKey={setDraftDateKey} sessions={numberedSessions} onBack={()=>goBack('add-training')} onHistory={()=>navigate('hike-history')} onSave={saveSession}/>}
     {screen==='hike-history'&&<HikeHistory sessions={numberedSessions.filter(s=>s.type==='hike'&&isHistorySession(s))} onBack={()=>goBack('hike')}/>}
-    {screen==='about'&&<AboutScreen onBack={()=>goBack('home')}/>}
+    {screen==='about'&&<AboutScreen/>}
     {screen==='why'&&<WhyScreen onBack={()=>goBack('home')}/>}
     <BottomNav screen={screen} onNavigate={navigate}/>
   </div>;
 }
 
 function BottomNav({screen,onNavigate}){
-  const active=['add-training','gym','gym-history','bike','workout','workout-history','combat','combat-history','hike','hike-history','about','why'].includes(screen)?'home':screen;
-  const items=[['home','⌂','Главная'],['history','▥','История'],['stats','▤','Статистика'],['members','♟','Участники']];
-  return <nav className="bottom-nav four">
+  const active=['add-training','gym','gym-history','bike','workout','workout-history','combat','combat-history','hike','hike-history','why'].includes(screen)?'home':screen;
+  const items=[['home','⌂','Главная'],['history','▥','История'],['stats','▤','Статистика'],['members','♟','Участники'],['about','ⓘ','О приложении']];
+  return <nav className="bottom-nav five">
     {items.map(([key,icon,label])=><button key={key} className={active===key?'active':''} onClick={()=>onNavigate(key)}><span className="nav-icon">{icon}</span>{label}</button>)}
   </nav>;
 }
@@ -854,7 +854,7 @@ function WhyScreen({onBack}){
   </main>;
 }
 
-function AboutScreen({onBack}){
+function AboutScreen(){
   const [iosHelp,setIosHelp]=useState(false);
 
   function openAndroid(){
@@ -866,18 +866,32 @@ function AboutScreen({onBack}){
     window.open(IOS_INSTALL_URL,'_blank','noopener,noreferrer');
   }
 
-  return <main className="sub-screen about-screen">
-    <ScreenBack onBack={onBack} title="О приложении"/>
+  return <main className="tab-screen about-screen about-tab-screen">
+    <p className="eyebrow-dark">Форма</p>
+    <h1>О приложении</h1>
+
+    <section className="why-intro glass-card about-concept-hero">
+      <h2>Не про идеальные тренировки.<br/>Про то, чтобы чаще двигаться.</h2>
+      <p>Неважно, что именно ты делаешь: идёшь в зал, катаешься на велосипеде, занимаешься на турниках, единоборствами или уходишь в поход. Задача «Формы» — чтобы движения в жизни становилось больше.</p>
+    </section>
+
+    <section className="about-principles">
+      <article><strong>Сделал — зафиксируй</strong><p>Так отдельные тренировки складываются в реальную картину твоей активности.</p></article>
+      <article><strong>Баллы — за регулярность</strong><p>Они не измеряют твою физическую форму. Лучше делать хоть что-то регулярно, чем раз в месяц совершать спортивный подвиг.</p></article>
+      <article><strong>Статистика — про факты</strong><p>Через месяц ты уже видишь не ощущения, а сколько реально тренировался, прошёл, проехал и поднял.</p></article>
+      <article><strong>Рейтинг — немного игры</strong><p>Догоняй друзей, держи ритм и начинай каждый сезон с нового старта.</p></article>
+    </section>
+
+    <section className="why-final about-main-idea">
+      <span>Главная идея</span>
+      <h2>Не перестраивай жизнь вокруг приложения.</h2>
+      <p>Живи как обычно. Просто замечай свою активность и сохраняй её.</p>
+      <strong>Цель — самому двигаться чуть больше, чем раньше.</strong>
+    </section>
 
     <section className="about-hero glass-card">
       <Brand compact/>
-      <p>Некоммерческий проект Василия Чувакина, созданный для повышения личной активности каждого человека.</p>
-    </section>
-
-    <section className="about-copy">
-      <p>«Форма» сделана для личного удобства: здесь можно фиксировать тренировки и другую активность, видеть свою статистику и отслеживать прогресс.</p>
-      <p>Сезонные рейтинги добавляют игровой элемент и помогают сохранять регулярность — не ради соревнования как такового, а ради движения и привычки быть активнее.</p>
-      <p>Приложение спроектировано исходя из видения автора. Предложения по настройке, новым функциям и любая конструктивная обратная связь приветствуются.</p>
+      <p>Некоммерческий проект Василия Чувакина, созданный для повышения личной активности каждого человека. Приложение спроектировано исходя из видения автора; предложения по настройке, новым функциям и конструктивная обратная связь приветствуются.</p>
     </section>
 
     <section className="download-card glass-card">
@@ -886,7 +900,7 @@ function AboutScreen({onBack}){
 
       <button className="platform-download android-download" onClick={openAndroid}>
         <span className="platform-icon">A</span>
-        <span><strong>Android</strong><small>Скачать установочный APK</small></span>
+        <span><strong>Android</strong><small>Скачать актуальный установочный APK</small></span>
         <b>↓</b>
       </button>
 
