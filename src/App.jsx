@@ -1033,8 +1033,13 @@ function GymTraining({dateKey,setDateKey,sessions,gymTemplates,onSaveTemplate,on
 
   useEffect(()=>{
     const t=gymTemplates[group];
-    setBaseRows(normalizeRows(t?.baseRows,3));
-    setExtraRows(normalizeRows(t?.extraRows,5));
+    if(group==='custom'){
+      setBaseRows(normalizeRows(t?.baseRows,8));
+      setExtraRows([]);
+    }else{
+      setBaseRows(normalizeRows(t?.baseRows,3));
+      setExtraRows(normalizeRows(t?.extraRows,5));
+    }
     setError('');
   },[group,gymTemplates]);
 
@@ -1050,8 +1055,10 @@ function GymTraining({dateKey,setDateKey,sessions,gymTemplates,onSaveTemplate,on
     }
     const templateBase=baseRows.map(({comment,...row})=>row);
     const templateExtra=extraRows.map(({comment,...row})=>row);
+    const tonnage=workoutTonnage(baseRows,extraRows);
     await onSaveTemplate(group,templateBase,templateExtra);
     await onSave({type:'gym',date:dateKey,gymGroup:group,baseRows,extraRows,title:GYM_GROUPS.find(g=>g.id===group)?.label||'Тренажёрка'});
+    if(!isFuture(dateKey))window.alert(`Тренировка сохранена. Тоннаж: ${formatKg(tonnage)} кг`);
   }
 
   async function trainer(){
@@ -1066,8 +1073,14 @@ function GymTraining({dateKey,setDateKey,sessions,gymTemplates,onSaveTemplate,on
 
     <div className="gym-tabs">{GYM_GROUPS.map(g=><button key={g.id} className={group===g.id?'active':''} onClick={()=>setGroup(g.id)}><span>{g.icon}</span>{g.label}</button>)}</div>
 
-    <ExerciseBlock title="База" subtitle="Основные упражнения на выбранную группу" rows={baseRows} options={BASE_EXERCISES[group]} kind="base" onChange={update} accent="mint"/>
-    <ExerciseBlock title="Доп" subtitle="Дельты, руки, пресс и другие мелкие группы" rows={extraRows} options={ACCESSORY_EXERCISES} kind="extra" onChange={update} accent="violet"/>
+    {group==='custom'
+      ?<ExerciseBlock title="Упражнения" subtitle="Любые упражнения из общего списка" rows={baseRows} options={ALL_GYM_EXERCISES} kind="base" onChange={update} accent="mint"/>
+      :<>
+        <ExerciseBlock title="База" subtitle="Основные упражнения на выбранную группу" rows={baseRows} options={BASE_EXERCISES[group]} kind="base" onChange={update} accent="mint"/>
+        <ExerciseBlock title="Доп" subtitle="Дельты, руки, пресс и другие мелкие группы" rows={extraRows} options={ACCESSORY_EXERCISES} kind="extra" onChange={update} accent="violet"/>
+      </>}
+
+    <div className="tonnage-summary"><span>Тоннаж тренировки</span><strong>{formatKg(workoutTonnage(baseRows,extraRows))} кг</strong></div>
 
     <div className="loaded-note"><span>↻</span><div><strong>{gymTemplates[group]?'Загружены данные с прошлой тренировки':'Первый раз — выбери упражнения'}</strong><small>После сохранения приложение запомнит упражнения, подходы и рабочий вес.</small></div></div>
 
@@ -1087,12 +1100,13 @@ function ExerciseBlock({title,subtitle,rows,options,kind,onChange,accent}){
 
   return <section className={`exercise-block ${accent}`}>
     <header><div><h2>{title}</h2><p>{subtitle}</p></div><span>{rows.length} упражнений</span></header>
-    <div className="exercise-head"><span>Упражнение</span><span>Подходы</span><span>Вес</span><span></span></div>
+    <div className="exercise-head"><span>Упражнение</span><span>Подх.</span><span>Повт.</span><span>Вес</span><span></span></div>
 
     <div className="exercise-rows">{rows.map((row,i)=><div className="exercise-row-wrap" key={i}>
       <div className="exercise-row">
         <select value={row.exercise} onChange={e=>onChange(kind,i,'exercise',e.target.value)}><option value="">Выбрать упражнение</option>{options.map(o=><option key={o}>{o}</option>)}</select>
         <input inputMode="numeric" value={row.sets} onChange={e=>onChange(kind,i,'sets',e.target.value)} placeholder="3"/>
+        <input inputMode="numeric" value={row.reps} onChange={e=>onChange(kind,i,'reps',e.target.value)} placeholder="10"/>
         <div className="weight-input"><input inputMode="decimal" value={row.weight} onChange={e=>onChange(kind,i,'weight',e.target.value)} placeholder="0"/><small>кг</small></div>
         <button className={`exercise-note-button ${row.comment?'has-note':''}`} onClick={()=>setOpenComment(openComment===i?null:i)} type="button" aria-label="Комментарий">▤</button>
       </div>
@@ -1120,7 +1134,12 @@ function GymHistory({sessions,onBack}){
           <span><strong>Тренировка №{s.displayNumber||'—'} · {group?.label||'Тренажёрка'}</strong><small>{formatDate(s.date,{day:'numeric',month:'long',year:'numeric'})}</small></span>
           <b>{open?'⌃':'⌄'}</b>
         </button>
-        {open&&<div className="accordion-body"><ReadonlyExerciseBlock title="База" rows={s.baseRows||[]}/><ReadonlyExerciseBlock title="Доп" rows={s.extraRows||[]}/></div>}
+        {open&&<div className="accordion-body">
+          {s.gymGroup==='custom'
+            ?<ReadonlyExerciseBlock title="Упражнения" rows={s.baseRows||[]}/>
+            :<><ReadonlyExerciseBlock title="База" rows={s.baseRows||[]}/><ReadonlyExerciseBlock title="Доп" rows={s.extraRows||[]}/></>}
+          <div className="history-tonnage">Тоннаж: <strong>{formatKg(workoutTonnage(s.baseRows||[],s.extraRows||[]))} кг</strong></div>
+        </div>}
       </article>;
     })}</div>
   </main>;
@@ -1132,9 +1151,9 @@ function ReadonlyExerciseBlock({title,rows}){
 
   return <section className="readonly-block">
     <h3>{title}</h3>
-    <div className="readonly-head"><span>Упражнение</span><span>Подх.</span><span>Вес</span></div>
+    <div className="readonly-head"><span>Упражнение</span><span>Подх.</span><span>Повт.</span><span>Вес</span></div>
     {visible.map((r,i)=><div className="readonly-row-wrap" key={i}>
-      <div className="readonly-row"><span>{r.exercise}</span><span>{r.sets||'—'}</span><span>{r.weight||'—'} кг</span></div>
+      <div className="readonly-row"><span>{r.exercise}</span><span>{r.sets||'—'}</span><span>{r.reps||'—'}</span><span>{r.weight||'—'} кг</span></div>
       {r.comment&&<div className="readonly-comment">▤ {r.comment}</div>}
     </div>)}
   </section>;
@@ -1449,7 +1468,7 @@ function History({sessions,onDelete}){
 
         {open&&<div className="master-detail">
           {s.type==='gym'
-            ?<><ReadonlyExerciseBlock title="База" rows={s.baseRows||[]}/><ReadonlyExerciseBlock title="Доп" rows={s.extraRows||[]}/></>
+            ?<>{s.gymGroup==='custom'?<ReadonlyExerciseBlock title="Упражнения" rows={s.baseRows||[]}/>:<><ReadonlyExerciseBlock title="База" rows={s.baseRows||[]}/><ReadonlyExerciseBlock title="Доп" rows={s.extraRows||[]}/></>}<div className="history-tonnage">Тоннаж: <strong>{formatKg(workoutTonnage(s.baseRows||[],s.extraRows||[]))} кг</strong></div></>
             :s.type==='workout'
               ?<p className="workout-history-text">{s.workoutText||'Описание не сохранено.'}</p>
               :s.type==='hike'
