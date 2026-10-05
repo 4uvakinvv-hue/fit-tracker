@@ -3,7 +3,7 @@ import { supabase } from './supabase.js';
 import { App as NativeApp } from '@capacitor/app';
 import { Health } from '@capgo/capacitor-health';
 
-const APP_VERSION = '1.3.0';
+const APP_VERSION = '1.4.0';
 const ANDROID_APK_URL = 'https://github.com/4uvakinvv-hue/fit-tracker/releases/download/android-current/forma-android.apk';
 const IOS_INSTALL_URL = 'https://4uvakinvv-hue.github.io/fit-tracker/';
 
@@ -42,6 +42,13 @@ function localDateKey(date=new Date()){
 }
 function dateFromKey(key){const [y,m,d]=key.split('-').map(Number);return new Date(y,m-1,d,12);}
 function addDays(date,amount){const r=new Date(date);r.setDate(r.getDate()+amount);return r;}
+function mondayOf(date){
+  const r=new Date(date);
+  const offset=(r.getDay()+6)%7;
+  r.setDate(r.getDate()-offset);
+  r.setHours(12,0,0,0);
+  return r;
+}
 function addMonths(date,amount){const r=new Date(date);r.setMonth(r.getMonth()+amount);return r;}
 function addYears(date,amount){const r=new Date(date);r.setFullYear(r.getFullYear()+amount);return r;}
 function daysBetween(a,b){return Math.round((dateFromKey(b)-dateFromKey(a))/86400000);}
@@ -789,7 +796,7 @@ function Home({schedule,sessions,profile,dailySteps,saveNotice,isBoss,hookahEven
       </button>
     </div>
 
-    <DateWheel schedule={schedule} selectedDateKey={selectedDateKey} setSelectedDateKey={setSelectedDateKey} onSavePlan={onSavePlan} onDeletePlan={onDeletePlan} onProposal={onProposal}/>
+    <DateWheel schedule={schedule} selectedDateKey={selectedDateKey} setSelectedDateKey={setSelectedDateKey}/>
 
     <button className="gradient-button workout-cta" onClick={onOpenWorkout}><span>＋</span>Добавить тренировку<b>›</b></button>
     <p className="helper-text">Выбранная дата: {formatDate(selectedDateKey)}.</p>
@@ -932,127 +939,59 @@ function AboutScreen(){
   </main>;
 }
 
-function DateWheel({schedule,selectedDateKey,setSelectedDateKey,onSavePlan,onDeletePlan,onProposal}){
-  const ref=useRef(null);
-  const raf=useRef(0);
-  const lastHaptic=useRef(selectedDateKey);
-  const [open,setOpen]=useState(false);
-  const [other,setOther]=useState(false);
-  const [proposal,setProposal]=useState('');
-  const today=useMemo(()=>new Date(),[]);
-  const dates=useMemo(()=>Array.from({length:1461},(_,i)=>addDays(today,i-730)),[today]);
-
-  function updateWheel(){
-    const c=ref.current;
-    if(!c)return;
-
-    const center=c.clientHeight/2;
-    let best=null;
-    let bestDistance=Infinity;
-
-    c.querySelectorAll('.wheel-date-row').forEach(row=>{
-      const rowCenter=row.offsetTop-c.scrollTop+row.offsetHeight/2;
-      const px=rowCenter-center;
-      const units=px/45;
-      const abs=Math.abs(units);
-      const opacity=Math.max(.035,1-abs*.18);
-      const scale=Math.max(.76,1-abs*.045);
-      const rotate=Math.max(-34,Math.min(34,units*8));
-      row.style.opacity=String(opacity);
-      row.style.transform=`perspective(430px) rotateX(${rotate}deg) scale(${scale})`;
-
-      if(Math.abs(px)<bestDistance){
-        bestDistance=Math.abs(px);
-        best=row.dataset.date;
-      }
-    });
-
-    if(best&&best!==selectedDateKey){
-      setSelectedDateKey(best);
-      if(lastHaptic.current!==best){
-        lastHaptic.current=best;
-        navigator.vibrate?.(7);
-      }
-    }
-  }
-
-  function center(key,behavior='smooth'){
-    const c=ref.current;if(!c)return;
-    const row=c.querySelector(`[data-date="${key}"]`);if(!row)return;
-    c.scrollTo({top:row.offsetTop-c.clientHeight/2+row.offsetHeight/2,behavior});
-    requestAnimationFrame(updateWheel);
-  }
-
-  useEffect(()=>{
-    requestAnimationFrame(()=>center(selectedDateKey,'auto'));
-  },[]);
-
-  useEffect(()=>{
-    setOpen(false);setOther(false);
-  },[selectedDateKey]);
-
-  function onScroll(){
-    if(raf.current)return;
-    raf.current=requestAnimationFrame(()=>{
-      raf.current=0;
-      updateWheel();
-    });
-  }
+function DateWheel({schedule,selectedDateKey,setSelectedDateKey}){
+  const selectedDate=dateFromKey(selectedDateKey);
+  const activeMonday=mondayOf(selectedDate);
+  const weekStarts=[addDays(activeMonday,-7),activeMonday,addDays(activeMonday,7)];
+  const todayKey=localDateKey();
+  const weekdayShort=['Пн','Вт','Ср','Чт','Пт','Сб','Вс'];
 
   function chooseDate(key){
     setSelectedDateKey(key);
     navigator.vibrate?.(7);
-    requestAnimationFrame(()=>center(key));
   }
 
-  async function chooseActivity(type){
-    await onSavePlan(selectedDateKey,type,'','planned');
-    setOpen(false);
-  }
+  return <section className="week-calendar-shell">
+    <div className="week-columns">
+      {weekStarts.map((weekStart,weekIndex)=>{
+        const days=Array.from({length:7},(_,i)=>addDays(weekStart,i));
+        const firstKey=localDateKey(days[0]);
+        const lastKey=localDateKey(days[6]);
 
-  async function sendProposal(){
-    if(!proposal.trim())return;
-    await onProposal(proposal.trim());
-    setProposal('');setOther(false);setOpen(false);
-  }
+        return <article className={`week-column ${weekIndex===1?'active-week':'side-week'}`} key={firstKey}>
+          <header>
+            <span>{weekIndex===1?'Эта неделя':weekIndex===0?'Предыдущая':'Следующая'}</span>
+            <small>{formatDate(firstKey,{day:'numeric',month:'short'})} — {formatDate(lastKey,{day:'numeric',month:'short'})}</small>
+          </header>
 
-  return <section className="date-wheel-shell">
-    <div className="wheel-center-line"/>
-    <div className="wheel-fade wheel-fade-top"/>
-    <div className="wheel-fade wheel-fade-bottom"/>
+          <div className="week-days">
+            {days.map((date,i)=>{
+              const key=localDateKey(date);
+              const selected=key===selectedDateKey;
+              const item=schedule[key];
+              const meta=activityMeta(item?.type);
+              const completed=item?.status==='completed';
+              const today=key===todayKey;
 
-    <div ref={ref} className="date-wheel-scroll" onScroll={onScroll}>
-      <div className="wheel-spacer"/>
-      {dates.map(date=>{
-        const key=localDateKey(date);
-        const selected=key===selectedDateKey;
-        const item=schedule[key];
-        const meta=activityMeta(item?.type);
-        const isToday=key===localDateKey();
-
-        return <div key={key} data-date={key} className={`wheel-date-row ${selected?'selected':''}`} onClick={()=>chooseDate(key)}>
-          <span className="weekday">{new Intl.DateTimeFormat('ru-RU',{weekday:'short'}).format(date)}</span>
-          <span className="wheel-date-label">{formatDateShort(key)}{isToday&&<em>сегодня</em>}</span>
-
-          {selected?
-            <button className={`inline-activity ${meta?.accent||''}`} onClick={e=>{e.stopPropagation();setOpen(v=>!v);}}>
-              <ActivityGlyph type={item?.type} className={meta?.accent||''}/>
-              <strong>{activityLabel(item)||'Активность'}</strong><b>⌄</b>
-            </button>:
-            <span className={`activity-label ${meta?.accent||''}`}>
-              {meta?<><ActivityGlyph type={item.type} className={meta.accent}/>{activityLabel(item)}</>:<span className="empty-dash">—</span>}
-            </span>
-          }
-
-          <span className={`status-dot ${item?.status||''}`}>{item?.status==='completed'?'✓':''}</span>
-
-          {selected&&open&&<div className="activity-popover" onClick={e=>e.stopPropagation()}>
-            {!other?<>{ACTIVITIES.map(a=><button key={a.id} onClick={()=>chooseActivity(a.id)}><ActivityGlyph type={a.id} className={a.accent}/>{a.label}</button>)}<button onClick={()=>setOther(true)}><span>＋</span>Другое / предложить</button>{item&&<button className="danger-lite" onClick={()=>onDeletePlan(selectedDateKey)}>Убрать активность</button>}</>:
-            <div className="popover-proposal"><input value={proposal} onChange={e=>setProposal(e.target.value)} placeholder="Например: плавание" autoFocus/><button onClick={sendProposal}>Отправить админу</button><small>После одобрения активность появится в общем списке.</small></div>}
-          </div>}
-        </div>;
+              return <button
+                type="button"
+                key={key}
+                className={`week-day ${selected?'selected':''} ${today?'today':''}`}
+                onClick={()=>chooseDate(key)}
+              >
+                <span className="week-day-date">
+                  <b>{weekdayShort[i]}</b>
+                  <strong>{date.getDate()}</strong>
+                </span>
+                <span className={`week-day-activity ${meta?.accent||''}`}>
+                  {meta?<ActivityGlyph type={item.type} className={meta.accent}/>:null}
+                </span>
+                <span className={`week-day-status ${completed?'completed':''}`}>{completed?'✓':''}</span>
+              </button>;
+            })}
+          </div>
+        </article>;
       })}
-      <div className="wheel-spacer"/>
     </div>
   </section>;
 }
