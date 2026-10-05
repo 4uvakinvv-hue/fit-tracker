@@ -698,7 +698,7 @@ export default function App(){
   if(!authSession)return <AuthScreen/>;
   if(loadError)return <main className="onboarding dark-screen"><Brand/><h1>Связь с базой</h1><p className="soft-text">{loadError}</p><div className="glass-card onboarding-form"><button className="gradient-button" onClick={loadData}>Повторить</button></div></main>;
 
-  return <div className={`app-shell-dark season-${seasonKey()}`}>
+  return <div className={`app-shell-dark season-${seasonKey()} screen-${screen}`}>
     {screen==='home'&&<Home schedule={schedule} sessions={numberedSessions} profile={profile} dailySteps={dailySteps} isBoss={isBoss} hookahEvents={hookahEvents} canUndoHookah={!!undoHookahId} onHookah={addHookah} onUndoHookah={undoHookah} stepsStatus={stepsStatus} stepsSyncing={stepsSyncing} onEnableSteps={()=>syncSteps(true,authSession)} selectedDateKey={selectedDateKey} setSelectedDateKey={setSelectedDateKey} onSavePlan={savePlan} onDeletePlan={deletePlan} onProposal={sendProposal} onOpenWorkout={openAdd}/>} 
     {screen==='history'&&<History sessions={numberedSessions} onDelete={deleteSession}/>}
     {screen==='stats'&&<Statistics sessions={numberedSessions} dailySteps={dailySteps} isBoss={isBoss} hookahEvents={hookahEvents} hookahStartedOn={hookahStartedOn} profile={profile} memberCount={members.length} onOpenMembers={()=>navigate('members')}/>}
@@ -1508,7 +1508,7 @@ function History({sessions,onDelete}){
     if(openId===s.id)setOpenId(null);
   }
 
-  return <main className="tab-screen">
+  return <main className="tab-screen history-screen">
     <p className="eyebrow-dark">Все активности</p><h1>История тренировок</h1>
     {!ordered.length&&<div className="empty-state">Пока ни одной состоявшейся тренировки.</div>}
 
