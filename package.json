@@ -16,7 +16,7 @@
     "@capacitor/android": "8.5.2",
     "@capacitor/app": "^8.0.0",
     "@capgo/capacitor-health": "8.11.4",
-    "@capacitor/geolocation": "8.2.2"
+    "@capgo/background-geolocation": "8.4.7"
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^5.0.4",
