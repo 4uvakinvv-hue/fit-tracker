@@ -42,7 +42,7 @@ jobs:
       - name: Configure Health Connect and Android version
         run: |
           sed -i 's/minSdkVersion = 24/minSdkVersion = 26/' android/variables.gradle
-          sed -i '/<application/i\    <uses-permission android:name="android.permission.health.READ_HEALTH_DATA_HISTORY" />\n    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />\n    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />' android/app/src/main/AndroidManifest.xml
+          sed -i '/<application/i\    <uses-permission android:name="android.permission.health.READ_HEALTH_DATA_HISTORY" />\n    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />\n    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />\n    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />\n    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />\n    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />' android/app/src/main/AndroidManifest.xml
           sed -i 's/versionCode 1/versionCode 160/' android/app/build.gradle
           sed -i 's/versionName "1.0"/versionName "1.6.0"/' android/app/build.gradle
 
