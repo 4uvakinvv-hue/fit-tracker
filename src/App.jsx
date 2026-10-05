@@ -1,18 +1,25 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { supabase } from './supabase.js';
 import { App as NativeApp } from '@capacitor/app';
+import { Capacitor } from '@capacitor/core';
+import { Geolocation } from '@capacitor/geolocation';
 import { Health } from '@capgo/capacitor-health';
 
-const APP_VERSION = '1.5.0';
+const APP_VERSION = '1.6.0';
 const ANDROID_APK_URL = 'https://github.com/4uvakinvv-hue/fit-tracker/releases/download/android-current/forma-android.apk';
 const IOS_INSTALL_URL = 'https://4uvakinvv-hue.github.io/fit-tracker/';
 
+const OUTDOOR_MODES = [
+  { id: 'bike', label: 'Вело', icon: '🚴', accent: 'amber', speedLimit: 100 },
+  { id: 'run', label: 'Бег', icon: '🏃', accent: 'run', speedLimit: 50 },
+  { id: 'hike', label: 'Хайкинг', icon: '△', accent: 'hike', speedLimit: 50 },
+];
+
 const ACTIVITIES = [
   { id: 'gym', label: 'Тренажёрка', icon: '🏋︎', accent: 'violet' },
-  { id: 'bike', label: 'Велосипед', icon: '🚴', accent: 'amber' },
+  { id: 'outdoor', label: 'Вело / Бег / Хайкинг', icon: '⌁', accent: 'amber' },
   { id: 'workout', label: 'Воркаут', icon: '┬', accent: 'coral' },
   { id: 'combat', label: 'Единоборства', icon: '🥊', accent: 'combat' },
-  { id: 'hike', label: 'Поход', icon: '△', accent: 'hike' },
 ];
 
 const GYM_GROUPS = [
@@ -56,6 +63,7 @@ function formatDate(key,options={day:'numeric',month:'long'}){return new Intl.Da
 function formatDateShort(key){return new Intl.DateTimeFormat('ru-RU',{day:'numeric',month:'short'}).format(dateFromKey(key));}
 function activityMeta(type){
   return ACTIVITIES.find(a=>a.id===type)
+    ||OUTDOOR_MODES.find(a=>a.id===type)
     ||(type==='walk'?{id:'walk',label:'Прогулка',icon:'🚶',accent:'green'}:null)
     ||(type==='steps'?{id:'steps',label:'Шаги',icon:'👣',accent:'green'}:null);
 }
@@ -78,16 +86,91 @@ function workoutTonnage(baseRows=[],extraRows=[]){
 }
 function formatKg(value){return Math.round(Number(value)||0).toLocaleString('ru-RU');}
 function stepPoints(steps){
-  const value=Math.max(0,Number(steps)||0);
-  if(value<=10000)return 0;
-  return 2+Math.floor((value-10000)/5000);
+  return Math.max(0,Number(steps)||0)>=15000?5:0;
 }
-function mapSession(row){return {...row,gymGroup:row.gym_group,baseRows:row.base_rows||[],extraRows:row.extra_rows||[],workoutText:row.workout_text||'',combatType:row.combat_type||'',hikeDays:Number(row.hike_days)||0,hikeDistance:Number(row.hike_distance)||0,confirmed:row.confirmed!==false};}
+function mapSession(row){
+  return {
+    ...row,
+    gymGroup:row.gym_group,baseRows:row.base_rows||[],extraRows:row.extra_rows||[],
+    workoutText:row.workout_text||'',combatType:row.combat_type||'',
+    hikeDays:Number(row.hike_days)||0,hikeDistance:Number(row.hike_distance)||0,
+    ratingEligible:row.rating_eligible===true,trackingMode:row.tracking_mode||'manual',
+    gpsVerified:row.gps_verified===true,movingDuration:Number(row.moving_duration)||0,
+    avgSpeed:Number(row.avg_speed)||0,maxSpeed:Number(row.max_speed)||0,
+    routePoints:Array.isArray(row.route_points)?row.route_points:[],
+    startedAt:row.started_at||null,endedAt:row.ended_at||null,confirmed:row.confirmed!==false,
+  };
+}
 function isFuture(key){return key>localDateKey();}
 function isQualifyingSession(s){return s.confirmed!==false&&s.date<=localDateKey()&&(s.type!=='walk'||Number(s.steps||0)>=10000);}
-function isStatsSession(s){return isQualifyingSession(s);}
+function isRatingSession(s){return s.confirmed!==false&&s.ratingEligible===true&&s.date<=localDateKey()&&['gym','bike','run','workout','hike','combat'].includes(s.type);}
+function isStatsSession(s){return s.confirmed!==false&&s.date<=localDateKey();}
 function isHistorySession(s){return s.confirmed!==false&&s.date<=localDateKey();}
-
+function ratingActiveDates(sessions,dailySteps=[]){
+  const set=new Set();
+  sessions.filter(isRatingSession).forEach(s=>set.add(s.date));
+  dailySteps.filter(x=>Number(x.steps||0)>=15000&&x.date<=localDateKey()).forEach(x=>set.add(x.date));
+  return [...set].sort();
+}
+function currentStreakLength(sessions,dailySteps=[]){
+  const dates=ratingActiveDates(sessions,dailySteps);
+  if(!dates.length)return 0;
+  const latest=dates[dates.length-1];
+  if(daysBetween(latest,localDateKey())>1)return 0;
+  let streak=1;
+  for(let i=dates.length-1;i>0;i--){if(daysBetween(dates[i-1],dates[i])!==1)break;streak++;}
+  return streak;
+}
+function average(values){const clean=values.map(Number).filter(Number.isFinite);return clean.length?clean.reduce((a,b)=>a+b,0)/clean.length:0;}
+function haversineKm(a,b){
+  const R=6371,rad=n=>n*Math.PI/180,dLat=rad(b.lat-a.lat),dLng=rad(b.lng-a.lng);
+  const s=Math.sin(dLat/2)**2+Math.cos(rad(a.lat))*Math.cos(rad(b.lat))*Math.sin(dLng/2)**2;
+  return 2*R*Math.asin(Math.min(1,Math.sqrt(s)));
+}
+function summarizeRoute(points=[]){
+  if(points.length<2)return {points:[...points],distance:0,totalSeconds:0,movingSeconds:0,avgSpeed:0,maxSpeed:0};
+  let distance=0,movingSeconds=0,maxSpeed=0;
+  for(let i=1;i<points.length;i++){
+    const a=points[i-1],b=points[i],dt=Math.max(0,(Number(b.t)-Number(a.t))/1000);
+    if(dt<=0)continue;
+    const km=haversineKm(a,b),speed=km/(dt/3600);
+    distance+=km;if(speed>=1.5)movingSeconds+=dt;maxSpeed=Math.max(maxSpeed,speed);
+  }
+  const totalSeconds=Math.max(0,(Number(points[points.length-1].t)-Number(points[0].t))/1000);
+  return {points:[...points],distance,totalSeconds,movingSeconds,avgSpeed:movingSeconds>0?distance/(movingSeconds/3600):0,maxSpeed};
+}
+function compactRoutePoints(points=[],max=1200){
+  if(points.length<=max)return points;
+  const stride=Math.ceil(points.length/max),out=points.filter((_,i)=>i%stride===0);
+  if(out[out.length-1]!==points[points.length-1])out.push(points[points.length-1]);return out;
+}
+function routePlot(points=[],width=100,height=60,pad=5){
+  if(!points.length)return [];
+  const avgLat=points.reduce((s,p)=>s+Number(p.lat||0),0)/points.length,cos=Math.cos(avgLat*Math.PI/180)||1;
+  const raw=points.map(p=>({x:Number(p.lng||0)*cos,y:Number(p.lat||0)})),xs=raw.map(p=>p.x),ys=raw.map(p=>p.y);
+  const minX=Math.min(...xs),maxX=Math.max(...xs),minY=Math.min(...ys),maxY=Math.max(...ys),dx=Math.max(maxX-minX,1e-7),dy=Math.max(maxY-minY,1e-7);
+  const scale=Math.min((width-pad*2)/dx,(height-pad*2)/dy),usedW=dx*scale,usedH=dy*scale,ox=(width-usedW)/2,oy=(height-usedH)/2;
+  return raw.map(p=>({x:ox+(p.x-minX)*scale,y:height-(oy+(p.y-minY)*scale)}));
+}
+function formatDuration(seconds){
+  const total=Math.max(0,Math.round(Number(seconds)||0)),h=Math.floor(total/3600),m=Math.floor((total%3600)/60),s=total%60;
+  return h?`${h} ч ${String(m).padStart(2,'0')} мин`:`${m} мин ${String(s).padStart(2,'0')} сек`;
+}
+function downloadRoutePng(data,type,dateKey){
+  const points=data.routePoints||data.points||[];if(points.length<2)return;
+  const mode=activityMeta(type)||{label:'Маршрут'},canvas=document.createElement('canvas');canvas.width=1200;canvas.height=675;
+  const ctx=canvas.getContext('2d'),themes={bike:['#171f2c','#f2aa45','#ffd68a'],run:['#1d1825','#ec7566','#ffc0aa'],hike:['#13221d','#63d3a1','#bcebcf']},[bg,line,accent]=themes[type]||themes.bike;
+  ctx.fillStyle=bg;ctx.fillRect(0,0,canvas.width,canvas.height);
+  const g=ctx.createRadialGradient(920,90,20,920,90,520);g.addColorStop(0,line+'44');g.addColorStop(1,'#00000000');ctx.fillStyle=g;ctx.fillRect(0,0,canvas.width,canvas.height);
+  ctx.fillStyle='#f6f4f2';ctx.font='700 48px system-ui,sans-serif';ctx.fillText(`Форма · ${mode.label}`,58,72);
+  ctx.fillStyle='#9aa8b5';ctx.font='26px system-ui,sans-serif';ctx.fillText(formatDate(dateKey,{day:'numeric',month:'long',year:'numeric'}),58,112);
+  const plot=routePlot(points,720,400,28);
+  if(plot.length){ctx.save();ctx.translate(50,170);ctx.lineWidth=10;ctx.lineJoin='round';ctx.lineCap='round';ctx.strokeStyle=line;ctx.beginPath();ctx.moveTo(plot[0].x,plot[0].y);plot.slice(1).forEach(p=>ctx.lineTo(p.x,p.y));ctx.stroke();ctx.fillStyle='#72e6a9';ctx.beginPath();ctx.arc(plot[0].x,plot[0].y,13,0,Math.PI*2);ctx.fill();const last=plot[plot.length-1];ctx.fillStyle=accent;ctx.beginPath();ctx.arc(last.x,last.y,13,0,Math.PI*2);ctx.fill();ctx.restore();}
+  const distance=Number(data.distance)||0,avg=Number(data.avgSpeed??data.avg_speed)||0,max=Number(data.maxSpeed??data.max_speed)||0,total=Number(data.totalSeconds??data.duration)||0,moving=Number(data.movingSeconds??data.movingDuration??data.moving_duration)||0;
+  const metrics=[['Дистанция',`${distance.toFixed(1)} км`],['Общее время',formatDuration(total)],['В движении',formatDuration(moving)],['Средняя скорость',`${avg.toFixed(1)} км/ч`],['Максимальная скорость',`${max.toFixed(1)} км/ч`]];
+  let y=205;metrics.forEach(([label,value])=>{ctx.fillStyle='#8f9ca8';ctx.font='22px system-ui,sans-serif';ctx.fillText(label,820,y);ctx.fillStyle='#ffffff';ctx.font='700 32px system-ui,sans-serif';ctx.fillText(value,820,y+36);y+=90;});
+  canvas.toBlob(blob=>{if(!blob)return;const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=`forma-${type}-${dateKey}.png`;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1200);},'image/png');
+}
 function withDynamicNumbers(list){
   const eligible=[...list]
     .filter(isQualifyingSession)
@@ -122,137 +205,41 @@ function seasonMeta(date=new Date()){
 }
 
 function pointEvents(sessions,dailySteps=[],hookahEvents=[]){
-  const season=seasonMeta();
-  const byDate=new Map();
-
-  function day(date){
-    if(!byDate.has(date))byDate.set(date,{date,base:0,reasons:[],active:false,createdAt:''});
-    return byDate.get(date);
-  }
-
-  sessions
-    .filter(s=>isQualifyingSession(s)&&s.date>=season.start&&s.date<=season.end)
-    .forEach(s=>{
-      const d=day(s.date);
-      let points=s.type==='hike'
-        ?5*Math.max(Number(s.hikeDays)||1,1)
-        :(s.type==='gym'||s.type==='bike'||s.type==='combat')?5:3;
-      const reasons=[s.type==='hike'
-        ?`Поход: ${Math.max(Number(s.hikeDays)||1,1)} дн. × 5 = +${points}`
-        :`${activityMeta(s.type)?.label||'Активность'}: +${points}`];
-
-      if(s.type==='bike'&&Number(s.distance||0)>100){points+=5;reasons.push('Велосипед более 100 км: +5');}
-      if(s.type==='walk'&&Number(s.steps||0)>30000){points+=5;reasons.push('Прогулка более 30 000 шагов: +5');}
-
-      d.base+=points;
-      d.reasons.push(...reasons);
-      d.active=true;
-      d.createdAt=String(s.created_at||d.createdAt||'');
-    });
-
-  dailySteps
-    .filter(x=>x.date>=season.start&&x.date<=season.end)
-    .forEach(x=>{
-      const points=stepPoints(x.steps);
-      if(points<=0)return;
-      const d=day(x.date);
-      d.base+=points;
-      d.reasons.push(`Шаги: ${Number(x.steps||0).toLocaleString('ru-RU')} — +${points}`);
-      if(Number(x.steps||0)>=15000)d.active=true;
-    });
-
-  const ordered=[...byDate.values()].sort((a,b)=>a.date.localeCompare(b.date));
-  let prevActive=null;
-  let rawBalance=0;
-  const events=ordered.map(d=>{
-    let delta=d.base;
-    if(d.active){
-      if(prevActive){
-        const gap=daysBetween(prevActive,d.date);
-        let interval=0;
-        let reason='';
-        if(gap===1){interval=2;reason='Активность на следующий день';}
-        else if(gap===2){interval=1;reason='Идеальный ритм: через день';}
-        else if(gap>=6&&gap<=13){interval=-Math.floor((gap-4)/2);reason=`Перерыв ${gap-1} дн.`;}
-        else if(gap>=14){interval=10;reason='Возвращение после 14+ дней';}
-        if(interval!==0){
-          delta+=interval;
-          d.reasons.push(`${reason}: ${interval>0?'+':''}${interval}`);
-        }
-      }
-      prevActive=d.date;
-    }
-
-    rawBalance+=delta;
-    return {
-      id:`activity-${d.date}`,
-      date:d.date,
-      createdAt:d.createdAt,
-      delta,
-      reasons:d.reasons.join(' · ')
-    };
+  const season=seasonMeta(),byDate=new Map();
+  function day(date){if(!byDate.has(date))byDate.set(date,{date,gpsBonus:0,createdAt:''});return byDate.get(date);}
+  sessions.filter(s=>isRatingSession(s)&&s.date>=season.start&&s.date<=season.end).forEach(s=>{const d=day(s.date);if(s.type==='bike'&&s.gpsVerified&&Number(s.distance||0)>100)d.gpsBonus=5;d.createdAt=String(s.created_at||d.createdAt||'');});
+  dailySteps.filter(x=>x.date>=season.start&&x.date<=season.end&&Number(x.steps||0)>=15000).forEach(x=>day(x.date));
+  const ordered=[...byDate.values()].sort((a,b)=>a.date.localeCompare(b.date)),events=[];let prev=null,streak=0,sportBalance=0;
+  ordered.forEach(d=>{
+    if(prev){const gap=daysBetween(prev,d.date);if(gap===1)streak+=1;else{const penalty=Math.max(gap-4,0);if(penalty>0){const applied=Math.min(sportBalance,penalty);sportBalance-=applied;if(applied>0)events.push({id:`pause-${d.date}`,date:d.date,delta:-applied,reasons:'Пауза: −1 за каждый день после трёх дней без активности'});}streak=1;}}else streak=1;
+    const streakBonus=Math.min(Math.max(streak-1,0),5),delta=5+streakBonus+d.gpsBonus;sportBalance+=delta;
+    const reasons=['Активный день: +5'];if(streakBonus)reasons.push(`Серия ${streak} дн.: +${streakBonus}`);if(d.gpsBonus)reasons.push('GPS-вело более 100 км: +5');
+    events.push({id:`activity-${d.date}`,date:d.date,createdAt:d.createdAt,delta,reasons:reasons.join(' · ')});prev=d.date;
   });
-
-  if(prevActive){
-    const inactiveDays=daysBetween(prevActive,localDateKey());
-    let decay=0;
-    if(inactiveDays>=45)decay=Math.max(0,rawBalance);
-    else if(inactiveDays>5)decay=Math.min(Math.max(0,rawBalance),Math.floor((inactiveDays-4)/2));
-
-    if(decay>0){
-      events.push({
-        id:`inactivity-${localDateKey()}`,
-        date:localDateKey(),
-        delta:-decay,
-        reasons:inactiveDays>=45
-          ?'45 дней без активного дня: спортивный рейтинг обнулён'
-          :`Нет активного дня ${inactiveDays} дн.: снижение рейтинга`
-      });
-    }
-  }
-
-  hookahEvents
-    .filter(h=>h.event_date>=season.start&&h.event_date<=season.end)
-    .forEach(h=>events.push({
-      id:`hookah-${h.id}`,
-      date:h.event_date,
-      createdAt:h.smoked_at||'',
-      delta:-2,
-      reasons:'Выкуренный кальян: -2'
-    }));
-
+  if(prev){const penalty=Math.max(daysBetween(prev,localDateKey())-3,0),applied=Math.min(sportBalance,penalty);if(applied>0)events.push({id:`inactivity-${localDateKey()}`,date:localDateKey(),delta:-applied,reasons:'Нет активности более трёх дней: −1 за день'});}
+  hookahEvents.filter(h=>h.event_date>=season.start&&h.event_date<=season.end).forEach(h=>events.push({id:`hookah-${h.id}`,date:h.event_date,createdAt:h.smoked_at||'',delta:-2,reasons:'Выкуренный кальян: -2'}));
   return events.sort((a,b)=>a.date.localeCompare(b.date)||String(a.createdAt||'').localeCompare(String(b.createdAt||'')));
 }
-
 function scoreHint(sessions,dailySteps=[]){
-  const activeDates=[
-    ...sessions.filter(isQualifyingSession).map(s=>s.date),
-    ...dailySteps.filter(x=>Number(x.steps||0)>=15000).map(x=>x.date),
-  ].sort();
-
-  if(!activeDates.length)return 'Первая тренировка или 15 000 шагов — уже сильный шаг';
-  const latest=activeDates[activeDates.length-1];
-  const gap=daysBetween(latest,localDateKey());
-  if(gap>=45)return '45 дней без активного дня — рейтинг обнулён';
-  if(gap>=14)return 'Возвращение сейчас даст +10 баллов';
-  if(gap<=0)return 'Активность сегодня уже в зачёте';
-  if(gap===1)return 'Сегодня серия даст ещё +2 балла';
-  if(gap===2)return 'Идеальный ритм: через день, +1 балл';
-  if(gap<=5)return 'Можно возвращаться без штрафа';
-  return 'Следующий активный день важнее паузы';
+  const dates=ratingActiveDates(sessions,dailySteps);if(!dates.length)return 'Первый активный день даст +5 баллов';
+  const latest=dates[dates.length-1],gap=daysBetween(latest,localDateKey()),streak=currentStreakLength(sessions,dailySteps);
+  if(gap===0)return `Серия: ${streak} дн. · сегодня уже в зачёте`;
+  if(gap===1)return `Продолжи серию сегодня: +5 +${Math.min(streak,5)}`;
+  return 'Серия прервана · новый активный день даст +5';
 }
 
 function sessionValue(s){
-  if(s.type==='bike')return s.distance?`${s.distance} км`:'Без километража';
+  if(s.type==='bike'||s.type==='run')return s.distance?`${Number(s.distance).toLocaleString('ru-RU')} км`:'Без километража';
   if(s.type==='walk')return s.steps?`${Number(s.steps).toLocaleString('ru-RU')} шагов`:'Без шагов';
   if(s.type==='workout')return s.workoutText?'Описание':'Воркаут';
   if(s.type==='combat')return s.combatType||'Единоборства';
-  if(s.type==='hike')return `${Math.max(Number(s.hikeDays)||1,1)} дн. · ${Number(s.hikeDistance||0).toLocaleString('ru-RU')} км`;
-  if(s.type==='gym')return GYM_GROUPS.find(g=>g.id===s.gymGroup)?.label||'Тренажёрка';
-  return '';
+  if(s.type==='hike'){const km=Number(s.distance||s.hikeDistance||0),days=Math.max(Number(s.hikeDays)||1,1);return km?`${km.toLocaleString('ru-RU')} км`:`${days} дн.`;}
+  if(s.type==='gym')return GYM_GROUPS.find(g=>g.id===s.gymGroup)?.label||'Тренажёрка';return '';
 }
 
 function ActivityGlyph({type,className=''}) {
+  if(type==='outdoor') return <span className={className}>⌁</span>;
+  if(type==='run') return <span className={className}>🏃</span>;
   if(type==='bike') return <svg className={`activity-svg ${className}`} viewBox="0 0 64 64" aria-hidden="true"><circle cx="16" cy="43" r="10"/><circle cx="49" cy="43" r="10"/><path d="M16 43 27 24l10 19H16Zm11-19h11l11 19M25 18h9m4 6 6-7h6m-1 0 5 2"/></svg>;
   if(type==='workout') return <svg className={`activity-svg ${className}`} viewBox="0 0 64 64" aria-hidden="true"><path d="M10 12v42M54 12v42M10 16h44"/><circle cx="32" cy="25" r="5"/><path d="M32 30v15M32 33 21 22M32 33l11-11M32 45l-8 9M32 45l8 9"/></svg>;
   if(type==='steps') return <span className={className}>👣</span>;
@@ -682,8 +669,8 @@ export default function App(){
   }
 
   async function chooseType(type){
-    await savePlan(draftDateKey,type,'','planned');
-    navigate(type);
+    if(type==='outdoor'){navigate('outdoor');return;}
+    await savePlan(draftDateKey,type,'','planned');navigate(type);
   }
 
   async function saveSession(payload){
@@ -702,7 +689,7 @@ export default function App(){
       date:payload.date,
       title:payload.title||null,
       distance:payload.distance??null,
-      duration:null,
+      duration:payload.duration??null,
       steps:payload.steps??null,
       workout_text:payload.workoutText||null,
       combat_type:payload.combatType||null,
@@ -711,6 +698,15 @@ export default function App(){
       gym_group:payload.gymGroup||null,
       base_rows:payload.baseRows||null,
       extra_rows:payload.extraRows||null,
+      rating_eligible:payload.ratingEligible??(payload.date===localDateKey()),
+      tracking_mode:payload.trackingMode||'manual',
+      gps_verified:payload.gpsVerified===true,
+      moving_duration:payload.movingDuration??null,
+      avg_speed:payload.avgSpeed??null,
+      max_speed:payload.maxSpeed??null,
+      route_points:payload.routePoints||null,
+      started_at:payload.startedAt||null,
+      ended_at:payload.endedAt||null,
       confirmed:true,
     };
 
@@ -813,7 +809,7 @@ export default function App(){
     {screen==='add-training'&&<AddTraining dateKey={draftDateKey} setDateKey={setDraftDateKey} onProposal={sendProposal} onBack={()=>goBack('home')} onChoose={chooseType}/>}
     {screen==='gym'&&<GymTraining dateKey={draftDateKey} setDateKey={setDraftDateKey} sessions={numberedSessions} gymTemplates={gymTemplates} onSaveTemplate={saveTemplate} onBack={()=>goBack('add-training')} onHistory={()=>navigate('gym-history')} onSave={saveSession} onTrainerRequest={requestTrainer}/>}
     {screen==='gym-history'&&<GymHistory sessions={numberedSessions.filter(s=>s.type==='gym'&&isHistorySession(s))} onBack={()=>goBack('gym')}/>}
-    {screen==='bike'&&<SimpleTraining type="bike" dateKey={draftDateKey} setDateKey={setDraftDateKey} sessions={numberedSessions} onBack={()=>goBack('add-training')} onSave={saveSession}/>}
+    {screen==='outdoor'&&<OutdoorTraining dateKey={draftDateKey} setDateKey={setDraftDateKey} sessions={numberedSessions} onBack={()=>goBack('add-training')} onSave={saveSession}/>}
     {screen==='workout'&&<WorkoutTraining dateKey={draftDateKey} setDateKey={setDraftDateKey} sessions={numberedSessions} onBack={()=>goBack('add-training')} onHistory={()=>navigate('workout-history')} onSave={saveSession}/>}
     {screen==='workout-history'&&<WorkoutHistory sessions={numberedSessions.filter(s=>s.type==='workout'&&isHistorySession(s))} onBack={()=>goBack('workout')}/>}
     {screen==='combat'&&<CombatTraining dateKey={draftDateKey} setDateKey={setDraftDateKey} sessions={numberedSessions} onBack={()=>goBack('add-training')} onHistory={()=>navigate('combat-history')} onSave={saveSession}/>}
@@ -827,7 +823,7 @@ export default function App(){
 }
 
 function BottomNav({screen,onNavigate}){
-  const active=['add-training','gym','gym-history','bike','workout','workout-history','combat','combat-history','hike','hike-history','why'].includes(screen)?'home':screen;
+  const active=['add-training','gym','gym-history','outdoor','bike','workout','workout-history','combat','combat-history','hike','hike-history','why'].includes(screen)?'home':screen;
   const items=[['home','⌂','Главная'],['history','▥','История'],['stats','▤','Статистика'],['members','♟','Участники'],['about','ⓘ','О приложении']];
   return <nav className="bottom-nav five">
     {items.map(([key,icon,label])=><button key={key} className={active===key?'active':''} onClick={()=>onNavigate(key)}><span className="nav-icon">{icon}</span>{label}</button>)}
@@ -846,6 +842,10 @@ function Home({schedule,sessions,profile,dailySteps,saveNotice,isBoss,adminNotif
   const todayMoney=Math.max(0,1000-todayHookahs*500);
   const season=seasonMeta();
   const seasonProgress=Math.max(0,Math.min(100,(season.day/season.total)*100));
+  const streak=currentStreakLength(sessions,dailySteps);
+  const stepHistory=[...(dailySteps||[])].filter(x=>x.date<=todayKey).sort((a,b)=>b.date.localeCompare(a.date));
+  const stepAverageSource=stepHistory.length>=30?stepHistory.slice(0,30):stepHistory;
+  const averageSteps30=stepAverageSource.length?Math.round(stepAverageSource.reduce((sum,x)=>sum+Number(x.steps||0),0)/stepAverageSource.length):0;
 
   return <main className="main-screen home-no-scroll">
     <header className="topbar home-topbar">
@@ -905,11 +905,13 @@ function Home({schedule,sessions,profile,dailySteps,saveNotice,isBoss,adminNotif
             :stepsStatus==='unavailable'?'Нет системного источника шагов'
             :'Подключить автоматический шагомер'
           }</small>
+          {averageSteps30>0&&<em>среднее: {averageSteps30.toLocaleString('ru-RU')} / день</em>}
         </span>
       </button>
     </div>
 
     <DateWheel schedule={schedule} dailySteps={dailySteps} selectedDateKey={selectedDateKey} setSelectedDateKey={setSelectedDateKey}/>
+    <StreakStrip streak={streak}/>
 
     <button className="gradient-button workout-cta" onClick={onOpenWorkout}><span>＋</span>Добавить тренировку<b>›</b></button>
     <p className="helper-text">Выбранная дата: {formatDate(selectedDateKey)}.</p>
@@ -948,6 +950,10 @@ function Home({schedule,sessions,profile,dailySteps,saveNotice,isBoss,adminNotif
   </main>;
 }
 
+function StreakStrip({streak=0}){
+  const filled=Math.min(Math.max(Number(streak)||0,0),6);
+  return <section className="streak-strip"><div className="streak-caption"><strong>Серия</strong><span>{streak?streak+' дн.':'начни сегодня'}</span></div><div className="streak-dots">{[0,1,2,3,4,5].map(i=><div className="streak-step" key={i}><span className={i<filled?'filled':''}>{i<filled?'✓':''}</span><small>{i===0?'старт':'+'+i}</small></div>)}</div></section>;
+}
 function WhyScreen({onBack}){
   return <main className="sub-screen why-screen">
     <ScreenBack onBack={onBack} title="О чём это приложение"/>
@@ -1035,6 +1041,19 @@ function AboutScreen(){
       <p>Живи как обычно. Просто замечай свою активность и сохраняй её.</p>
       <strong>Цель — самому двигаться чуть больше, чем раньше.</strong>
     </section>
+
+    <details className="points-structure glass-card">
+      <summary>Структура начисления баллов <span>⌄</span></summary>
+      <div>
+        <p><strong>Главное правило:</strong> рейтинг ценит регулярность, а не количество тренировок за один день.</p>
+        <p><b>Активный день: +5.</b> Зал, воркаут, единоборства, вело, бег, хайкинг или 15 000+ шагов — вид активности не важен. Даже если активностей несколько, базовые +5 за день начисляются один раз.</p>
+        <p><b>Серия:</b> второй день подряд +1, третий +2, четвёртый +3, пятый +4, шестой и каждый следующий подряд +5 сверх базовых пяти.</p>
+        <p><b>Пропуск:</b> один пропущенный день обрывает серию. После трёх дней без активности спортивный рейтинг уменьшается на 1 балл за каждый следующий день, но спортивная часть не падает ниже нуля.</p>
+        <p><b>Задним числом:</b> запись остаётся в истории и статистике, но рейтинговых баллов не даёт и серию не восстанавливает.</p>
+        <p><b>GPS:</b> подтверждённая велопоездка более 100 км получает дополнительный +5. Ручная запись такого бонуса не получает.</p>
+        <p><b>Кальян:</b> −2 за каждый отмеченный кальян. Только этот отдельный штраф может увести итоговый рейтинг ниже нуля.</p>
+      </div>
+    </details>
 
     <section className="about-hero glass-card">
       <Brand compact/>
@@ -1185,6 +1204,8 @@ function GymTraining({dateKey,setDateKey,sessions,gymTemplates,onSaveTemplate,on
   const [extraRows,setExtraRows]=useState(makeRows(5));
   const [error,setError]=useState('');
   const [trainerState,setTrainerState]=useState('');
+  const previousGym=sessions.filter(s=>s.type==='gym'&&isHistorySession(s));
+  const averageGymTonnage=previousGym.length?previousGym.reduce((sum,s)=>sum+workoutTonnage(s.baseRows||[],s.extraRows||[]),0)/previousGym.length:0;
 
   useEffect(()=>{
     const t=gymTemplates[group];
@@ -1234,7 +1255,7 @@ function GymTraining({dateKey,setDateKey,sessions,gymTemplates,onSaveTemplate,on
         <ExerciseBlock title="Доп" subtitle="Дельты, руки, пресс и другие мелкие группы" rows={extraRows} options={ACCESSORY_EXERCISES} kind="extra" onChange={update} accent="violet"/>
       </>}
 
-    <div className="tonnage-summary"><span>Тоннаж тренировки</span><strong>{formatKg(workoutTonnage(baseRows,extraRows))} кг</strong></div>
+    <div className="tonnage-summary"><span>Тоннаж тренировки</span><strong>{formatKg(workoutTonnage(baseRows,extraRows))} кг</strong>{averageGymTonnage>0&&<small>Средний тоннаж: {formatKg(averageGymTonnage)} кг / тренировку</small>}</div>
 
     {error&&<p className="error-line">{error}</p>}
     <button className="gradient-button save-training" onClick={save}><span>▣</span>{isFuture(dateKey)?'Запланировать тренировку':'Сохранить тренировку'}<b>›</b></button>
@@ -1528,6 +1549,54 @@ function HikeStats({count,days,distance}){
   </article>;
 }
 
+function RouteSketch({points=[]}){
+  const plot=routePlot(points,100,60,5),polyline=plot.map(p=>`${p.x.toFixed(2)},${p.y.toFixed(2)}`).join(' ');
+  return <div className="route-sketch"><svg viewBox="0 0 100 60" role="img" aria-label="Схема маршрута">{plot.length>1&&<polyline points={polyline} fill="none" vectorEffect="non-scaling-stroke"/>}{plot.length>0&&<circle className="route-start" cx={plot[0].x} cy={plot[0].y} r="2.4"/>}{plot.length>1&&<circle className="route-finish" cx={plot[plot.length-1].x} cy={plot[plot.length-1].y} r="2.4"/>}</svg></div>;
+}
+function RouteResultCard({session,compact=false}){
+  const type=session.type||session.mode||'bike',points=session.routePoints||session.points||[],distance=Number(session.distance)||0,duration=Number(session.duration??session.totalSeconds)||0,moving=Number(session.movingDuration??session.movingSeconds)||0,avg=Number(session.avgSpeed)||0,max=Number(session.maxSpeed)||0,meta=activityMeta(type)||OUTDOOR_MODES[0];
+  return <section className={`route-result-card ${type} ${compact?'compact':''}`}><header><span>{meta.icon}</span><div><small>{session.gpsVerified===false?'Ручная запись':'GPS · подтверждено'}</small><strong>{session.title||meta.label}</strong></div></header>{points.length>1&&<RouteSketch points={points}/>}<div className="route-metrics"><span><small>Дистанция</small><strong>{distance.toFixed(1)} км</strong></span><span><small>Общее время</small><strong>{formatDuration(duration)}</strong></span><span><small>В движении</small><strong>{formatDuration(moving)}</strong></span><span><small>Средняя</small><strong>{avg.toFixed(1)} км/ч</strong></span><span><small>Максимальная</small><strong>{max.toFixed(1)} км/ч</strong></span></div>{points.length>1&&<button type="button" className="route-download" onClick={()=>downloadRoutePng(session,type,session.date||localDateKey())}>↓ Скачать маршрут PNG</button>}</section>;
+}
+function OutdoorTraining({dateKey,setDateKey,sessions,onBack,onSave}){
+  const [mode,setMode]=useState('bike'),[manualOpen,setManualOpen]=useState(false),[title,setTitle]=useState(''),[distance,setDistance]=useState(''),[tracking,setTracking]=useState(false),[trackPoints,setTrackPoints]=useState([]),[gpsMessage,setGpsMessage]=useState(''),[gpsInvalid,setGpsInvalid]=useState(false),[result,setResult]=useState(null),[saving,setSaving]=useState(false);
+  const watchRef=useRef(null),pointsRef=useRef([]),anomalyRef=useRef(0),invalidRef=useRef(false),startedRef=useRef(null);
+  const meta=OUTDOOR_MODES.find(x=>x.id===mode)||OUTDOOR_MODES[0],history=sessions.filter(s=>s.type===mode&&isHistorySession(s)),distances=history.map(s=>Number(s.distance||(mode==='hike'?s.hikeDistance:0))||0),totalDistance=distances.reduce((a,b)=>a+b,0),avgDistance=average(distances),live=useMemo(()=>summarizeRoute(trackPoints),[trackPoints]),native=Capacitor.isNativePlatform();
+  useEffect(()=>()=>{if(watchRef.current)Geolocation.clearWatch({id:watchRef.current}).catch(()=>{});},[]);
+  function selectMode(next){if(tracking)return;setMode(next);setManualOpen(false);setResult(null);setGpsInvalid(false);setGpsMessage('');setDistance('');setTitle('');}
+  async function stopGps(asInvalid=false){
+    const id=watchRef.current;watchRef.current=null;if(id)await Geolocation.clearWatch({id}).catch(()=>{});setTracking(false);
+    if(asInvalid){invalidRef.current=true;setGpsInvalid(true);setManualOpen(true);setResult(null);setGpsMessage('Обнаружено повторное сильное превышение скорости. Есть подозрение на моторизированный транспорт или длительную ошибку GPS. Заполните данные вручную.');return;}
+    const summary=summarizeRoute(pointsRef.current);if(summary.points.length<2||summary.distance<=0){setGpsMessage('Маршрут не записался. Внесите тренировку вручную.');setManualOpen(true);return;}
+    setResult({...summary,type:mode,mode,title:title.trim()||meta.label,date:localDateKey(),routePoints:compactRoutePoints(summary.points),movingDuration:Math.round(summary.movingSeconds),duration:Math.round(summary.totalSeconds),avgSpeed:summary.avgSpeed,maxSpeed:summary.maxSpeed,gpsVerified:true,startedAt:startedRef.current,endedAt:new Date().toISOString()});
+  }
+  async function startGps(){
+    setGpsMessage('');setGpsInvalid(false);setResult(null);setManualOpen(false);
+    if(!native){setGpsMessage('GPS-запись маршрута сейчас доступна в Android-приложении. Здесь можно внести тренировку вручную.');setManualOpen(true);return;}
+    try{
+      const permission=await Geolocation.requestPermissions({permissions:['location']});
+      if(!['granted','limited'].includes(permission.location)){setGpsMessage('Нет разрешения на геолокацию. Разрешите GPS или внесите тренировку вручную.');setManualOpen(true);return;}
+      setDateKey(localDateKey());pointsRef.current=[];anomalyRef.current=0;invalidRef.current=false;startedRef.current=new Date().toISOString();setTrackPoints([]);setTracking(true);
+      const selectedMode=mode,limit=(OUTDOOR_MODES.find(x=>x.id===selectedMode)||OUTDOOR_MODES[0]).speedLimit;
+      watchRef.current=await Geolocation.watchPosition({enableHighAccuracy:true,timeout:15000,maximumAge:0,minimumUpdateInterval:2500},(position,err)=>{
+        if(err||!position||invalidRef.current)return;const accuracy=Number(position.coords?.accuracy)||999;if(accuracy>80)return;
+        const point={lat:Number(position.coords.latitude),lng:Number(position.coords.longitude),t:Number(position.timestamp)||Date.now(),accuracy};if(!Number.isFinite(point.lat)||!Number.isFinite(point.lng))return;
+        const last=pointsRef.current[pointsRef.current.length-1];
+        if(last){const dt=(point.t-last.t)/1000;if(dt<=0)return;const inferred=haversineKm(last,point)/(dt/3600),device=Number(position.coords.speed)>=0?Number(position.coords.speed)*3.6:0,observed=Math.max(inferred,device);if(observed>limit){anomalyRef.current+=1;if(anomalyRef.current>=2)stopGps(true);else setGpsMessage(`Единичный GPS-скачок выше ${limit} км/ч удалён из маршрута. Запись продолжается.`);return;}}
+        pointsRef.current=[...pointsRef.current,point];setTrackPoints(pointsRef.current);
+      });
+    }catch(err){console.warn('Forma GPS start failed',err);setTracking(false);setGpsMessage('Не удалось запустить GPS. Проверьте разрешение геолокации или внесите тренировку вручную.');setManualOpen(true);}
+  }
+  async function saveManual(){setSaving(true);try{const km=Math.max(0,Number(distance)||0),payload={type:mode,date:dateKey,title:title.trim()||meta.label,distance:km,trackingMode:'manual',gpsVerified:false,ratingEligible:dateKey===localDateKey()};if(mode==='hike'){payload.hikeDays=1;payload.hikeDistance=km;}await onSave(payload);}finally{setSaving(false);}}
+  async function saveGpsResult(){if(!result)return;setSaving(true);try{const payload={type:mode,date:localDateKey(),title:result.title,distance:result.distance,duration:result.duration,movingDuration:result.movingDuration,avgSpeed:result.avgSpeed,maxSpeed:result.maxSpeed,routePoints:result.routePoints,startedAt:result.startedAt,endedAt:result.endedAt,trackingMode:'gps',gpsVerified:true,ratingEligible:true};if(mode==='hike'){payload.hikeDays=1;payload.hikeDistance=result.distance;}await onSave(payload);}finally{setSaving(false);}}
+  if(result)return <main className={`sub-screen outdoor-training-screen outdoor-${mode}`}><ScreenBack onBack={()=>setResult(null)} title="Тренировка завершена"/><RouteResultCard session={result}/><button className="gradient-button" onClick={saveGpsResult} disabled={saving}>{saving?'Сохраняю…':'Сохранить тренировку'}</button></main>;
+  return <main className={`sub-screen outdoor-training-screen outdoor-${mode}`}><ScreenBack onBack={onBack} title="Вело / Бег / Хайкинг"/><div className="outdoor-mode-tabs">{OUTDOOR_MODES.map(x=><button key={x.id} className={mode===x.id?'active':''} onClick={()=>selectMode(x.id)} disabled={tracking}><span>{x.icon}</span>{x.label}</button>)}</div>
+    <section className="outdoor-summary glass-card"><div><small>Всего</small><strong>{totalDistance.toFixed(1)} км</strong></div><div><small>Среднее</small><strong>{avgDistance.toFixed(1)} км</strong><em>за тренировку</em></div></section>
+    {tracking&&<section className="gps-live-card"><div className="gps-live-pulse"><i/>GPS записывает</div><RouteSketch points={trackPoints}/><div className="gps-live-metrics"><span><small>Дистанция</small><strong>{live.distance.toFixed(2)} км</strong></span><span><small>Время</small><strong>{formatDuration(live.totalSeconds)}</strong></span><span><small>Средняя</small><strong>{live.avgSpeed.toFixed(1)} км/ч</strong></span></div><button className="stop-gps-button" onClick={()=>stopGps(false)}>Завершить тренировку</button></section>}
+    {!tracking&&<section className="outdoor-actions"><button className="gradient-button start-gps-button" onClick={startGps}><span>⌖</span>Начать GPS-тренировку</button><button className="secondary-dark manual-training-button" onClick={()=>setManualOpen(v=>!v)}>Записать проведённую тренировку вручную</button><small>GPS-бонусы доступны только для подтверждённой GPS-записи. Ручная запись даёт только баллы активного дня.</small></section>}
+    {gpsMessage&&<div className={`gps-message ${gpsInvalid?'danger':''}`}>{gpsMessage}</div>}
+    {manualOpen&&!tracking&&<section className="glass-card simple-form outdoor-manual-form"><label className="date-control embedded"><span>Дата</span><input type="date" value={dateKey} max={localDateKey()} onChange={e=>setDateKey(e.target.value)}/></label><label className="dark-field"><span>Название — необязательно</span><input value={title} onChange={e=>setTitle(e.target.value)} placeholder={mode==='bike'?'Вечерняя поездка':mode==='run'?'Пробежка':'Хайкинг'}/></label><label className="dark-field"><span>Расстояние, км</span><input inputMode="decimal" type="number" min="0" step="0.1" value={distance} onChange={e=>setDistance(e.target.value)} placeholder="12.5"/></label>{dateKey<localDateKey()&&<small className="manual-rating-note">Запись задним числом попадёт в историю и статистику, но не даст рейтинговых баллов.</small>}<button className="gradient-button" onClick={saveManual} disabled={saving}>{saving?'Сохраняю…':'Сохранить вручную'}</button></section>}
+  </main>;
+}
 function SimpleTraining({type,dateKey,setDateKey,sessions,onBack,onSave}){
   const meta=activityMeta(type);
   const [title,setTitle]=useState('');
@@ -1610,7 +1679,7 @@ function History({sessions,onDelete}){
             <span className={`history-type-icon ${meta?.accent||''}`}><ActivityGlyph type={s.type} className={meta?.accent||''}/></span>
             <span className="history-copy">
               <strong>{s.displayNumber?`Тренировка №${s.displayNumber} · `:''}{s.title||meta?.label}</strong>
-              <small>{formatDate(s.date,{day:'numeric',month:'long',year:'numeric'})}{!s.displayNumber&&s.type==='walk'?' · без баллов':''}</small>
+              <small>{formatDate(s.date,{day:'numeric',month:'long',year:'numeric'})}{!s.ratingEligible&&s.type!=='walk'?' · без рейтинга':(!s.displayNumber&&s.type==='walk'?' · без баллов':'')}</small>
             </span>
             <span className="history-value">{sessionValue(s)}</span>
             <b>{open?'⌃':'⌄'}</b>
@@ -1619,15 +1688,12 @@ function History({sessions,onDelete}){
         </div>
 
         {open&&<div className="master-detail">
-          {s.type==='gym'
+          {s.routePoints?.length?<RouteResultCard session={s} compact/>:s.type==='gym'
             ?<>{s.gymGroup==='custom'?<ReadonlyExerciseBlock title="Упражнения" rows={s.baseRows||[]}/>:<><ReadonlyExerciseBlock title="База" rows={s.baseRows||[]}/><ReadonlyExerciseBlock title="Доп" rows={s.extraRows||[]}/></>}<div className="history-tonnage">Тоннаж: <strong>{formatKg(workoutTonnage(s.baseRows||[],s.extraRows||[]))} кг</strong></div></>
-            :s.type==='workout'
-              ?<p className="workout-history-text">{s.workoutText||'Описание не сохранено.'}</p>
-              :s.type==='hike'
-                ?<div className="hike-history-detail"><strong>{s.title||'Поход'}</strong><span>{Math.max(Number(s.hikeDays)||1,1)} дн.</span><span>{Number(s.hikeDistance||0).toLocaleString('ru-RU')} км</span></div>
-                :s.type==='combat'
-                  ?<div className="combat-history-detail"><strong>{s.combatType||s.title||'Единоборства'}</strong></div>
-                  :<p>{sessionValue(s)}</p>}
+            :s.type==='workout'?<p className="workout-history-text">{s.workoutText||'Описание не сохранено.'}</p>
+            :s.type==='hike'?<div className="hike-history-detail"><strong>{s.title||'Хайкинг'}</strong><span>{Math.max(Number(s.hikeDays)||1,1)} дн.</span><span>{Number(s.distance||s.hikeDistance||0).toLocaleString('ru-RU')} км</span></div>
+            :s.type==='combat'?<div className="combat-history-detail"><strong>{s.combatType||s.title||'Единоборства'}</strong></div>
+            :<p>{sessionValue(s)}</p>}
         </div>}
       </article>;
     })}</div>
@@ -1656,8 +1722,16 @@ function Statistics({sessions,dailySteps,isBoss,hookahEvents,hookahStartedOn,pro
   const gymSessions=filtered.filter(s=>s.type==='gym');
   const gym=gymSessions.length;
   const tonnage=gymSessions.reduce((n,s)=>n+workoutTonnage(s.baseRows||[],s.extraRows||[]),0);
-  const bike=filtered.filter(s=>s.type==='bike').reduce((n,s)=>n+(Number(s.distance)||0),0);
-  const stepTotal=(dailySteps||[]).filter(x=>x.date>=start&&x.date<=end).reduce((n,x)=>n+(Number(x.steps)||0),0);
+  const avgTonnage=gym?tonnage/gym:0;
+  const bikeSessions=filtered.filter(s=>s.type==='bike');
+  const bike=bikeSessions.reduce((n,s)=>n+(Number(s.distance)||0),0);
+  const avgBike=bikeSessions.length?bike/bikeSessions.length:0;
+  const runSessions=filtered.filter(s=>s.type==='run');
+  const runDistance=runSessions.reduce((n,s)=>n+(Number(s.distance)||0),0);
+  const avgRun=runSessions.length?runDistance/runSessions.length:0;
+  const stepRows=(dailySteps||[]).filter(x=>x.date>=start&&x.date<=end);
+  const stepTotal=stepRows.reduce((n,x)=>n+(Number(x.steps)||0),0);
+  const avgSteps=stepRows.length?stepTotal/stepRows.length:0;
   const workoutCount=filtered.filter(s=>s.type==='workout').length;
   const combatCount=filtered.filter(s=>s.type==='combat').length;
   const hikes=filtered.filter(s=>s.type==='hike');
@@ -1678,6 +1752,7 @@ function Statistics({sessions,dailySteps,isBoss,hookahEvents,hookahStartedOn,pro
   },{});
   const hookahLost=Object.values(hookahByDay).reduce((sum,count)=>sum+Math.min(Number(count)||0,2)*500,0);
   const hookahEarned=Math.max(0,hookahPossible-hookahLost);
+  const hookahWeeklyAvg=hookahDays?hookahCount*7/hookahDays:0;
   const ranges=[['prev-month','Прошедший месяц'],['30d','30 дней'],['6m','6 месяцев'],['1y','Год'],['custom','Свой диапазон']];
 
   return <main className="tab-screen stats-screen">
@@ -1695,25 +1770,23 @@ function Statistics({sessions,dailySteps,isBoss,hookahEvents,hookahStartedOn,pro
 
     <div className="stats-grid-big">
       <StatCard type="gym" accent="violet" title="Тренажёрка" value={gym.toLocaleString('ru-RU')} unit="тренировок"/>
-      <StatCard type="gym" accent="tonnage" title="Тоннаж" value={formatKg(tonnage)} unit="кг"/>
-      <StatCard type="bike" accent="amber" title="Велосипед" value={bike.toLocaleString('ru-RU')} unit="км"/>
-      <StatCard type="steps" accent="green" title="Шаги" value={stepTotal.toLocaleString('ru-RU')} unit="шагов"/>
+      <StatCard type="gym" accent="tonnage" title="Тоннаж" value={formatKg(tonnage)} unit="кг" secondary={gym?`Среднее ${formatKg(avgTonnage)} кг / трен.`:''}/>
+      <StatCard type="bike" accent="amber" title="Вело" value={bike.toLocaleString('ru-RU')} unit="км" secondary={bikeSessions.length?`Среднее ${avgBike.toFixed(1)} км / поездку`:''}/>
+      <StatCard type="run" accent="run" title="Бег" value={runDistance.toLocaleString('ru-RU')} unit="км" secondary={runSessions.length?`Среднее ${avgRun.toFixed(1)} км / пробежку`:''}/>
+      <StatCard type="steps" accent="green" title="Шаги" value={stepTotal.toLocaleString('ru-RU')} unit="шагов" secondary={stepRows.length?`Среднее ${Math.round(avgSteps).toLocaleString('ru-RU')} / день`:''}/>
       <StatCard type="workout" accent="coral" title="Воркаут" value={workoutCount.toLocaleString('ru-RU')} unit="тренировок"/>
       <StatCard type="combat" accent="combat" title="Единоборства" value={combatCount.toLocaleString('ru-RU')} unit="тренировок"/>
       <HikeStats count={hikeCount} days={hikeDays} distance={hikeDistance}/>
       {isBoss&&<article className="hookah-stat-card">
-        <div><small>Кальян</small><strong>{hookahCount} из {hookahSlots}</strong><em>{hookahDays.toLocaleString('ru-RU')} дн. статистики</em></div>
+        <div><small>Кальян</small><strong>{hookahCount} из {hookahSlots}</strong><em>В среднем {hookahWeeklyAvg.toFixed(1)} / неделю</em></div>
         <div><small>Заработано</small><strong>{hookahEarned.toLocaleString('ru-RU')} ₽</strong><em>из {hookahPossible.toLocaleString('ru-RU')} ₽ возможных</em></div>
       </article>}
     </div>
   </main>;
 }
 
-function StatCard({type,accent,title,value,unit}){
-  return <article className={`stat-card ${accent}`}>
-    <span className="stat-icon"><ActivityGlyph type={type} className={accent}/></span>
-    <div className="stat-copy"><small>{title}</small><strong>{value}</strong><em>{unit}</em></div>
-  </article>;
+function StatCard({type,accent,title,value,unit,secondary='' }){
+  return <article className={`stat-card ${accent}`}><span className="stat-icon"><ActivityGlyph type={type} className={accent}/></span><div className="stat-copy"><small>{title}</small><strong>{value}</strong><em>{unit}</em>{secondary&&<i>{secondary}</i>}</div></article>;
 }
 
 function Members({members,profile,previousTop5}){

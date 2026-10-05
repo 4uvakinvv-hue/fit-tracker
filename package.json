@@ -1,6 +1,6 @@
 {
   "name": "fit-tracker",
-  "version": "1.5.0",
+  "version": "1.6.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -15,7 +15,8 @@
     "@capacitor/core": "8.5.2",
     "@capacitor/android": "8.5.2",
     "@capacitor/app": "^8.0.0",
-    "@capgo/capacitor-health": "8.11.4"
+    "@capgo/capacitor-health": "8.11.4",
+    "@capacitor/geolocation": "8.2.2"
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^5.0.4",
