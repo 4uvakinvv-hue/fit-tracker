@@ -3,7 +3,7 @@ import { supabase } from './supabase.js';
 import { App as NativeApp } from '@capacitor/app';
 import { Health } from '@capgo/capacitor-health';
 
-const APP_VERSION = '1.2.0';
+const APP_VERSION = '1.3.0';
 const ANDROID_APK_URL = 'https://github.com/4uvakinvv-hue/fit-tracker/releases/download/android-current/forma-android.apk';
 const IOS_INSTALL_URL = 'https://4uvakinvv-hue.github.io/fit-tracker/';
 
@@ -19,6 +19,7 @@ const GYM_GROUPS = [
   { id: 'chest', label: 'Грудь', icon: '◈' },
   { id: 'back', label: 'Спина', icon: '╫' },
   { id: 'legs', label: 'Ноги', icon: '⋔' },
+  { id: 'custom', label: 'Своё', icon: '✦' },
 ];
 
 const BASE_EXERCISES = {
@@ -51,8 +52,23 @@ function activityMeta(type){
     ||(type==='walk'?{id:'walk',label:'Прогулка',icon:'🚶',accent:'green'}:null);
 }
 function activityLabel(item){return item?.customTitle||activityMeta(item?.type)?.label||'';}
-function makeRows(n){return Array.from({length:n},()=>({exercise:'',sets:'',weight:'',comment:''}));}
-function normalizeRows(rows,n){return Array.from({length:n},(_,i)=>({exercise:rows?.[i]?.exercise||'',sets:rows?.[i]?.sets??'',weight:rows?.[i]?.weight??'',comment:''}));}
+const ALL_GYM_EXERCISES=[...new Set([...Object.values(BASE_EXERCISES).flat(),...ACCESSORY_EXERCISES])];
+
+function makeRows(n){return Array.from({length:n},()=>({exercise:'',sets:'',reps:'',weight:'',comment:''}));}
+function normalizeRows(rows,n){return Array.from({length:n},(_,i)=>({
+  exercise:rows?.[i]?.exercise||'',
+  sets:rows?.[i]?.sets??'',
+  reps:rows?.[i]?.reps??'',
+  weight:rows?.[i]?.weight??'',
+  comment:rows?.[i]?.comment||''
+}));}
+function rowTonnage(row){
+  return Math.max(0,Number(row?.sets)||0)*Math.max(0,Number(row?.reps)||0)*Math.max(0,Number(row?.weight)||0);
+}
+function workoutTonnage(baseRows=[],extraRows=[]){
+  return [...baseRows,...extraRows].reduce((sum,row)=>sum+rowTonnage(row),0);
+}
+function formatKg(value){return Math.round(Number(value)||0).toLocaleString('ru-RU');}
 function mapSession(row){return {...row,gymGroup:row.gym_group,baseRows:row.base_rows||[],extraRows:row.extra_rows||[],workoutText:row.workout_text||'',combatType:row.combat_type||'',hikeDays:Number(row.hike_days)||0,hikeDistance:Number(row.hike_distance)||0,confirmed:row.confirmed!==false};}
 function isFuture(key){return key>localDateKey();}
 function isQualifyingSession(s){return s.confirmed!==false&&s.date<=localDateKey()&&(s.type!=='walk'||Number(s.steps||0)>=10000);}
