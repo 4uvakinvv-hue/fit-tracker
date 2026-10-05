@@ -467,7 +467,7 @@ export default function App(){
           .select('id,type,title,member_name,member_email,created_at,read_at')
           .eq('recipient_user_id',authSession.user.id)
           .order('created_at',{ascending:false})
-          .limit(50);
+          .limit(200);
         if(error)throw error;
         if(active)setAdminNotifications(data||[]);
       }catch(err){
@@ -560,6 +560,7 @@ export default function App(){
 
       await loadStoredSteps();
       setStepsStatus('ready');
+      await loadData(true,sessionOverride);
     }catch(err){
       console.warn('Forma steps sync failed',err);
       setStepsStatus('error');
@@ -606,7 +607,7 @@ export default function App(){
         supabase.from('daily_steps').select('date,steps').eq('user_id',userId).gte('date',localDateKey(addYears(new Date(),-1))).order('date',{ascending:true}),
         supabase.from('boss_users').select('user_id,hookah_started_on').eq('user_id',userId).maybeSingle(),
         supabase.from('hookah_events').select('id,event_date,smoked_at').eq('user_id',userId).order('smoked_at',{ascending:true}),
-        supabase.from('admin_notifications').select('id,type,title,member_name,member_email,created_at,read_at').eq('recipient_user_id',userId).order('created_at',{ascending:false}).limit(50),
+        supabase.from('admin_notifications').select('id,type,title,member_name,member_email,created_at,read_at').eq('recipient_user_id',userId).order('created_at',{ascending:false}).limit(200),
       ]);
 
       const timeout=new Promise((_,reject)=>setTimeout(()=>reject(new Error('timeout')),9000));
@@ -835,7 +836,7 @@ function BottomNav({screen,onNavigate}){
 function Home({schedule,sessions,profile,dailySteps,saveNotice,isBoss,adminNotifications,onMarkNotificationsRead,hookahEvents,canUndoHookah,onHookah,onUndoHookah,stepsStatus,stepsSyncing,onEnableSteps,selectedDateKey,setSelectedDateKey,onSavePlan,onDeletePlan,onProposal,onOpenWorkout}){
   const [pointsOpen,setPointsOpen]=useState(false);
   const [notificationsOpen,setNotificationsOpen]=useState(false);
-  const events=pointEvents(sessions,hookahEvents).slice(-10).reverse();
+  const events=pointEvents(sessions,dailySteps,hookahEvents).slice(-10).reverse();
   const unreadNotifications=(adminNotifications||[]).filter(n=>!n.read_at).length;
   const todayKey=localDateKey();
   const todayHookahs=hookahEvents.filter(h=>h.event_date===todayKey).length;
@@ -875,7 +876,7 @@ function Home({schedule,sessions,profile,dailySteps,saveNotice,isBoss,adminNotif
           </div>
           <span className="season-progress-track"><i style={{width:`${seasonProgress}%`}}/></span>
         </button>
-        <small>{scoreHint(sessions)}</small>
+        <small>{scoreHint(sessions,dailySteps)}</small>
       </div>
     </header>
 
@@ -907,7 +908,7 @@ function Home({schedule,sessions,profile,dailySteps,saveNotice,isBoss,adminNotif
       </button>
     </div>
 
-    <DateWheel schedule={schedule} selectedDateKey={selectedDateKey} setSelectedDateKey={setSelectedDateKey}/>
+    <DateWheel schedule={schedule} dailySteps={dailySteps} selectedDateKey={selectedDateKey} setSelectedDateKey={setSelectedDateKey}/>
 
     <button className="gradient-button workout-cta" onClick={onOpenWorkout}><span>＋</span>Добавить тренировку<b>›</b></button>
     <p className="helper-text">Выбранная дата: {formatDate(selectedDateKey)}.</p>
@@ -1070,7 +1071,7 @@ function AboutScreen(){
   </main>;
 }
 
-function DateWheel({schedule,selectedDateKey,setSelectedDateKey}){
+function DateWheel({schedule,dailySteps,selectedDateKey,setSelectedDateKey}){
   const selectedDate=dateFromKey(selectedDateKey);
   const activeMonday=mondayOf(selectedDate);
   const weekStarts=[addDays(activeMonday,-7),activeMonday,addDays(activeMonday,7)];
@@ -1100,8 +1101,12 @@ function DateWheel({schedule,selectedDateKey,setSelectedDateKey}){
               const key=localDateKey(date);
               const selected=key===selectedDateKey;
               const item=schedule[key];
-              const meta=activityMeta(item?.type);
-              const completed=item?.status==='completed';
+              const trainingCompleted=item?.status==='completed';
+              const stepsForDay=Number((dailySteps||[]).find(x=>x.date===key)?.steps||0);
+              const stepsCompleted=!trainingCompleted&&stepsForDay>=15000;
+              const displayType=trainingCompleted?item?.type:(stepsCompleted?'steps':item?.type);
+              const meta=activityMeta(displayType);
+              const completed=trainingCompleted||stepsCompleted;
               const today=key===todayKey;
 
               return <button
@@ -1115,7 +1120,7 @@ function DateWheel({schedule,selectedDateKey,setSelectedDateKey}){
                   <strong>{date.getDate()}</strong>
                 </span>
                 <span className={`week-day-activity ${meta?.accent||''}`}>
-                  {meta?<ActivityGlyph type={item.type} className={meta.accent}/>:null}
+                  {meta?<ActivityGlyph type={displayType} className={meta.accent}/>:null}
                 </span>
                 <span className={`week-day-status ${completed?'completed':''}`}>{completed?'✓':''}</span>
               </button>;
