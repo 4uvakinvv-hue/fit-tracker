@@ -1531,7 +1531,7 @@ function History({sessions,onDelete}){
   </main>;
 }
 
-function Statistics({sessions,dailySteps,profile,memberCount,onOpenMembers}){
+function Statistics({sessions,dailySteps,isBoss,hookahEvents,hookahStartedOn,profile,memberCount,onOpenMembers}){
   const [range,setRange]=useState('30d');
   const [customStart,setCustomStart]=useState(localDateKey(addDays(new Date(),-30)));
   const [customEnd,setCustomEnd]=useState(localDateKey());
@@ -1550,7 +1550,9 @@ function Statistics({sessions,dailySteps,profile,memberCount,onOpenMembers}){
   else{start=customStart;end=customEnd;}
 
   const filtered=sessions.filter(s=>isStatsSession(s)&&s.date>=start&&s.date<=end);
-  const gym=filtered.filter(s=>s.type==='gym').length;
+  const gymSessions=filtered.filter(s=>s.type==='gym');
+  const gym=gymSessions.length;
+  const tonnage=gymSessions.reduce((n,s)=>n+workoutTonnage(s.baseRows||[],s.extraRows||[]),0);
   const bike=filtered.filter(s=>s.type==='bike').reduce((n,s)=>n+(Number(s.distance)||0),0);
   const stepTotal=(dailySteps||[]).filter(x=>x.date>=start&&x.date<=end).reduce((n,x)=>n+(Number(x.steps)||0),0);
   const workoutCount=filtered.filter(s=>s.type==='workout').length;
@@ -1559,6 +1561,17 @@ function Statistics({sessions,dailySteps,profile,memberCount,onOpenMembers}){
   const hikeCount=hikes.length;
   const hikeDays=hikes.reduce((n,s)=>n+(Math.max(Number(s.hikeDays)||1,1)),0);
   const hikeDistance=hikes.reduce((n,s)=>n+(Number(s.hikeDistance)||0),0);
+  const trackedStart=start<hookahStartedOn?hookahStartedOn:start;
+  const hookahInRange=isBoss?hookahEvents.filter(h=>h.event_date>=trackedStart&&h.event_date<=end):[];
+  const hookahCount=hookahInRange.length;
+  const hookahDays=end>=trackedStart?daysBetween(trackedStart,end)+1:0;
+  const hookahPossible=hookahDays*1000;
+  const hookahByDay=hookahInRange.reduce((map,h)=>{
+    map[h.event_date]=(map[h.event_date]||0)+1;
+    return map;
+  },{});
+  const hookahLost=Object.values(hookahByDay).reduce((sum,count)=>sum+Math.min(Number(count)||0,2)*500,0);
+  const hookahEarned=Math.max(0,hookahPossible-hookahLost);
   const ranges=[['prev-month','Прошедший месяц'],['30d','30 дней'],['6m','6 месяцев'],['1y','Год'],['custom','Свой диапазон']];
 
   return <main className="tab-screen stats-screen">
@@ -1576,11 +1589,16 @@ function Statistics({sessions,dailySteps,profile,memberCount,onOpenMembers}){
 
     <div className="stats-grid-big">
       <StatCard type="gym" accent="violet" title="Тренажёрка" value={gym.toLocaleString('ru-RU')} unit="тренировок"/>
+      <StatCard type="gym" accent="tonnage" title="Тоннаж" value={formatKg(tonnage)} unit="кг"/>
       <StatCard type="bike" accent="amber" title="Велосипед" value={bike.toLocaleString('ru-RU')} unit="км"/>
       <StatCard type="steps" accent="green" title="Шаги" value={stepTotal.toLocaleString('ru-RU')} unit="шагов"/>
       <StatCard type="workout" accent="coral" title="Воркаут" value={workoutCount.toLocaleString('ru-RU')} unit="тренировок"/>
       <StatCard type="combat" accent="combat" title="Единоборства" value={combatCount.toLocaleString('ru-RU')} unit="тренировок"/>
       <HikeStats count={hikeCount} days={hikeDays} distance={hikeDistance}/>
+      {isBoss&&<article className="hookah-stat-card">
+        <div><small>Кальян</small><strong>{hookahCount}</strong><em>выкурено</em></div>
+        <div><small>Заработано</small><strong>{hookahEarned.toLocaleString('ru-RU')} ₽</strong><em>из {hookahPossible.toLocaleString('ru-RU')} ₽ возможных</em></div>
+      </article>}
     </div>
   </main>;
 }
@@ -1623,6 +1641,6 @@ function Members({members,profile,previousTop5}){
       {previousTop5.map(item=><div className="previous-row" key={`${item.rank}-${item.name}`}><span>{item.rank}</span><strong>{item.name}</strong><b>★ {item.points}</b></div>)}
     </section>
 
-    <p className="inactive-rule">Аккаунты не удаляются. Если 45 дней нет состоявшихся тренировок, сезонный рейтинг становится 0. Рейтинг никогда не уходит ниже нуля.</p>
+    <p className="inactive-rule">Аккаунты не удаляются. Если 45 дней нет состоявшихся тренировок, спортивная часть рейтинга становится 0. Персональные штрафы могут уменьшать итоговый балл ниже нуля.</p>
   </main>;
 }
