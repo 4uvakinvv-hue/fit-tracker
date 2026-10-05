@@ -303,6 +303,7 @@ export default function App(){
   const [hookahEvents,setHookahEvents]=useState([]);
   const [hookahStartedOn,setHookahStartedOn]=useState(localDateKey());
   const [undoHookahId,setUndoHookahId]=useState(null);
+  const [saveNotice,setSaveNotice]=useState('');
   const [stepsStatus,setStepsStatus]=useState('loading');
   const [stepsSyncing,setStepsSyncing]=useState(false);
   const [screen,setScreen]=useState('home');
@@ -630,6 +631,11 @@ export default function App(){
     if(error)throw error;
 
     await savePlan(payload.date,payload.type,payload.title||'',lowWalk?'planned':'completed');
+    if(payload.type==='gym'){
+      const tonnage=workoutTonnage(payload.baseRows||[],payload.extraRows||[]);
+      setSaveNotice(`Тренировка сохранена · тоннаж ${formatKg(tonnage)} кг`);
+      setTimeout(()=>setSaveNotice(''),3500);
+    }
     setSelectedDateKey(payload.date);
     await loadData();
     resetHome();
@@ -699,7 +705,7 @@ export default function App(){
   if(loadError)return <main className="onboarding dark-screen"><Brand/><h1>Связь с базой</h1><p className="soft-text">{loadError}</p><div className="glass-card onboarding-form"><button className="gradient-button" onClick={loadData}>Повторить</button></div></main>;
 
   return <div className={`app-shell-dark season-${seasonKey()} screen-${screen}`}>
-    {screen==='home'&&<Home schedule={schedule} sessions={numberedSessions} profile={profile} dailySteps={dailySteps} isBoss={isBoss} hookahEvents={hookahEvents} canUndoHookah={!!undoHookahId} onHookah={addHookah} onUndoHookah={undoHookah} stepsStatus={stepsStatus} stepsSyncing={stepsSyncing} onEnableSteps={()=>syncSteps(true,authSession)} selectedDateKey={selectedDateKey} setSelectedDateKey={setSelectedDateKey} onSavePlan={savePlan} onDeletePlan={deletePlan} onProposal={sendProposal} onOpenWorkout={openAdd}/>} 
+    {screen==='home'&&<Home schedule={schedule} sessions={numberedSessions} profile={profile} dailySteps={dailySteps} saveNotice={saveNotice} isBoss={isBoss} hookahEvents={hookahEvents} canUndoHookah={!!undoHookahId} onHookah={addHookah} onUndoHookah={undoHookah} stepsStatus={stepsStatus} stepsSyncing={stepsSyncing} onEnableSteps={()=>syncSteps(true,authSession)} selectedDateKey={selectedDateKey} setSelectedDateKey={setSelectedDateKey} onSavePlan={savePlan} onDeletePlan={deletePlan} onProposal={sendProposal} onOpenWorkout={openAdd}/>} 
     {screen==='history'&&<History sessions={numberedSessions} onDelete={deleteSession}/>}
     {screen==='stats'&&<Statistics sessions={numberedSessions} dailySteps={dailySteps} isBoss={isBoss} hookahEvents={hookahEvents} hookahStartedOn={hookahStartedOn} profile={profile} memberCount={members.length} onOpenMembers={()=>navigate('members')}/>}
     {screen==='members'&&<Members members={members} profile={profile} previousTop5={previousTop5}/>}
@@ -727,7 +733,7 @@ function BottomNav({screen,onNavigate}){
   </nav>;
 }
 
-function Home({schedule,sessions,profile,dailySteps,isBoss,hookahEvents,canUndoHookah,onHookah,onUndoHookah,stepsStatus,stepsSyncing,onEnableSteps,selectedDateKey,setSelectedDateKey,onSavePlan,onDeletePlan,onProposal,onOpenWorkout}){
+function Home({schedule,sessions,profile,dailySteps,saveNotice,isBoss,hookahEvents,canUndoHookah,onHookah,onUndoHookah,stepsStatus,stepsSyncing,onEnableSteps,selectedDateKey,setSelectedDateKey,onSavePlan,onDeletePlan,onProposal,onOpenWorkout}){
   const [pointsOpen,setPointsOpen]=useState(false);
   const events=pointEvents(sessions,hookahEvents).slice(-10).reverse();
   const todayKey=localDateKey();
@@ -787,6 +793,7 @@ function Home({schedule,sessions,profile,dailySteps,isBoss,hookahEvents,canUndoH
 
     <button className="gradient-button workout-cta" onClick={onOpenWorkout}><span>＋</span>Добавить тренировку<b>›</b></button>
     <p className="helper-text">Выбранная дата: {formatDate(selectedDateKey)}.</p>
+    {saveNotice&&<div className="save-toast">✓ {saveNotice}</div>}
 
     {pointsOpen&&<div className="modal-backdrop" onClick={()=>setPointsOpen(false)}>
       <section className="points-modal" onClick={e=>e.stopPropagation()}>
@@ -1121,7 +1128,6 @@ function GymTraining({dateKey,setDateKey,sessions,gymTemplates,onSaveTemplate,on
     const tonnage=workoutTonnage(baseRows,extraRows);
     await onSaveTemplate(group,templateBase,templateExtra);
     await onSave({type:'gym',date:dateKey,gymGroup:group,baseRows,extraRows,title:GYM_GROUPS.find(g=>g.id===group)?.label||'Тренажёрка'});
-    if(!isFuture(dateKey))window.alert(`Тренировка сохранена. Тоннаж: ${formatKg(tonnage)} кг`);
   }
 
   async function trainer(){
