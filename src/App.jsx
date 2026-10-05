@@ -664,6 +664,27 @@ export default function App(){
     setGymTemplates(cur=>({...cur,[group]:{baseRows,extraRows}}));
   }
 
+  async function addHookah(){
+    if(!isBoss||!authSession?.user)return;
+    const today=localDateKey();
+    const {data,error}=await supabase.from('hookah_events').insert({
+      user_id:authSession.user.id,
+      event_date:today,
+    }).select('id,event_date,smoked_at').single();
+    if(error)throw error;
+    setUndoHookahId(data.id);
+    setTimeout(()=>setUndoHookahId(cur=>cur===data.id?null:cur),15000);
+    await loadData(true);
+  }
+
+  async function undoHookah(){
+    if(!isBoss||!undoHookahId)return;
+    const {error}=await supabase.from('hookah_events').delete().eq('id',undoHookahId).eq('user_id',authSession.user.id);
+    if(error)throw error;
+    setUndoHookahId(null);
+    await loadData(true);
+  }
+
   async function requestTrainer(){
     const {error}=await supabase.from('trainer_requests').insert({
       user_id:authSession.user.id,
@@ -678,9 +699,9 @@ export default function App(){
   if(loadError)return <main className="onboarding dark-screen"><Brand/><h1>Связь с базой</h1><p className="soft-text">{loadError}</p><div className="glass-card onboarding-form"><button className="gradient-button" onClick={loadData}>Повторить</button></div></main>;
 
   return <div className={`app-shell-dark season-${seasonKey()}`}>
-    {screen==='home'&&<Home schedule={schedule} sessions={numberedSessions} profile={profile} dailySteps={dailySteps} stepsStatus={stepsStatus} stepsSyncing={stepsSyncing} onEnableSteps={()=>syncSteps(true,authSession)} selectedDateKey={selectedDateKey} setSelectedDateKey={setSelectedDateKey} onSavePlan={savePlan} onDeletePlan={deletePlan} onProposal={sendProposal} onOpenWorkout={openAdd} onAbout={()=>navigate('about')} onWhy={()=>navigate('why')}/>} 
+    {screen==='home'&&<Home schedule={schedule} sessions={numberedSessions} profile={profile} dailySteps={dailySteps} isBoss={isBoss} hookahEvents={hookahEvents} canUndoHookah={!!undoHookahId} onHookah={addHookah} onUndoHookah={undoHookah} stepsStatus={stepsStatus} stepsSyncing={stepsSyncing} onEnableSteps={()=>syncSteps(true,authSession)} selectedDateKey={selectedDateKey} setSelectedDateKey={setSelectedDateKey} onSavePlan={savePlan} onDeletePlan={deletePlan} onProposal={sendProposal} onOpenWorkout={openAdd}/>} 
     {screen==='history'&&<History sessions={numberedSessions} onDelete={deleteSession}/>}
-    {screen==='stats'&&<Statistics sessions={numberedSessions} dailySteps={dailySteps} profile={profile} memberCount={members.length} onOpenMembers={()=>navigate('members')}/>}
+    {screen==='stats'&&<Statistics sessions={numberedSessions} dailySteps={dailySteps} isBoss={isBoss} hookahEvents={hookahEvents} hookahStartedOn={hookahStartedOn} profile={profile} memberCount={members.length} onOpenMembers={()=>navigate('members')}/>}
     {screen==='members'&&<Members members={members} profile={profile} previousTop5={previousTop5}/>}
     {screen==='add-training'&&<AddTraining dateKey={draftDateKey} setDateKey={setDraftDateKey} onProposal={sendProposal} onBack={()=>goBack('home')} onChoose={chooseType}/>}
     {screen==='gym'&&<GymTraining dateKey={draftDateKey} setDateKey={setDraftDateKey} sessions={numberedSessions} gymTemplates={gymTemplates} onSaveTemplate={saveTemplate} onBack={()=>goBack('add-training')} onHistory={()=>navigate('gym-history')} onSave={saveSession} onTrainerRequest={requestTrainer}/>}
@@ -706,9 +727,14 @@ function BottomNav({screen,onNavigate}){
   </nav>;
 }
 
-function Home({schedule,sessions,profile,dailySteps,stepsStatus,stepsSyncing,onEnableSteps,selectedDateKey,setSelectedDateKey,onSavePlan,onDeletePlan,onProposal,onOpenWorkout,onAbout,onWhy}){
+function Home({schedule,sessions,profile,dailySteps,isBoss,hookahEvents,canUndoHookah,onHookah,onUndoHookah,stepsStatus,stepsSyncing,onEnableSteps,selectedDateKey,setSelectedDateKey,onSavePlan,onDeletePlan,onProposal,onOpenWorkout}){
   const [pointsOpen,setPointsOpen]=useState(false);
-  const events=pointEvents(sessions).slice(-10).reverse();
+  const events=pointEvents(sessions,hookahEvents).slice(-10).reverse();
+  const todayKey=localDateKey();
+  const todayHookahs=hookahEvents.filter(h=>h.event_date===todayKey).length;
+  const sevenStart=localDateKey(addDays(new Date(),-6));
+  const sevenHookahs=hookahEvents.filter(h=>h.event_date>=sevenStart&&h.event_date<=todayKey).length;
+  const todayMoney=Math.max(0,1000-todayHookahs*500);
   const season=seasonMeta();
   const seasonProgress=Math.max(0,Math.min(100,(season.day/season.total)*100));
 
@@ -741,7 +767,13 @@ function Home({schedule,sessions,profile,dailySteps,stepsStatus,stepsSyncing,onE
       </div>
     </header>
 
-    <div className="steps-chip-row">
+    <div className="home-quick-row">
+      {isBoss&&<section className="hookah-quick-card">
+        <div className="hookah-money"><small>Сегодня доступно</small><strong>{todayMoney.toLocaleString('ru-RU')} ₽</strong></div>
+        <div className="hookah-seven"><small>За 7 дней</small><strong>{sevenHookahs} из 14</strong></div>
+        <button className="hookah-button" onClick={onHookah}>Выкуренный кальян</button>
+        {canUndoHookah&&<button className="hookah-undo" onClick={onUndoHookah}>Отменить последнее</button>}
+      </section>}
       <button className={`today-steps-chip ${stepsStatus}`} onClick={stepsStatus==='ready'?undefined:onEnableSteps} disabled={stepsSyncing}>
         <span className="steps-foot">👣</span>
         <span>
@@ -755,10 +787,6 @@ function Home({schedule,sessions,profile,dailySteps,stepsStatus,stepsSyncing,onE
 
     <button className="gradient-button workout-cta" onClick={onOpenWorkout}><span>＋</span>Добавить тренировку<b>›</b></button>
     <p className="helper-text">Выбранная дата: {formatDate(selectedDateKey)}.</p>
-    <div className="home-info-actions">
-      <button className="about-link-button why-link-button" onClick={onWhy}><span>✦</span>О чём это приложение</button>
-      <button className="about-link-button" onClick={onAbout}><span>ⓘ</span>О приложении</button>
-    </div>
 
     {pointsOpen&&<div className="modal-backdrop" onClick={()=>setPointsOpen(false)}>
       <section className="points-modal" onClick={e=>e.stopPropagation()}>
