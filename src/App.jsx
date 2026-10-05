@@ -108,7 +108,7 @@ function seasonMeta(date=new Date()){
   return {name,start:localDateKey(start),end:localDateKey(end),day,total,previousName};
 }
 
-function pointEvents(sessions){
+function pointEvents(sessions,hookahEvents=[]){
   const season=seasonMeta();
   const ordered=[...sessions]
     .filter(s=>isQualifyingSession(s)&&s.date>=season.start&&s.date<=season.end)
@@ -144,7 +144,7 @@ function pointEvents(sessions){
 
     rawBalance+=delta;
     prev=s;
-    return {id:s.id,date:s.date,delta,reasons:reasons.join(' · ')};
+    return {id:s.id,date:s.date,createdAt:s.created_at||'',delta,reasons:reasons.join(' · ')};
   });
 
   if(prev){
@@ -165,7 +165,17 @@ function pointEvents(sessions){
     }
   }
 
-  return events;
+  hookahEvents
+    .filter(h=>h.event_date>=season.start&&h.event_date<=season.end)
+    .forEach(h=>events.push({
+      id:`hookah-${h.id}`,
+      date:h.event_date,
+      createdAt:h.smoked_at||'',
+      delta:-2,
+      reasons:'Выкуренный кальян: -2'
+    }));
+
+  return events.sort((a,b)=>a.date.localeCompare(b.date)||String(a.createdAt||'').localeCompare(String(b.createdAt||'')));
 }
 function scoreHint(sessions){
   const completed=sessions.filter(isQualifyingSession);
@@ -289,6 +299,10 @@ export default function App(){
   const [schedule,setSchedule]=useState({});
   const [gymTemplates,setGymTemplates]=useState({});
   const [dailySteps,setDailySteps]=useState([]);
+  const [isBoss,setIsBoss]=useState(false);
+  const [hookahEvents,setHookahEvents]=useState([]);
+  const [hookahStartedOn,setHookahStartedOn]=useState(localDateKey());
+  const [undoHookahId,setUndoHookahId]=useState(null);
   const [stepsStatus,setStepsStatus]=useState('loading');
   const [stepsSyncing,setStepsSyncing]=useState(false);
   const [screen,setScreen]=useState('home');
@@ -385,6 +399,7 @@ export default function App(){
     }else{
       setLoading(false);setProfile(null);setMembers([]);setPreviousTop5([]);
       setSessions([]);setSchedule({});setGymTemplates({});setDailySteps([]);
+      setIsBoss(false);setHookahEvents([]);setUndoHookahId(null);
       setStepsStatus('loading');
     }
   },[authSession?.user?.id]);
@@ -505,10 +520,12 @@ export default function App(){
         supabase.from('plans').select('*').eq('user_id',userId),
         supabase.from('gym_templates').select('*').eq('user_id',userId),
         supabase.from('daily_steps').select('date,steps').eq('user_id',userId).gte('date',localDateKey(addYears(new Date(),-1))).order('date',{ascending:true}),
+        supabase.from('boss_users').select('user_id,hookah_started_on').eq('user_id',userId).maybeSingle(),
+        supabase.from('hookah_events').select('id,event_date,smoked_at').eq('user_id',userId).order('smoked_at',{ascending:true}),
       ]);
 
       const timeout=new Promise((_,reject)=>setTimeout(()=>reject(new Error('timeout')),9000));
-      const [profileRes,leaderRes,previousRes,sessionsRes,plansRes,templatesRes,stepsRes]=await Promise.race([queries,timeout]);
+      const [profileRes,leaderRes,previousRes,sessionsRes,plansRes,templatesRes,stepsRes,bossRes,hookahRes]=await Promise.race([queries,timeout]);
 
       if(profileRes.error)throw profileRes.error;
       if(leaderRes.error)throw leaderRes.error;
@@ -534,6 +551,10 @@ export default function App(){
       (templatesRes.data||[]).forEach(t=>{templates[t.gym_group]={baseRows:t.base_rows||[],extraRows:t.extra_rows||[]};});
       setGymTemplates(templates);
       setDailySteps((stepsRes.data||[]).map(x=>({date:x.date,steps:Number(x.steps)||0})));
+      const boss=!!bossRes.data;
+      setIsBoss(boss);
+      setHookahStartedOn(bossRes.data?.hookah_started_on||localDateKey());
+      setHookahEvents(boss?(hookahRes.data||[]):[]);
     }catch(err){
       console.error('Forma load error',err);
       if(!silent)setLoadError('Не удалось связаться с общей базой. Проверь интернет и нажми «Повторить».');
