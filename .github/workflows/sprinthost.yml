@@ -1,0 +1,57 @@
+name: Build Sprinthost web package
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: forma-web-v1.7.0
+  cancel-in-progress: true
+
+jobs:
+  web:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build production web app
+        run: npm run build
+
+      - name: Create Sprinthost archive
+        run: |
+          cd dist
+          zip -r ../forma-web-v1.7.0.zip .
+          cd ..
+          cp forma-web-v1.7.0.zip forma-web.zip
+
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: forma-web-sprinthost
+          path: |
+            forma-web-v1.7.0.zip
+            forma-web.zip
+
+      - name: Publish versioned web package
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete web-v1.7.0 -y --cleanup-tag || true
+          gh release create web-v1.7.0 forma-web-v1.7.0.zip --title "Форма Web 1.7.0 · Sprinthost" --notes "Готовая production-сборка для загрузки в корень сайта на Sprinthost." --prerelease
+
+      - name: Publish stable web package
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete web-current -y --cleanup-tag || true
+          gh release create web-current forma-web.zip --title "Форма Web — актуальная версия" --notes "Постоянный архив актуальной веб-версии для Sprinthost." --prerelease
