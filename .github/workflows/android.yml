@@ -9,7 +9,7 @@ permissions:
   contents: write
 
 concurrency:
-  group: forma-android-v1.6.0-final
+  group: forma-android-v1.7.0-final
   cancel-in-progress: true
 
 jobs:
@@ -43,32 +43,32 @@ jobs:
         run: |
           sed -i 's/minSdkVersion = 24/minSdkVersion = 26/' android/variables.gradle
           sed -i '/<application/i\    <uses-permission android:name="android.permission.health.READ_HEALTH_DATA_HISTORY" />\n    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />\n    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />\n    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />\n    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />\n    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />' android/app/src/main/AndroidManifest.xml
-          sed -i 's/versionCode 1/versionCode 160/' android/app/build.gradle
-          sed -i 's/versionName "1.0"/versionName "1.6.0"/' android/app/build.gradle
+          sed -i 's/versionCode 1/versionCode 170/' android/app/build.gradle
+          sed -i 's/versionName "1.0"/versionName "1.7.0"/' android/app/build.gradle
 
       - name: Build APK
         run: |
           cd android
           chmod +x gradlew
           ./gradlew assembleDebug bundleDebug
-          cp app/build/outputs/apk/debug/app-debug.apk app/build/outputs/apk/debug/forma-v1.6.0.apk
+          cp app/build/outputs/apk/debug/app-debug.apk app/build/outputs/apk/debug/forma-v1.7.0.apk
           cp app/build/outputs/apk/debug/app-debug.apk app/build/outputs/apk/debug/forma-android.apk
-          cp app/build/outputs/bundle/debug/app-debug.aab app/build/outputs/bundle/debug/forma-v1.6.0.aab
+          cp app/build/outputs/bundle/debug/app-debug.aab app/build/outputs/bundle/debug/forma-v1.7.0.aab
 
       - name: Upload workflow artifact
         uses: actions/upload-artifact@v4
         with:
           name: forma-android
           path: |
-            android/app/build/outputs/apk/debug/forma-v1.6.0.apk
-            android/app/build/outputs/bundle/debug/forma-v1.6.0.aab
+            android/app/build/outputs/apk/debug/forma-v1.7.0.apk
+            android/app/build/outputs/bundle/debug/forma-v1.7.0.aab
 
       - name: Publish versioned release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release delete android-v1.6.0 -y --cleanup-tag || true
-          gh release create android-v1.6.0 android/app/build/outputs/apk/debug/forma-v1.6.0.apk android/app/build/outputs/bundle/debug/forma-v1.6.0.aab --title "Форма Android 1.6.0" --notes "Android-сборка приложения Форма 1.6.0." --prerelease
+          gh release delete android-v1.7.0 -y --cleanup-tag || true
+          gh release create android-v1.7.0 android/app/build/outputs/apk/debug/forma-v1.7.0.apk android/app/build/outputs/bundle/debug/forma-v1.7.0.aab --title "Форма Android 1.7.0" --notes "Android-сборка приложения Форма 1.7.0." --prerelease
 
       - name: Publish stable Android download
         env:
