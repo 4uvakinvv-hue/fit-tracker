@@ -96,7 +96,7 @@ function mapSession(row){
     hikeDays:Number(row.hike_days)||0,hikeDistance:Number(row.hike_distance)||0,
     ratingEligible:row.rating_eligible===true,trackingMode:row.tracking_mode||'manual',
     gpsVerified:row.gps_verified===true,movingDuration:Number(row.moving_duration)||0,
-    avgSpeed:Number(row.avg_speed)||0,maxSpeed:Number(row.max_speed)||0,
+    avgSpeed:row.avg_speed==null?null:(Number(row.avg_speed)||0),maxSpeed:Number(row.max_speed)||0,
     routePoints:Array.isArray(row.route_points)?row.route_points:[],
     startedAt:row.started_at||null,endedAt:row.ended_at||null,
     editedAt:row.edited_at||null,distanceCorrected:row.distance_corrected===true,
@@ -124,10 +124,10 @@ function currentStreakLength(sessions,dailySteps=[]){
   return ((consecutive-1)%6)+1;
 }
 function gpsBonusForSession(s){
-  if(!s?.gpsVerified)return 0;
+  if(!s?.gpsVerified||s.avgSpeed==null)return 0;
   const distance=Number(s.distance||s.hikeDistance||0);
-  const avg=Number(s.avgSpeed||0);
-  return s.type==='bike'&&distance>100&&avg<=50?5:0;
+  const avg=Number(s.avgSpeed);
+  return s.type==='bike'&&distance>100&&Number.isFinite(avg)&&avg<=50?5:0;
 }
 function canEditSession(s){
   if(!s?.created_at)return false;
