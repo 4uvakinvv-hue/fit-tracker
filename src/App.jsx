@@ -372,6 +372,7 @@ export default function App(){
   const [booting,setBooting]=useState(true);
   const [bootProgress,setBootProgress]=useState(8);
   const [bootStage,setBootStage]=useState('Запуск приложения');
+  const bootStartedAt=useRef(Date.now());
 
   const numberedSessions=useMemo(()=>withDynamicNumbers(sessions),[sessions]);
 
@@ -379,26 +380,30 @@ export default function App(){
     let active=true;
     let initialized=false;
     const timeout=new Promise(resolve=>setTimeout(()=>resolve({data:{session:null}}),2600));
-    const minimum=new Promise(resolve=>setTimeout(resolve,500));
+    const finishAfterMinimum=()=>{
+      const wait=Math.max(0,2000-(Date.now()-bootStartedAt.current));
+      setTimeout(()=>{if(active)setBooting(false);},wait);
+    };
 
     setBootProgress(12);setBootStage('Проверяем вход');
-    Promise.all([
-      Promise.race([supabase.auth.getSession().catch(()=>({data:{session:null}})),timeout]),
-      minimum
-    ]).then(([result])=>{
+    Promise.race([supabase.auth.getSession().catch(()=>({data:{session:null}})),timeout]).then(result=>{
       if(!active)return;
       initialized=true;
       const next=result?.data?.session||null;
       setBootProgress(next?28:100);
       setBootStage(next?'Загружаем профиль':'Готово');
       setAuthSession(next);
-      if(!next)setTimeout(()=>{if(active)setBooting(false);},180);
+      if(!next)finishAfterMinimum();
     });
 
     const {data:{subscription}}=supabase.auth.onAuthStateChange((_event,next)=>{
       if(!active)return;
       setAuthSession(next);
-      if(!next&&initialized){setBootProgress(100);setBootStage('Готово');setTimeout(()=>{if(active)setBooting(false);},180);}
+      if(!next&&initialized){
+        setBootProgress(100);setBootStage('Готово');
+        const wait=Math.max(0,2000-(Date.now()-bootStartedAt.current));
+        setTimeout(()=>{if(active)setBooting(false);},wait);
+      }
     });
 
     return ()=>{active=false;subscription.unsubscribe();};
@@ -464,12 +469,17 @@ export default function App(){
       (async()=>{
         const ok=await loadData(false,authSession,{onProgress:(p,label)=>{if(active){setBootProgress(p);setBootStage(label);}}});
         if(!active)return;
-        if(!ok){setBooting(false);return;}
+        if(!ok){
+          const wait=Math.max(0,2000-(Date.now()-bootStartedAt.current));
+          setTimeout(()=>{if(active)setBooting(false);},wait);
+          return;
+        }
         setBootProgress(82);setBootStage('Синхронизируем шаги');
         await syncSteps(false,authSession);
         if(!active)return;
         setBootProgress(100);setBootStage('Готово');
-        setTimeout(()=>{if(active)setBooting(false);},200);
+        const wait=Math.max(0,2000-(Date.now()-bootStartedAt.current));
+        setTimeout(()=>{if(active)setBooting(false);},wait);
       })();
     }else{
       setLoading(false);setProfile(null);setMembers([]);setPreviousTop5([]);
