@@ -5,14 +5,14 @@ import { Capacitor } from '@capacitor/core';
 import { BackgroundGeolocation } from '@capgo/background-geolocation';
 import { Health } from '@capgo/capacitor-health';
 
-const APP_VERSION = '1.7.0';
+const APP_VERSION = '1.8.0';
 const ANDROID_APK_URL = 'https://github.com/4uvakinvv-hue/fit-tracker/releases/download/android-current/forma-android.apk';
 const IOS_INSTALL_URL = 'https://4uvakinvv-hue.github.io/fit-tracker/';
 
 const OUTDOOR_MODES = [
-  { id: 'bike', label: 'Вело', icon: '🚴', accent: 'amber', speedLimit: 100 },
-  { id: 'run', label: 'Бег', icon: '🏃', accent: 'run', speedLimit: 50 },
-  { id: 'hike', label: 'Хайкинг', icon: '△', accent: 'hike', speedLimit: 50 },
+  { id: 'bike', label: 'Вело', icon: '🚴', accent: 'amber', bonusAvgLimit: 50 },
+  { id: 'run', label: 'Бег', icon: '🏃', accent: 'run', bonusAvgLimit: 30 },
+  { id: 'hike', label: 'Хайкинг', icon: '△', accent: 'hike', bonusAvgLimit: 30 },
 ];
 
 const ACTIVITIES = [
@@ -98,7 +98,9 @@ function mapSession(row){
     gpsVerified:row.gps_verified===true,movingDuration:Number(row.moving_duration)||0,
     avgSpeed:Number(row.avg_speed)||0,maxSpeed:Number(row.max_speed)||0,
     routePoints:Array.isArray(row.route_points)?row.route_points:[],
-    startedAt:row.started_at||null,endedAt:row.ended_at||null,confirmed:row.confirmed!==false,
+    startedAt:row.started_at||null,endedAt:row.ended_at||null,
+    editedAt:row.edited_at||null,distanceCorrected:row.distance_corrected===true,
+    confirmed:row.confirmed!==false,
   };
 }
 function isFuture(key){return key>localDateKey();}
@@ -117,9 +119,20 @@ function currentStreakLength(sessions,dailySteps=[]){
   if(!dates.length)return 0;
   const latest=dates[dates.length-1];
   if(daysBetween(latest,localDateKey())>1)return 0;
-  let streak=1;
-  for(let i=dates.length-1;i>0;i--){if(daysBetween(dates[i-1],dates[i])!==1)break;streak++;}
-  return streak;
+  let consecutive=1;
+  for(let i=dates.length-1;i>0;i--){if(daysBetween(dates[i-1],dates[i])!==1)break;consecutive++;}
+  return ((consecutive-1)%6)+1;
+}
+function gpsBonusForSession(s){
+  if(!s?.gpsVerified)return 0;
+  const distance=Number(s.distance||s.hikeDistance||0);
+  const avg=Number(s.avgSpeed||0);
+  return s.type==='bike'&&distance>100&&avg<=50?5:0;
+}
+function canEditSession(s){
+  if(!s?.created_at)return false;
+  const created=new Date(s.created_at).getTime();
+  return Number.isFinite(created)&&Date.now()-created<=24*60*60*1000;
 }
 function average(values){const clean=values.map(Number).filter(Number.isFinite);return clean.length?clean.reduce((a,b)=>a+b,0)/clean.length:0;}
 function haversineKm(a,b){
@@ -207,12 +220,12 @@ function seasonMeta(date=new Date()){
 function pointEvents(sessions,dailySteps=[],hookahEvents=[]){
   const season=seasonMeta(),byDate=new Map();
   function day(date){if(!byDate.has(date))byDate.set(date,{date,gpsBonus:0,createdAt:''});return byDate.get(date);}
-  sessions.filter(s=>isRatingSession(s)&&s.date>=season.start&&s.date<=season.end).forEach(s=>{const d=day(s.date);if(s.type==='bike'&&s.gpsVerified&&Number(s.distance||0)>100)d.gpsBonus=5;d.createdAt=String(s.created_at||d.createdAt||'');});
+  sessions.filter(s=>isRatingSession(s)&&s.date>=season.start&&s.date<=season.end).forEach(s=>{const d=day(s.date);d.gpsBonus=Math.max(d.gpsBonus,gpsBonusForSession(s));d.createdAt=String(s.created_at||d.createdAt||'');});
   dailySteps.filter(x=>x.date>=season.start&&x.date<=season.end&&Number(x.steps||0)>=15000).forEach(x=>day(x.date));
   const ordered=[...byDate.values()].sort((a,b)=>a.date.localeCompare(b.date)),events=[];let prev=null,streak=0,sportBalance=0;
   ordered.forEach(d=>{
-    if(prev){const gap=daysBetween(prev,d.date);if(gap===1)streak+=1;else{const penalty=Math.max(gap-4,0);if(penalty>0){const applied=Math.min(sportBalance,penalty);sportBalance-=applied;if(applied>0)events.push({id:`pause-${d.date}`,date:d.date,delta:-applied,reasons:'Пауза: −1 за каждый день после трёх дней без активности'});}streak=1;}}else streak=1;
-    const streakBonus=Math.min(Math.max(streak-1,0),5),delta=5+streakBonus+d.gpsBonus;sportBalance+=delta;
+    if(prev){const gap=daysBetween(prev,d.date);if(gap===1)streak=streak>=6?1:streak+1;else{const penalty=Math.max(gap-4,0);if(penalty>0){const applied=Math.min(sportBalance,penalty);sportBalance-=applied;if(applied>0)events.push({id:`pause-${d.date}`,date:d.date,delta:-applied,reasons:'Пауза: −1 за каждый день после трёх дней без активности'});}streak=1;}}else streak=1;
+    const streakBonus=Math.max(streak-1,0),delta=5+streakBonus+d.gpsBonus;sportBalance+=delta;
     const reasons=['Активный день: +5'];if(streakBonus)reasons.push(`Серия ${streak} дн.: +${streakBonus}`);if(d.gpsBonus)reasons.push('GPS-вело более 100 км: +5');
     events.push({id:`activity-${d.date}`,date:d.date,createdAt:d.createdAt,delta,reasons:reasons.join(' · ')});prev=d.date;
   });
@@ -223,8 +236,8 @@ function pointEvents(sessions,dailySteps=[],hookahEvents=[]){
 function scoreHint(sessions,dailySteps=[]){
   const dates=ratingActiveDates(sessions,dailySteps);if(!dates.length)return 'Первый активный день даст +5 баллов';
   const latest=dates[dates.length-1],gap=daysBetween(latest,localDateKey()),streak=currentStreakLength(sessions,dailySteps);
-  if(gap===0)return `Серия: ${streak} дн. · сегодня уже в зачёте`;
-  if(gap===1)return `Продолжи серию сегодня: +5 +${Math.min(streak,5)}`;
+  if(gap===0)return `Цикл: день ${streak} из 6 · сегодня уже в зачёте`;
+  if(gap===1){const next=streak>=6?1:streak+1,bonus=next-1;return bonus?`Сегодня: +5 +${bonus} за серию`:'Сегодня начинается новый цикл: +5';}
   return 'Серия прервана · новый активный день даст +5';
 }
 
@@ -255,9 +268,15 @@ function Brand({compact=false}){
   </div>;
 }
 
-function SplashScreen(){
-  return <main className="splash-screen">
-    <div className="splash-brand"><Brand/><p>Тренировки. Питание. Прогресс.</p></div>
+function SplashScreen({progress=8,stage='Запуск приложения'}){
+  const value=Math.max(0,Math.min(100,Math.round(Number(progress)||0)));
+  return <main className="splash-screen splash-v18">
+    <img className="splash-v18-image" src={`${import.meta.env.BASE_URL}splash-v1.8.jpg`} alt="Форма"/>
+    <div className="splash-v18-overlay"/>
+    <div className="splash-v18-progress">
+      <div className="splash-v18-track" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow={value}><i style={{width:value+'%'}}/></div>
+      <strong>{stage}</strong>
+    </div>
   </main>;
 }
 
@@ -351,6 +370,8 @@ export default function App(){
   const [loading,setLoading]=useState(false);
   const [loadError,setLoadError]=useState('');
   const [booting,setBooting]=useState(true);
+  const [bootProgress,setBootProgress]=useState(8);
+  const [bootStage,setBootStage]=useState('Запуск приложения');
 
   const numberedSessions=useMemo(()=>withDynamicNumbers(sessions),[sessions]);
 
@@ -360,20 +381,24 @@ export default function App(){
     const timeout=new Promise(resolve=>setTimeout(()=>resolve({data:{session:null}}),2600));
     const minimum=new Promise(resolve=>setTimeout(resolve,500));
 
+    setBootProgress(12);setBootStage('Проверяем вход');
     Promise.all([
       Promise.race([supabase.auth.getSession().catch(()=>({data:{session:null}})),timeout]),
       minimum
     ]).then(([result])=>{
       if(!active)return;
       initialized=true;
-      setAuthSession(result?.data?.session||null);
-      setBooting(false);
+      const next=result?.data?.session||null;
+      setBootProgress(next?28:100);
+      setBootStage(next?'Загружаем профиль':'Готово');
+      setAuthSession(next);
+      if(!next)setTimeout(()=>{if(active)setBooting(false);},180);
     });
 
     const {data:{subscription}}=supabase.auth.onAuthStateChange((_event,next)=>{
       if(!active)return;
       setAuthSession(next);
-      if(!next&&initialized)setBooting(false);
+      if(!next&&initialized){setBootProgress(100);setBootStage('Готово');setTimeout(()=>{if(active)setBooting(false);},180);}
     });
 
     return ()=>{active=false;subscription.unsubscribe();};
@@ -433,15 +458,26 @@ export default function App(){
   },[]);
 
   useEffect(()=>{
+    let active=true;
     if(authSession?.user){
-      loadData(false,authSession);
-      syncSteps(false,authSession);
+      setBooting(true);setBootProgress(34);setBootStage('Загружаем данные');
+      (async()=>{
+        const ok=await loadData(false,authSession,{onProgress:(p,label)=>{if(active){setBootProgress(p);setBootStage(label);}}});
+        if(!active)return;
+        if(!ok){setBooting(false);return;}
+        setBootProgress(82);setBootStage('Синхронизируем шаги');
+        await syncSteps(false,authSession);
+        if(!active)return;
+        setBootProgress(100);setBootStage('Готово');
+        setTimeout(()=>{if(active)setBooting(false);},200);
+      })();
     }else{
       setLoading(false);setProfile(null);setMembers([]);setPreviousTop5([]);
       setSessions([]);setSchedule({});setGymTemplates({});setDailySteps([]);
       setIsBoss(false);setHookahEvents([]);setAdminNotifications([]);setUndoHookahId(null);
       setStepsStatus('loading');
     }
+    return ()=>{active=false;};
   },[authSession?.user?.id]);
 
   useEffect(()=>{
@@ -576,7 +612,7 @@ export default function App(){
     else setScreen('home');
   }
 
-  async function loadData(silent=false,sessionOverride=authSession){
+  async function loadData(silent=false,sessionOverride=authSession,progress={}){
     if(!sessionOverride?.user)return;
     if(!silent){
       setLoading(true);
@@ -585,6 +621,7 @@ export default function App(){
     const userId=sessionOverride.user.id;
 
     try{
+      progress.onProgress?.(44,'Подключаемся к базе');
       const queries=Promise.all([
         supabase.from('profiles').select('*').eq('id',userId).single(),
         supabase.rpc('current_leaderboard'),
@@ -600,6 +637,7 @@ export default function App(){
 
       const timeout=new Promise((_,reject)=>setTimeout(()=>reject(new Error('timeout')),9000));
       const [profileRes,leaderRes,previousRes,sessionsRes,plansRes,templatesRes,stepsRes,bossRes,hookahRes,notificationsRes]=await Promise.race([queries,timeout]);
+      progress.onProgress?.(68,'Собираем тренировки и статистику');
 
       if(profileRes.error)throw profileRes.error;
       if(leaderRes.error)throw leaderRes.error;
@@ -630,14 +668,14 @@ export default function App(){
       setHookahStartedOn(bossRes.data?.hookah_started_on||localDateKey());
       setHookahEvents(boss?(hookahRes.data||[]):[]);
       setAdminNotifications(boss?(notificationsRes.data||[]):[]);
+      progress.onProgress?.(78,'Подготавливаем главный экран');
+      return true;
     }catch(err){
       console.error('Forma load error',err);
       if(!silent)setLoadError('Не удалось связаться с общей базой. Проверь интернет и нажми «Повторить».');
+      return false;
     }finally{
-      if(!silent){
-        setLoading(false);
-        setBooting(false);
-      }
+      if(!silent)setLoading(false);
     }
   }
 
@@ -724,6 +762,28 @@ export default function App(){
     resetHome();
   }
 
+  async function updateSession(id,patch={}){
+    const target=sessions.find(s=>s.id===id);
+    if(!target)throw new Error('Тренировка не найдена.');
+    if(!canEditSession(target))throw new Error('Редактирование доступно только 24 часа после сохранения.');
+
+    const changes={
+      title:(patch.title??target.title??activityMeta(target.type)?.label??'').trim()||null,
+      edited_at:new Date().toISOString(),
+    };
+    if(['bike','run','hike'].includes(target.type)&&patch.distance!==undefined){
+      const nextDistance=Math.max(0,Number(patch.distance)||0);
+      changes.distance=nextDistance;
+      changes.distance_corrected=Math.abs(nextDistance-Number(target.distance||target.hikeDistance||0))>0.0001||target.distanceCorrected;
+      if(target.type==='hike')changes.hike_distance=nextDistance;
+    }
+
+    const {error}=await supabase.from('sessions').update(changes).eq('id',id).eq('user_id',authSession.user.id);
+    if(error)throw error;
+    await savePlan(target.date,target.type,changes.title||'','completed');
+    await loadData(true);
+  }
+
   async function deleteSession(id){
     const target=sessions.find(s=>s.id===id);
     if(!target)return;
@@ -797,14 +857,14 @@ export default function App(){
     if(error)throw error;
   }
 
-  if(booting||(authSession&&loading))return <SplashScreen/>;
+  if(booting||(authSession&&loading))return <SplashScreen progress={bootProgress} stage={bootStage}/>;
   if(!authSession)return <AuthScreen/>;
   if(loadError)return <main className="onboarding dark-screen"><Brand/><h1>Связь с базой</h1><p className="soft-text">{loadError}</p><div className="glass-card onboarding-form"><button className="gradient-button" onClick={loadData}>Повторить</button></div></main>;
 
   return <div className={`app-shell-dark season-${seasonKey()} screen-${screen}`}>
     {screen==='home'&&<Home schedule={schedule} sessions={numberedSessions} profile={profile} dailySteps={dailySteps} saveNotice={saveNotice} isBoss={isBoss} adminNotifications={adminNotifications} onMarkNotificationsRead={markNotificationsRead} hookahEvents={hookahEvents} canUndoHookah={!!undoHookahId} onHookah={addHookah} onUndoHookah={undoHookah} stepsStatus={stepsStatus} stepsSyncing={stepsSyncing} onEnableSteps={()=>syncSteps(true,authSession)} onOpenSteps={()=>navigate('steps-history')} selectedDateKey={selectedDateKey} setSelectedDateKey={setSelectedDateKey} onSavePlan={savePlan} onDeletePlan={deletePlan} onProposal={sendProposal} onOpenWorkout={openAdd}/>} 
-    {screen==='history'&&<History sessions={numberedSessions} onDelete={deleteSession}/>}
-    {screen.startsWith('history-')&&screen!=='steps-history'&&<History sessions={numberedSessions} onDelete={deleteSession} filterType={screen.slice(8)}/>}
+    {screen==='history'&&<History sessions={numberedSessions} onDelete={deleteSession} onUpdate={updateSession}/>}
+    {screen.startsWith('history-')&&screen!=='steps-history'&&<History sessions={numberedSessions} onDelete={deleteSession} onUpdate={updateSession} filterType={screen.slice(8)}/>} 
     {screen==='steps-history'&&<StepsHistoryV17 dailySteps={dailySteps} onBack={()=>goBack('home')}/>}
     {screen==='stats'&&<StatisticsV17 sessions={numberedSessions} dailySteps={dailySteps} isBoss={isBoss} hookahEvents={hookahEvents} hookahStartedOn={hookahStartedOn} profile={profile} memberCount={members.length} onOpenMembers={()=>navigate('members')} onOpenHistory={type=>navigate('history-'+type)} onOpenSteps={()=>navigate('steps-history')}/>}
     {screen==='members'&&<MembersV17 members={members} profile={profile} previousTop5={previousTop5}/>}
@@ -1049,10 +1109,10 @@ function AboutScreen({isBoss=false}){
       <div>
         <p><strong>Главное правило:</strong> рейтинг ценит регулярность, а не количество тренировок за один день.</p>
         <p><b>Активный день: +5.</b> Зал, воркаут, единоборства, вело, бег, хайкинг или 15 000+ шагов — вид активности не важен. Даже если активностей несколько, базовые +5 за день начисляются один раз.</p>
-        <p><b>Серия:</b> второй день подряд +1, третий +2, четвёртый +3, пятый +4, шестой и каждый следующий подряд +5 сверх базовых пяти.</p>
+        <p><b>Серия:</b> второй активный день подряд даёт +1, третий +2, четвёртый +3, пятый +4, шестой +5. На этом цикл заканчивается. Седьмой день заложен как день отдыха и восстановления. Если вы всё равно тренируетесь на седьмой день, активность засчитывается и даёт базовые +5, но бонус серии снова начинается с нуля как новый шестидневный цикл.</p>
         <p><b>Пропуск:</b> один пропущенный день обрывает серию. После трёх дней без активности спортивный рейтинг уменьшается на 1 балл за каждый следующий день, но спортивная часть не падает ниже нуля.</p>
         <p><b>Задним числом:</b> запись остаётся в истории и статистике, но рейтинговых баллов не даёт и серию не восстанавливает.</p>
-        <p><b>GPS:</b> подтверждённая велопоездка более 100 км получает дополнительный +5. Ручная запись такого бонуса не получает.</p>
+        <p><b>GPS:</b> скачки мгновенной скорости не останавливают запись — маршрут сохраняется целиком. Велопоездка более 100 км получает дополнительный +5 только если средняя скорость не выше 50 км/ч. Для бега и хайкинга записи со средней скоростью выше 30 км/ч всё равно сохраняются и дают обычные баллы активного дня, но не считаются корректными для дополнительных GPS-бонусов.</p>
         {isBoss&&<p><b>Вредная привычка:</b> −2 за каждую отмеченную запись. Только этот персональный штраф может увести итоговый рейтинг ниже нуля.</p>}
       </div>
     </details>
@@ -1557,36 +1617,34 @@ function RouteSketch({points=[]}){
 }
 function RouteResultCard({session,compact=false}){
   const type=session.type||session.mode||'bike',points=session.routePoints||session.points||[],distance=Number(session.distance)||0,duration=Number(session.duration??session.totalSeconds)||0,moving=Number(session.movingDuration??session.movingSeconds)||0,avg=Number(session.avgSpeed)||0,max=Number(session.maxSpeed)||0,meta=activityMeta(type)||OUTDOOR_MODES[0];
-  return <section className={`route-result-card ${type} ${compact?'compact':''}`}><header><span>{meta.icon}</span><div><small>{session.gpsVerified===false?'Ручная запись':'GPS · подтверждено'}</small><strong>{session.title||meta.label}</strong></div></header>{points.length>1&&<RouteSketch points={points}/>}<div className="route-metrics"><span><small>Дистанция</small><strong>{distance.toFixed(1)} км</strong></span><span><small>Общее время</small><strong>{formatDuration(duration)}</strong></span><span><small>В движении</small><strong>{formatDuration(moving)}</strong></span><span><small>Средняя</small><strong>{avg.toFixed(1)} км/ч</strong></span><span><small>Максимальная</small><strong>{max.toFixed(1)} км/ч</strong></span></div>{points.length>1&&<button type="button" className="route-download" onClick={()=>downloadRoutePng(session,type,session.date||localDateKey())}>↓ Скачать маршрут PNG</button>}</section>;
+  const gpsLabel=session.gpsVerified===false?'Ручная запись':session.distanceCorrected?'GPS · километраж скорректирован':'GPS · подтверждено';
+  return <section className={`route-result-card ${type} ${compact?'compact':''}`}><header><span>{meta.icon}</span><div><small>{gpsLabel}</small><strong>{session.title||meta.label}</strong></div></header>{points.length>1&&<RouteSketch points={points}/>}<div className="route-metrics"><span><small>Дистанция</small><strong>{distance.toFixed(1)} км</strong></span><span><small>Общее время</small><strong>{formatDuration(duration)}</strong></span><span><small>В движении</small><strong>{formatDuration(moving)}</strong></span><span><small>Средняя</small><strong>{avg.toFixed(1)} км/ч</strong></span><span><small>Максимальная</small><strong>{max.toFixed(1)} км/ч</strong></span></div>{points.length>1&&<button type="button" className="route-download" onClick={()=>downloadRoutePng(session,type,session.date||localDateKey())}>↓ Скачать маршрут PNG</button>}</section>;
 }
 function OutdoorTraining({dateKey,setDateKey,sessions,onBack,onSave}){
-  const [mode,setMode]=useState('bike'),[manualOpen,setManualOpen]=useState(false),[title,setTitle]=useState(''),[distance,setDistance]=useState(''),[tracking,setTracking]=useState(false),[trackPoints,setTrackPoints]=useState([]),[gpsMessage,setGpsMessage]=useState(''),[gpsInvalid,setGpsInvalid]=useState(false),[result,setResult]=useState(null),[saving,setSaving]=useState(false);
-  const watchRef=useRef(null),pointsRef=useRef([]),anomalyRef=useRef(0),invalidRef=useRef(false),startedRef=useRef(null);
+  const [mode,setMode]=useState('bike'),[manualOpen,setManualOpen]=useState(false),[title,setTitle]=useState(''),[distance,setDistance]=useState(''),[tracking,setTracking]=useState(false),[trackPoints,setTrackPoints]=useState([]),[gpsMessage,setGpsMessage]=useState(''),[result,setResult]=useState(null),[saving,setSaving]=useState(false);
+  const watchRef=useRef(null),pointsRef=useRef([]),startedRef=useRef(null);
   const meta=OUTDOOR_MODES.find(x=>x.id===mode)||OUTDOOR_MODES[0],history=sessions.filter(s=>s.type===mode&&isHistorySession(s)),distances=history.map(s=>Number(s.distance||(mode==='hike'?s.hikeDistance:0))||0),totalDistance=distances.reduce((a,b)=>a+b,0),avgDistance=average(distances),live=useMemo(()=>summarizeRoute(trackPoints),[trackPoints]),native=Capacitor.isNativePlatform()&&Capacitor.getPlatform()==='android';
   useEffect(()=>()=>{if(watchRef.current)BackgroundGeolocation.stop().catch(()=>{});},[]);
-  function selectMode(next){if(tracking)return;setMode(next);setManualOpen(false);setResult(null);setGpsInvalid(false);setGpsMessage('');setDistance('');setTitle('');}
-  async function stopGps(asInvalid=false){
+  function selectMode(next){if(tracking)return;setMode(next);setManualOpen(false);setResult(null);setGpsMessage('');setDistance('');setTitle('');}
+  async function stopGps(){
     const active=watchRef.current;watchRef.current=null;if(active)await BackgroundGeolocation.stop().catch(()=>{});setTracking(false);
-    if(asInvalid){invalidRef.current=true;setGpsInvalid(true);setManualOpen(true);setResult(null);setGpsMessage('Обнаружено повторное сильное превышение скорости. Есть подозрение на моторизированный транспорт или длительную ошибку GPS. Заполните данные вручную.');return;}
     const summary=summarizeRoute(pointsRef.current);if(summary.points.length<2||summary.distance<=0){setGpsMessage('Маршрут не записался. Внесите тренировку вручную.');setManualOpen(true);return;}
     setResult({...summary,type:mode,mode,title:title.trim()||meta.label,date:localDateKey(),routePoints:compactRoutePoints(summary.points),movingDuration:Math.round(summary.movingSeconds),duration:Math.round(summary.totalSeconds),avgSpeed:summary.avgSpeed,maxSpeed:summary.maxSpeed,gpsVerified:true,startedAt:startedRef.current,endedAt:new Date().toISOString()});
   }
   async function startGps(){
-    setGpsMessage('');setGpsInvalid(false);setResult(null);setManualOpen(false);
+    setGpsMessage('');setResult(null);setManualOpen(false);
     if(!native){setGpsMessage('GPS-запись маршрута сейчас доступна в Android-приложении. Здесь можно внести тренировку вручную.');setManualOpen(true);return;}
     try{
-      setDateKey(localDateKey());pointsRef.current=[];anomalyRef.current=0;invalidRef.current=false;startedRef.current=new Date().toISOString();setTrackPoints([]);
-      const selectedMode=mode,limit=(OUTDOOR_MODES.find(x=>x.id===selectedMode)||OUTDOOR_MODES[0]).speedLimit;
+      setDateKey(localDateKey());pointsRef.current=[];startedRef.current=new Date().toISOString();setTrackPoints([]);
       await BackgroundGeolocation.start({
         backgroundTitle:`Форма · ${meta.label}`,
         backgroundMessage:'Идёт запись маршрута. Нажмите, чтобы вернуться в «Форму».',
         requestPermissions:true,stale:false,distanceFilter:5,minIntervalMs:2500
       },(position,err)=>{
         if(err){if(err.code==='NOT_AUTHORIZED'){setGpsMessage('Нет разрешения на геолокацию. Разрешите GPS или внесите тренировку вручную.');setManualOpen(true);}return;}
-        if(!position||invalidRef.current)return;const accuracy=Number(position.accuracy)||999;if(accuracy>80)return;
-        const point={lat:Number(position.latitude),lng:Number(position.longitude),t:Number(position.time)||Date.now(),accuracy};if(!Number.isFinite(point.lat)||!Number.isFinite(point.lng))return;
-        const last=pointsRef.current[pointsRef.current.length-1];
-        if(last){const dt=(point.t-last.t)/1000;if(dt<=0)return;const inferred=haversineKm(last,point)/(dt/3600),device=Number(position.speed)>=0?Number(position.speed)*3.6:0,observed=Math.max(inferred,device);if(observed>limit){anomalyRef.current+=1;if(anomalyRef.current>=2){stopGps(true);}else setGpsMessage(`Единичный GPS-скачок выше ${limit} км/ч удалён из маршрута. Запись продолжается.`);return;}anomalyRef.current=0;}
+        if(!position)return;
+        const point={lat:Number(position.latitude),lng:Number(position.longitude),t:Number(position.time)||Date.now(),accuracy:Number(position.accuracy)||null};
+        if(!Number.isFinite(point.lat)||!Number.isFinite(point.lng)||!Number.isFinite(point.t))return;
         pointsRef.current=[...pointsRef.current,point];setTrackPoints(pointsRef.current);
       });
       watchRef.current='active';setTracking(true);
@@ -1597,9 +1655,9 @@ function OutdoorTraining({dateKey,setDateKey,sessions,onBack,onSave}){
   if(result)return <main className={'sub-screen outdoor-training-screen outdoor-'+mode}><ScreenBack onBack={()=>setResult(null)} title="Тренировка завершена"/><RouteResultCard session={result}/><button className="gradient-button" onClick={saveGpsResult} disabled={saving}>{saving?'Сохраняю…':'Сохранить тренировку'}</button></main>;
   const recent=[...history].sort((a,b)=>b.date.localeCompare(a.date)||String(b.created_at||'').localeCompare(String(a.created_at||''))).slice(0,3);
   return <main className={'sub-screen outdoor-training-screen outdoor-'+mode}><ScreenBack onBack={onBack} title="Вело / Бег / Хайкинг"/><div className="outdoor-mode-tabs">{OUTDOOR_MODES.map(x=><button key={x.id} className={mode===x.id?'active':''} onClick={()=>selectMode(x.id)} disabled={tracking}><span>{x.icon}</span>{x.label}</button>)}</div>
-    {tracking&&<section className="gps-live-card"><div className="gps-live-pulse"><i/>GPS записывает</div><RouteSketch points={trackPoints}/><div className="gps-live-metrics"><span><small>Дистанция</small><strong>{live.distance.toFixed(2)} км</strong></span><span><small>Время</small><strong>{formatDuration(live.totalSeconds)}</strong></span><span><small>Средняя</small><strong>{live.avgSpeed.toFixed(1)} км/ч</strong></span></div><button className="stop-gps-button" onClick={()=>stopGps(false)}>Завершить тренировку</button></section>}
+    {tracking&&<section className="gps-live-card"><div className="gps-live-pulse"><i/>GPS записывает</div><RouteSketch points={trackPoints}/><div className="gps-live-metrics"><span><small>Дистанция</small><strong>{live.distance.toFixed(2)} км</strong></span><span><small>Время</small><strong>{formatDuration(live.totalSeconds)}</strong></span><span><small>Средняя</small><strong>{live.avgSpeed.toFixed(1)} км/ч</strong></span></div><button className="stop-gps-button" onClick={stopGps}>Завершить тренировку</button></section>}
     {!tracking&&<section className="outdoor-actions outdoor-actions-v17"><button className="gradient-button start-gps-button" onClick={startGps}><span>⌖</span>Начать GPS-тренировку</button><button className="secondary-dark manual-training-button" onClick={()=>setManualOpen(v=>!v)}>Записать вручную</button><small>GPS — основной режим. Ручная запись остаётся полноценным способом добавить уже состоявшуюся тренировку.</small></section>}
-    {gpsMessage&&<div className={'gps-message '+(gpsInvalid?'danger':'')}>{gpsMessage}</div>}
+    {gpsMessage&&<div className="gps-message">{gpsMessage}</div>}
     {manualOpen&&!tracking&&<section className="glass-card simple-form outdoor-manual-form"><label className="date-control embedded"><span>Дата</span><input type="date" value={dateKey} max={localDateKey()} onChange={e=>setDateKey(e.target.value)}/></label><label className="dark-field"><span>Название — необязательно</span><input value={title} onChange={e=>setTitle(e.target.value)} placeholder={mode==='bike'?'Вечерняя поездка':mode==='run'?'Пробежка':'Хайкинг'}/></label><label className="dark-field"><span>Расстояние, км</span><input inputMode="decimal" type="number" min="0" step="0.1" value={distance} onChange={e=>setDistance(e.target.value)} placeholder="12.5"/></label>{dateKey<localDateKey()&&<small className="manual-rating-note">Запись задним числом попадёт в историю и статистику, но не даст рейтинговых баллов.</small>}<button className="gradient-button" onClick={saveManual} disabled={saving}>{saving?'Сохраняю…':'Сохранить вручную'}</button></section>}
     {!tracking&&!manualOpen&&<section className="outdoor-stats-v17"><h2>Твоя статистика</h2><section className="outdoor-summary glass-card"><div><small>Всего</small><strong>{totalDistance.toFixed(1)} км</strong></div><div><small>Среднее</small><strong>{avgDistance.toFixed(1)} км</strong><em>за тренировку</em></div></section>
       {!!recent.length&&<div className="outdoor-recent-v17"><header><strong>Последние тренировки</strong><span>{history.length} всего</span></header>{recent.map(item=><div key={item.id}><span>{formatDate(item.date,{day:'numeric',month:'short'})}</span><strong>{item.title||meta.label}</strong><b>{sessionValue(item)}</b></div>)}</div>}
@@ -1663,16 +1721,37 @@ function SimpleTraining({type,dateKey,setDateKey,sessions,onBack,onSave}){
   </main>;
 }
 
-function History({sessions,onDelete,filterType=null}){
+function History({sessions,onDelete,onUpdate,filterType=null}){
   const ordered=[...sessions]
     .filter(s=>isHistorySession(s)&&(!filterType||s.type===filterType))
     .sort((a,b)=>b.date.localeCompare(a.date)||String(b.created_at||'').localeCompare(String(a.created_at||'')));
   const [openId,setOpenId]=useState(null);
+  const [editingId,setEditingId]=useState(null);
+  const [editTitle,setEditTitle]=useState('');
+  const [editDistance,setEditDistance]=useState('');
+  const [editBusy,setEditBusy]=useState(false);
+  const [editError,setEditError]=useState('');
 
   async function remove(s){
     if(!window.confirm('Удалить эту тренировку из истории?'))return;
     await onDelete(s.id);
     if(openId===s.id)setOpenId(null);
+  }
+  function beginEdit(s){
+    if(!canEditSession(s))return;
+    setEditingId(s.id);setEditError('');
+    setEditTitle(s.title||activityMeta(s.type)?.label||'');
+    setEditDistance(String(Number(s.distance||s.hikeDistance||0)||''));
+  }
+  async function saveEdit(s){
+    setEditBusy(true);setEditError('');
+    try{
+      const patch={title:editTitle};
+      if(['bike','run','hike'].includes(s.type))patch.distance=editDistance;
+      await onUpdate(s.id,patch);
+      setEditingId(null);
+    }catch(err){setEditError(err.message||'Не получилось сохранить изменения.');}
+    finally{setEditBusy(false);}
   }
 
   return <main className="tab-screen history-screen">
@@ -1703,6 +1782,14 @@ function History({sessions,onDelete,filterType=null}){
             :s.type==='hike'?<div className="hike-history-detail"><strong>{s.title||'Хайкинг'}</strong><span>{Math.max(Number(s.hikeDays)||1,1)} дн.</span><span>{Number(s.distance||s.hikeDistance||0).toLocaleString('ru-RU')} км</span></div>
             :s.type==='combat'?<div className="combat-history-detail"><strong>{s.combatType||s.title||'Единоборства'}</strong></div>
             :<p>{sessionValue(s)}</p>}
+          {canEditSession(s)&&editingId!==s.id&&<button type="button" className="history-edit-button-v18" onClick={()=>beginEdit(s)}>Редактировать · доступно 24 часа</button>}
+          {editingId===s.id&&<div className="history-edit-form-v18">
+            <label><span>Название</span><input value={editTitle} onChange={e=>setEditTitle(e.target.value)} maxLength={120}/></label>
+            {['bike','run','hike'].includes(s.type)&&<label><span>Километраж, км</span><input type="number" min="0" step="0.1" inputMode="decimal" value={editDistance} onChange={e=>setEditDistance(e.target.value)}/></label>}
+            {s.gpsVerified&&['bike','run','hike'].includes(s.type)&&<small>Маршрут, время и исходные GPS-точки сохранятся. Меняется только отображаемый километраж.</small>}
+            {editError&&<em>{editError}</em>}
+            <div><button type="button" className="secondary-dark" onClick={()=>setEditingId(null)} disabled={editBusy}>Отмена</button><button type="button" className="gradient-button" onClick={()=>saveEdit(s)} disabled={editBusy}>{editBusy?'Сохраняю…':'Сохранить'}</button></div>
+          </div>}
         </div>}
       </article>;
     })}</div>
