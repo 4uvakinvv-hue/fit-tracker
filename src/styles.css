@@ -3003,12 +3003,11 @@
 }
 .splash-v18-progress{
   position:absolute;
-  left:8%;
-  right:8%;
-  bottom:max(7.5%,calc(env(safe-area-inset-bottom) + 22px));
+  left:18.5%;
+  right:15%;
+  bottom:max(7.6%,calc(env(safe-area-inset-bottom) + 8px));
   z-index:2;
-  display:grid;
-  gap:9px;
+  display:block;
 }
 .splash-v18-track{
   width:100%;
@@ -3030,13 +3029,17 @@
   transition:width .28s ease-out;
 }
 .splash-v18-progress>strong{
+  position:absolute;
+  left:0;
+  right:0;
+  bottom:18px;
   color:#fff;
-  font-size:9px;
+  font-size:7px;
   font-weight:800;
   text-align:center;
-  letter-spacing:.16em;
+  letter-spacing:.08em;
   text-transform:uppercase;
-  text-shadow:0 2px 8px rgba(0,0,0,.8);
+  text-shadow:0 2px 8px rgba(0,0,0,.9);
 }
 
 .history-edit-button-v18{
@@ -3098,6 +3101,6 @@
 }
 
 @media(max-width:420px){
-  .splash-v18-progress{left:7%;right:7%;bottom:max(6.5%,calc(env(safe-area-inset-bottom) + 18px))}
-  .splash-v18-track{height:10px}
+  .splash-v18-progress{left:18.5%;right:15%;bottom:max(7.6%,calc(env(safe-area-inset-bottom) + 8px))}
+  .splash-v18-track{height:12px}
 }
