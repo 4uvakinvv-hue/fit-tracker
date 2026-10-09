@@ -9,7 +9,7 @@ permissions:
   contents: write
 
 concurrency:
-  group: forma-web-v1.7.0
+  group: forma-web-v1.8.0
   cancel-in-progress: true
 
 jobs:
@@ -30,24 +30,24 @@ jobs:
       - name: Create Sprinthost archive
         run: |
           cd dist
-          zip -r ../forma-web-v1.7.0.zip .
+          zip -r ../forma-web-v1.8.0.zip .
           cd ..
-          cp forma-web-v1.7.0.zip forma-web.zip
+          cp forma-web-v1.8.0.zip forma-web.zip
 
       - name: Upload workflow artifact
         uses: actions/upload-artifact@v4
         with:
           name: forma-web-sprinthost
           path: |
-            forma-web-v1.7.0.zip
+            forma-web-v1.8.0.zip
             forma-web.zip
 
       - name: Publish versioned web package
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release delete web-v1.7.0 -y --cleanup-tag || true
-          gh release create web-v1.7.0 forma-web-v1.7.0.zip --title "Форма Web 1.7.0 · Sprinthost" --notes "Готовая production-сборка для загрузки в корень сайта на Sprinthost." --prerelease
+          gh release delete web-v1.8.0 -y --cleanup-tag || true
+          gh release create web-v1.8.0 forma-web-v1.8.0.zip --title "Форма Web 1.8.0 · Sprinthost" --notes "Готовая production-сборка для загрузки в корень сайта на Sprinthost." --prerelease
 
       - name: Publish stable web package
         env:

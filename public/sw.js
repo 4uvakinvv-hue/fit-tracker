@@ -1,9 +1,10 @@
-const CACHE = 'forma-v160';
+const CACHE = 'forma-v180';
 const ROOT = '/fit-tracker/';
 const APP_SHELL = [
   ROOT,
   ROOT + 'manifest.webmanifest',
-  ROOT + 'icon.svg'
+  ROOT + 'icon.svg',
+  ROOT + 'splash-v1.8.jpg'
 ];
 
 self.addEventListener('install', (event) => {
