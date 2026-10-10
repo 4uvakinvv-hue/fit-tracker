@@ -1739,6 +1739,34 @@ function OutdoorTraining({dateKey,setDateKey,sessions,onBack,onSave}){
     {!tracking&&!manualOpen&&<section className="outdoor-stats-v17"><h2>Твоя статистика</h2><section className="outdoor-summary glass-card"><div><small>Всего</small><strong>{totalDistance.toFixed(1)} км</strong></div><div><small>Среднее</small><strong>{avgDistance.toFixed(1)} км</strong><em>за тренировку</em></div></section>{!!recent.length&&<div className="outdoor-recent-v17"><header><strong>Последние тренировки</strong><span>{history.length} всего</span></header>{recent.map(item=><div key={item.id}><span>{formatDate(item.date,{day:'numeric',month:'short'})}</span><strong>{item.title||meta.label}</strong><b>{sessionValue(item)}</b></div>)}</div>}</section>}
   </main>;
 }
+function CrossFitTraining({dateKey,setDateKey,onBack,onSave}){
+  const [title,setTitle]=useState(''),[exercises,setExercises]=useState(''),[saving,setSaving]=useState(false);
+  const [watchRunning,setWatchRunning]=useState(false),[watchAccum,setWatchAccum]=useState(0),watchStarted=useRef(null);
+  const [workSec,setWorkSec]=useState(20),[restSec,setRestSec]=useState(10),[tabataRunning,setTabataRunning]=useState(false),[tabataPhase,setTabataPhase]=useState('work'),[tabataRemain,setTabataRemain]=useState(20),[tabataRound,setTabataRound]=useState(1);
+  const phaseRef=useRef('work'),phaseEndRef=useRef(0),beepRef=useRef(null);
+  const [now,setNow]=useState(Date.now());
+  useEffect(()=>{if(!watchRunning&&!tabataRunning)return;const id=setInterval(()=>setNow(Date.now()),250);return()=>clearInterval(id);},[watchRunning,tabataRunning]);
+  const watchMs=watchAccum+(watchRunning&&watchStarted.current?Math.max(0,now-watchStarted.current):0);
+  useEffect(()=>{
+    if(!tabataRunning)return;const t=now;let end=phaseEndRef.current,phase=phaseRef.current,round=tabataRound,changed=false,guard=0;
+    while(t>=end&&guard<50){phase=phase==='work'?'rest':'work';if(phase==='work')round+=1;end+=Math.max(1,phase==='work'?Number(workSec):Number(restSec))*1000;changed=true;guard+=1;}
+    if(changed){phaseRef.current=phase;phaseEndRef.current=end;setTabataPhase(phase);setTabataRound(round);beepRef.current=null;playGong();}
+    const rem=Math.max(0,Math.ceil((end-t)/1000));setTabataRemain(rem);if(rem>0&&rem<=5&&beepRef.current!==rem){beepRef.current=rem;playTone(980,.085,.07,'square');navigator.vibrate?.(12);}
+  },[now,tabataRunning,workSec,restSec]);
+  function startWatch(){ensureAudioContext();if(watchRunning)return;watchStarted.current=Date.now();setWatchRunning(true);}
+  function pauseWatch(){if(!watchRunning)return;setWatchAccum(v=>v+Math.max(0,Date.now()-watchStarted.current));watchStarted.current=null;setWatchRunning(false);}
+  function resetWatch(){watchStarted.current=null;setWatchRunning(false);setWatchAccum(0);}
+  function startTabata(){ensureAudioContext();const w=Math.max(1,Number(workSec)||20);setWorkSec(w);phaseRef.current='work';setTabataPhase('work');setTabataRound(1);setTabataRemain(w);phaseEndRef.current=Date.now()+w*1000;beepRef.current=null;setTabataRunning(true);playGong();}
+  function stopTabata(){setTabataRunning(false);beepRef.current=null;}
+  async function save(){setSaving(true);try{if(watchRunning)pauseWatch();await onSave({type:'crossfit',date:dateKey,title:title.trim()||'CrossFit',workoutText:exercises.trim(),duration:Math.round(watchMs/1000)});}finally{setSaving(false);}}
+  return <main className="sub-screen crossfit-screen"><ScreenBack onBack={onBack} title="CrossFit"/><p className="eyebrow-dark">Тренировка</p><h1>CrossFit</h1>
+    <label className="date-control add-date-compact"><span>Дата</span><input type="date" value={dateKey} onChange={e=>setDateKey(e.target.value)}/></label>
+    <section className="glass-card crossfit-exercises"><label><span>Упражнения / комплекс</span><textarea value={exercises} onChange={e=>setExercises(e.target.value)} placeholder="Например: 5 раундов · 10 подтягиваний · 20 махов · 15 бурпи"/></label><label className="dark-field"><span>Название — необязательно</span><input value={title} onChange={e=>setTitle(e.target.value)} placeholder="CrossFit"/></label></section>
+    <section className="glass-card crossfit-timer"><header><strong>Секундомер</strong><b>{formatDuration(watchMs/1000)}</b></header><div>{!watchRunning?<button className="gradient-button" onClick={startWatch}>{watchMs?'Продолжить':'Старт'}</button>:<button className="secondary-dark" onClick={pauseWatch}>Пауза</button>}<button className="secondary-dark" onClick={resetWatch}>Сброс</button></div></section>
+    <section className={'glass-card tabata-card '+(tabataRunning?tabataPhase:'idle')}><header><div><small>Tabata</small><strong>{tabataRunning?(tabataPhase==='work'?'РАБОТА':'ОТДЫХ'):'Интервальный таймер'}</strong></div><b>{tabataRunning?tabataRemain+' сек':'—'}</b></header><div className="tabata-fields"><label><span>Нагрузка, сек</span><input type="number" min="1" max="3600" value={workSec} disabled={tabataRunning} onChange={e=>setWorkSec(e.target.value)}/></label><label><span>Отдых, сек</span><input type="number" min="1" max="3600" value={restSec} disabled={tabataRunning} onChange={e=>setRestSec(e.target.value)}/></label></div>{tabataRunning&&<p>Раунд {tabataRound} · за 5 секунд до смены этапа идут сигналы</p>}<div>{!tabataRunning?<button className="gradient-button" onClick={startTabata}>Запустить Tabata</button>:<button className="stop-gps-button" onClick={stopTabata}>Остановить</button>}</div></section>
+    <button className="gradient-button crossfit-save" onClick={save} disabled={saving}>{saving?'Сохраняю…':isFuture(dateKey)?'Запланировать':'Сохранить CrossFit'}</button>
+  </main>;
+}
 function SimpleTraining({type,dateKey,setDateKey,sessions,onBack,onSave}){
   const meta=activityMeta(type);
   const [title,setTitle]=useState('');
