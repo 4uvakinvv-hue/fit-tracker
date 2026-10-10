@@ -2283,3 +2283,48 @@ function MembersV17({members,profile,previousTop5}){
     <p className="inactive-rule">Аккаунты не удаляются. Если 45 дней нет активного дня, спортивная часть рейтинга становится 0. 15 000+ шагов считаются активным днём. Персональные штрафы могут уменьшать итоговый балл ниже нуля.</p>
   </main>;
 }
+
+function FeedBell({onOpen}){
+  const [count,setCount]=useState(0);
+  useEffect(()=>{
+    let active=true;const load=async()=>{const {data}=await supabase.rpc('feed_unread_count');if(active)setCount(Number(data)||0);};load();
+    const channel=supabase.channel('forma-feed-bell').on('postgres_changes',{event:'INSERT',schema:'public',table:'feed_events'},load).subscribe();
+    const timer=setInterval(load,30000);return()=>{active=false;clearInterval(timer);supabase.removeChannel(channel);};
+  },[]);
+  return <button className="feed-bell" onClick={onOpen} aria-label="Лента"><span>◉</span>{count>0&&<b>{count>99?'99+':count}</b>}</button>;
+}
+function FeedEventCard({event}){
+  const copy=feedEventCopy(event),meta=activityMeta(event.activity_type),p=event.payload||{};
+  return <article className={'feed-event '+event.event_type}><span className={'feed-event-icon '+(meta?.accent||'')}>{event.event_type==='new_user'?'👋':event.event_type==='gps_started'?'●':event.event_type==='gps_finished'?'✓':<ActivityGlyph type={event.activity_type} className={meta?.accent||''}/>}</span><div><strong>{copy.title}</strong><p>{copy.body}</p><small>{new Intl.DateTimeFormat('ru-RU',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}).format(new Date(event.created_at))}</small>{event.event_type==='gps_finished'&&Number(p.avg_speed||0)>0&&<em>Средняя {Number(p.avg_speed).toFixed(1)} км/ч</em>}</div></article>;
+}
+function FeedScreen({profile}){
+  const defaults={inapp_new_user:true,inapp_gps:true,inapp_activity:true,push_enabled:true,push_new_user:true,push_gps:true,push_activity:true};
+  const [events,setEvents]=useState([]),[settings,setSettings]=useState(defaults),[settingsOpen,setSettingsOpen]=useState(false),[permission,setPermission]=useState('');
+  async function load(){
+    const [{data:eventData,error:eventError},{data:setData}]=await Promise.all([supabase.rpc('feed_recent',{p_limit:100}),supabase.from('notification_settings').select('*').eq('user_id',profile.id).maybeSingle()]);
+    if(eventError)console.warn('Forma feed load',eventError);else setEvents(eventData||[]);
+    if(setData)setSettings({...defaults,...setData});else await supabase.from('notification_settings').upsert({user_id:profile.id,...defaults});
+    await supabase.rpc('feed_mark_seen');
+  }
+  useEffect(()=>{let active=true;load();const channel=supabase.channel('forma-feed-screen').on('postgres_changes',{event:'INSERT',schema:'public',table:'feed_events'},()=>{if(active)load();}).subscribe();return()=>{active=false;supabase.removeChannel(channel);};},[profile.id]);
+  async function toggle(key){const next={...settings,[key]:!settings[key],user_id:profile.id,updated_at:new Date().toISOString()};setSettings(next);await supabase.from('notification_settings').upsert(next);}
+  async function permit(){setPermission((await requestDeviceNotificationPermission())?'Разрешено':'Не разрешено');}
+  return <main className="tab-screen feed-screen"><div className="feed-head"><div><p className="eyebrow-dark">Сообщество</p><h1>Лента</h1></div><button onClick={()=>setSettingsOpen(v=>!v)}>⚙</button></div>
+    {settingsOpen&&<section className="glass-card feed-settings"><header><strong>Уведомления</strong><button onClick={permit}>Разрешить на телефоне</button></header>{permission&&<small>{permission}</small>}<div className="feed-setting-row"><span>Новые участники</span><button className={settings.inapp_new_user?'on':''} onClick={()=>toggle('inapp_new_user')}>{settings.inapp_new_user?'Вкл':'Выкл'}</button></div><div className="feed-setting-row"><span>GPS старт / финиш</span><button className={settings.inapp_gps?'on':''} onClick={()=>toggle('inapp_gps')}>{settings.inapp_gps?'Вкл':'Выкл'}</button></div><div className="feed-setting-row"><span>Сохранённые активности</span><button className={settings.inapp_activity?'on':''} onClick={()=>toggle('inapp_activity')}>{settings.inapp_activity?'Вкл':'Выкл'}</button></div><hr/><div className="feed-setting-row"><span>Уведомления на телефон</span><button className={settings.push_enabled?'on':''} onClick={()=>toggle('push_enabled')}>{settings.push_enabled?'Вкл':'Выкл'}</button></div>{settings.push_enabled&&<><div className="feed-setting-row minor"><span>Новые участники</span><button className={settings.push_new_user?'on':''} onClick={()=>toggle('push_new_user')}>{settings.push_new_user?'Вкл':'Выкл'}</button></div><div className="feed-setting-row minor"><span>GPS</span><button className={settings.push_gps?'on':''} onClick={()=>toggle('push_gps')}>{settings.push_gps?'Вкл':'Выкл'}</button></div><div className="feed-setting-row minor"><span>Обычные активности</span><button className={settings.push_activity?'on':''} onClick={()=>toggle('push_activity')}>{settings.push_activity?'Вкл':'Выкл'}</button></div></>}</section>}
+    <div className="feed-list">{!events.length&&<div className="empty-state">В ленте пока тихо.</div>}{events.map(e=><FeedEventCard key={e.id} event={e}/>)}</div>
+  </main>;
+}
+function FeedNotificationBridge({userId,onOpenFeed}){
+  useEffect(()=>{
+    if(!userId)return;let alive=true,actionHandle;
+    const channel=supabase.channel('forma-feed-device-'+userId).on('postgres_changes',{event:'INSERT',schema:'public',table:'feed_events'},async payload=>{
+      const row=payload.new;if(!alive||!row||row.actor_id===userId)return;
+      const {data:settings}=await supabase.from('notification_settings').select('*').eq('user_id',userId).maybeSingle();
+      if(settings?.push_enabled===false)return;const cat=feedCategory(row.event_type);if(cat==='new_user'&&settings?.push_new_user===false)return;if(cat==='gps'&&settings?.push_gps===false)return;if(cat==='activity'&&settings?.push_activity===false)return;
+      const {data}=await supabase.rpc('feed_recent',{p_limit:25});const event=(data||[]).find(x=>x.id===row.id);if(!event)return;const copy=feedEventCopy(event),nid=Array.from(String(row.id)).reduce((a,c)=>(a*31+c.charCodeAt(0))|0,7);await showDeviceNotification(copy.title,copy.body,nid);
+    }).subscribe();
+    if(Capacitor.isNativePlatform())LocalNotifications.addListener('localNotificationActionPerformed',()=>onOpenFeed()).then(h=>{actionHandle=h;}).catch(()=>{});
+    return()=>{alive=false;supabase.removeChannel(channel);actionHandle?.remove?.();};
+  },[userId]);
+  return null;
+}
