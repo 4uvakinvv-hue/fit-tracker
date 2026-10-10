@@ -306,7 +306,9 @@ function sessionValue(s){
   if(s.type==='workout')return s.workoutText?'Описание':'Воркаут';
   if(s.type==='combat')return s.combatType||'Единоборства';
   if(s.type==='hike'){const km=Number(s.distance||s.hikeDistance||0),days=Math.max(Number(s.hikeDays)||1,1);return km?`${km.toLocaleString('ru-RU')} км`:`${days} дн.`;}
-  if(s.type==='gym')return GYM_GROUPS.find(g=>g.id===s.gymGroup)?.label||'Тренажёрка';return '';
+  if(s.type==='gym')return GYM_GROUPS.find(g=>g.id===s.gymGroup)?.label||'Тренажёрка';
+  if(s.type==='crossfit')return s.duration?formatDuration(s.duration):'CrossFit';
+  return '';
 }
 
 function ActivityGlyph({type,className=''}) {
@@ -316,6 +318,7 @@ function ActivityGlyph({type,className=''}) {
   if(type==='workout') return <svg className={`activity-svg ${className}`} viewBox="0 0 64 64" aria-hidden="true"><path d="M10 12v42M54 12v42M10 16h44"/><circle cx="32" cy="25" r="5"/><path d="M32 30v15M32 33 21 22M32 33l11-11M32 45l-8 9M32 45l8 9"/></svg>;
   if(type==='steps') return <span className={className}>👣</span>;
   if(type==='hike') return <svg className={`activity-svg ${className}`} viewBox="0 0 64 64" aria-hidden="true"><path d="M5 51 23 23l9 14 8-12 19 26H5Z"/><path d="m18 31 5-8 5 8m8 2 4-8 5 7"/><path d="M12 51h40"/></svg>;
+  if(type==='crossfit') return <span className={className}>⚡</span>;
   const meta=activityMeta(type);
   return <span className={className}>{meta?.icon||'•'}</span>;
 }
