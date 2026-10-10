@@ -1715,7 +1715,8 @@ function OutdoorTraining({dateKey,setDateKey,sessions,onBack,onSave}){
   async function stopGps(){
     const active=watchRef.current;watchRef.current=null;if(active)await BackgroundGeolocation.stop().catch(()=>{});setTracking(false);
     const summary=summarizeRoute(pointsRef.current,mode);if(summary.points.length<2||summary.distance<=0){setGpsMessage('Маршрут не записался. Внесите тренировку вручную.');setManualOpen(true);return;}
-    setResult({...summary,type:mode,mode,title:title.trim()||meta.label,date:localDateKey(),routePoints:compactRoutePoints(summary.points),movingDuration:Math.round(summary.movingSeconds),stopDuration:Math.round(summary.stopSeconds),stopCount:summary.stopCount,duration:Math.round(summary.totalSeconds),avgSpeed:summary.avgSpeed,maxSpeed:summary.maxSpeed,gpsVerified:true,startedAt:startedRef.current,endedAt:new Date().toISOString()});
+    const finishedAt=new Date().toISOString(),resultData={...summary,type:mode,mode,title:title.trim()||meta.label,date:localDateKey(),routePoints:compactRoutePoints(summary.points),movingDuration:Math.round(summary.movingSeconds),stopDuration:Math.round(summary.stopSeconds),stopCount:summary.stopCount,duration:Math.round(summary.totalSeconds),avgSpeed:summary.avgSpeed,maxSpeed:summary.maxSpeed,gpsVerified:true,startedAt:startedRef.current,endedAt:finishedAt};setResult(resultData);
+    try{const user=(await supabase.auth.getUser())?.data?.user;if(user)await supabase.from('feed_events').insert({actor_id:user.id,event_type:'gps_finished',activity_type:mode,title:resultData.title,payload:{distance:resultData.distance,duration:resultData.duration,moving_duration:resultData.movingDuration,stop_duration:resultData.stopDuration,stop_count:resultData.stopCount,avg_speed:resultData.avgSpeed,max_speed:resultData.maxSpeed}});}catch(err){console.warn('Forma GPS finish feed failed',err);}
   }
   async function startGps(){
     setGpsMessage('');setResult(null);setManualOpen(false);
