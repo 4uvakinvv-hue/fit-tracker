@@ -3104,3 +3104,323 @@
   .splash-v18-progress{left:18.5%;right:15%;bottom:max(7.6%,calc(env(safe-area-inset-bottom) + 8px))}
   .splash-v18-track{height:12px}
 }
+
+
+/* Forma 1.9.0 — Feed, CrossFit, fullscreen routes, expandable history */
+.bottom-nav.six{
+  grid-template-columns:repeat(6,minmax(0,1fr))!important;
+  padding-left:5px!important;
+  padding-right:5px!important;
+}
+.bottom-nav.six button{
+  min-width:0;
+  padding-left:1px!important;
+  padding-right:1px!important;
+  font-size:6.7px!important;
+}
+.bottom-nav.six .nav-icon{font-size:17px!important}
+
+.feed-bell{
+  position:relative;
+  width:42px;
+  height:42px;
+  display:grid;
+  place-items:center;
+  border-radius:13px;
+  background:rgba(255,255,255,.045);
+  border:1px solid rgba(255,189,88,.18);
+  color:#f4c16f;
+  font-size:19px;
+}
+.feed-bell b{
+  position:absolute;
+  right:-4px;
+  top:-4px;
+  min-width:17px;
+  height:17px;
+  padding:0 4px;
+  display:grid;
+  place-items:center;
+  border-radius:999px;
+  background:#ff675f;
+  color:#fff;
+  font-size:7px;
+  line-height:1;
+}
+.feed-screen{
+  overflow:hidden;
+  display:flex;
+  flex-direction:column;
+  padding-bottom:92px!important;
+}
+.feed-head{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+}
+.feed-head h1{margin:2px 0 0}
+.feed-head>button{
+  width:42px;height:42px;border-radius:13px;
+  background:#172438;border:1px solid rgba(125,156,196,.15);
+  color:#b8c5d5;font-size:18px;
+}
+.feed-list{
+  flex:1 1 auto;
+  min-height:0;
+  overflow-y:auto;
+  overscroll-behavior:contain;
+  display:grid;
+  gap:7px;
+  margin-top:10px;
+  padding-bottom:8px;
+}
+.feed-event{
+  min-height:76px;
+  padding:11px 12px;
+  display:grid;
+  grid-template-columns:42px minmax(0,1fr);
+  gap:10px;
+  align-items:start;
+  border-radius:17px;
+  background:rgba(17,30,47,.9);
+  border:1px solid rgba(102,140,188,.14);
+}
+.feed-event.gps_started{border-color:rgba(96,223,169,.28)}
+.feed-event.gps_finished{border-color:rgba(243,174,78,.24)}
+.feed-event.new_user{border-color:rgba(126,165,234,.25)}
+.feed-event-icon{
+  width:42px;height:42px;border-radius:13px;
+  display:grid;place-items:center;
+  background:rgba(255,255,255,.045);
+  font-size:19px;
+}
+.feed-event strong,.feed-event p,.feed-event small,.feed-event em{display:block}
+.feed-event strong{font-size:11px;color:#f1f5f8}
+.feed-event p{margin:3px 0 0;color:#a4b1c1;font-size:9px;line-height:1.35}
+.feed-event small{margin-top:5px;color:#6f8196;font-size:7px}
+.feed-event em{margin-top:3px;color:#d3a867;font-size:7px;font-style:normal}
+.feed-settings{
+  flex:0 0 auto;
+  margin-top:9px;
+  padding:11px!important;
+}
+.feed-settings header{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:5px}
+.feed-settings header strong{font-size:11px}
+.feed-settings header button{
+  min-height:32px;padding:0 9px;border-radius:10px;
+  background:rgba(86,207,160,.10);border:1px solid rgba(86,207,160,.22);
+  color:#87e3b8;font-size:7px;font-weight:800;
+}
+.feed-settings>small{display:block;margin-bottom:5px;color:#8494a7;font-size:7px}
+.feed-settings hr{border:0;border-top:1px solid rgba(255,255,255,.06);margin:5px 0}
+.feed-setting-row{
+  min-height:38px;
+  display:flex;align-items:center;justify-content:space-between;gap:10px;
+  border-top:1px solid rgba(255,255,255,.04);
+}
+.feed-setting-row:first-of-type{border-top:0}
+.feed-setting-row span{font-size:8.5px;color:#c8d2dc}
+.feed-setting-row.minor span{padding-left:10px;color:#8f9eae}
+.feed-setting-row button{
+  min-width:46px;height:25px;border-radius:999px;
+  background:#222f40;color:#8392a5;font-size:7px;font-weight:850;
+}
+.feed-setting-row button.on{background:#1f7257;color:#bdf2d9}
+
+.route-sketch-open{
+  width:100%;
+  display:block;
+  padding:0;
+  background:transparent;
+  color:inherit;
+  text-align:left;
+}
+.route-sketch-open>small{
+  display:block;
+  margin:-4px 3px 8px;
+  color:#73859a;
+  font-size:6.8px;
+  text-align:center;
+}
+.route-export-actions{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:7px;
+  margin-top:10px;
+}
+.route-export-actions button{
+  min-height:42px;
+  border-radius:12px;
+  border:1px solid rgba(255,190,85,.22);
+  background:rgba(255,174,64,.08);
+  color:#f2bf75;
+  font-size:9px;
+  font-weight:850;
+}
+.route-export-actions button+button{
+  border-color:rgba(111,216,175,.24);
+  background:rgba(80,190,148,.08);
+  color:#8ee0bd;
+}
+.route-export-message{
+  display:block;
+  margin-top:6px;
+  color:#7fd9b2;
+  font-size:7px;
+  font-style:normal;
+  text-align:center;
+}
+.route-fullscreen{
+  position:fixed;
+  inset:0;
+  z-index:12000;
+  background:#111a26;
+  overflow-y:auto;
+  overscroll-behavior:contain;
+}
+.route-fullscreen.run{background:#21171e}
+.route-fullscreen.hike{background:#102019}
+.route-fullscreen-close{
+  position:fixed;
+  z-index:2;
+  right:14px;
+  top:max(14px,env(safe-area-inset-top));
+  width:44px;height:44px;border-radius:50%;
+  background:rgba(0,0,0,.42);
+  border:1px solid rgba(255,255,255,.14);
+  color:#fff;font-size:28px;
+}
+.route-fullscreen-inner{
+  min-height:100%;
+  padding:max(62px,calc(env(safe-area-inset-top) + 54px)) 18px max(28px,env(safe-area-inset-bottom));
+  display:flex;
+  flex-direction:column;
+}
+.route-fullscreen-inner header small,
+.route-fullscreen-inner header h2,
+.route-fullscreen-inner header span{display:block}
+.route-fullscreen-inner header small{color:#e2a956;font-size:9px;text-transform:uppercase;letter-spacing:.08em}
+.route-fullscreen-inner header h2{margin:4px 0 0;font-size:27px;color:#fff}
+.route-fullscreen-inner header span{margin-top:3px;color:#8d9bab;font-size:10px}
+.route-fullscreen .route-sketch{
+  flex:1 1 auto;
+  min-height:48vh;
+  height:auto;
+  margin:15px 0 12px;
+}
+.route-fullscreen .route-fullscreen-metrics{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:7px;
+}
+.route-fullscreen-metrics span{
+  min-height:72px;
+  padding:10px 11px;
+  border-radius:14px;
+  background:rgba(255,255,255,.045);
+  border:1px solid rgba(255,255,255,.055);
+}
+.route-fullscreen-metrics small,.route-fullscreen-metrics strong{display:block}
+.route-fullscreen-metrics small{color:#8e9baa;font-size:7px}
+.route-fullscreen-metrics strong{margin-top:3px;color:#fff;font-size:13px}
+.route-fullscreen-inner>em{
+  margin-top:6px;
+  color:#84d9b5;
+  font-size:8px;
+  text-align:center;
+  font-style:normal;
+}
+.gps-stop-live{
+  display:block;
+  margin-top:7px;
+  color:#8191a3;
+  font-size:7.5px;
+  text-align:center;
+}
+
+.crossfit-screen{overflow-y:auto!important;padding-bottom:30px!important}
+.crossfit-screen h1{margin:3px 0 10px}
+.crossfit-exercises{padding:12px!important;display:grid;gap:9px}
+.crossfit-exercises label>span{display:block;margin-bottom:5px;color:#8b9aae;font-size:8px;font-weight:800}
+.crossfit-exercises textarea{
+  width:100%;
+  min-height:180px;
+  resize:vertical;
+  padding:12px;
+  border-radius:14px;
+  border:1px solid #3d536f;
+  background:#101c2d;
+  color:#f0f5fa;
+  font:600 12px/1.45 system-ui,sans-serif;
+  outline:none;
+}
+.crossfit-timer,.tabata-card{margin-top:9px;padding:12px!important}
+.crossfit-timer header,.tabata-card header{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.crossfit-timer header strong{font-size:11px}
+.crossfit-timer header b{font-size:22px;color:#fff}
+.crossfit-timer>div,.tabata-card>div:last-child{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:10px}
+.crossfit-timer button,.tabata-card button{width:100%;margin:0!important;min-height:46px!important}
+.tabata-card header small,.tabata-card header strong{display:block}
+.tabata-card header small{font-size:7px;color:#8291a3;text-transform:uppercase}
+.tabata-card header strong{margin-top:2px;font-size:16px}
+.tabata-card header>b{font-size:27px;color:#fff}
+.tabata-card.work{border-color:rgba(255,122,88,.42);box-shadow:0 0 28px rgba(255,94,60,.08)}
+.tabata-card.rest{border-color:rgba(83,219,163,.36);box-shadow:0 0 28px rgba(62,205,149,.08)}
+.tabata-card.work header strong{color:#ff9b7b}
+.tabata-card.rest header strong{color:#7fe1b3}
+.tabata-fields{display:grid!important;grid-template-columns:1fr 1fr!important;gap:7px!important;margin-top:10px!important}
+.tabata-fields label{display:grid;gap:4px}
+.tabata-fields span{color:#7f90a5;font-size:7px}
+.tabata-fields input{
+  height:42px;border-radius:11px;border:1px solid #3c526d;background:#101c2d;color:#fff;padding:0 9px;font-size:12px;
+}
+.tabata-card>p{margin:8px 0 0;color:#8795a6;font-size:7.5px;text-align:center}
+.crossfit-save{width:100%;margin-top:10px!important}
+.crossfit-history-detail strong,.crossfit-history-detail span,.crossfit-history-detail p{display:block}
+.crossfit-history-detail strong{font-size:12px}
+.crossfit-history-detail span{margin-top:3px;color:#d2a95f;font-size:9px}
+.crossfit-history-detail p{margin:7px 0 0;color:#aab7c6;font-size:10px;white-space:pre-wrap;line-height:1.45}
+
+.history-screen .master-history{
+  display:grid!important;
+  grid-auto-flow:row!important;
+  grid-auto-rows:max-content!important;
+  align-content:start!important;
+  align-items:start!important;
+}
+.history-screen .master-history-row{
+  position:relative!important;
+  height:auto!important;
+  min-height:0!important;
+  max-height:none!important;
+  align-self:start!important;
+  contain:none!important;
+}
+.history-screen .master-history-row.open{
+  overflow:visible!important;
+  z-index:1;
+}
+.history-screen .master-detail{
+  position:relative!important;
+  display:block!important;
+  height:auto!important;
+  max-height:none!important;
+  overflow:visible!important;
+  box-sizing:border-box!important;
+  background:rgba(8,17,28,.38);
+  border-radius:0 0 15px 15px;
+}
+.history-screen .master-history-row.open + .master-history-row{
+  margin-top:0!important;
+}
+
+@media(max-width:420px){
+  .bottom-nav.six button{font-size:6.2px!important}
+  .bottom-nav.six .nav-icon{font-size:16px!important}
+  .route-fullscreen-inner{padding-left:12px;padding-right:12px}
+  .route-fullscreen .route-sketch{min-height:44vh}
+  .route-fullscreen-metrics strong{font-size:11.5px}
+}
+
+.activity-choice.crossfit span,.stat-card-v17.crossfit .stat-icon{color:#f7c85c!important}.activity-choice.crossfit{border-color:rgba(247,200,92,.22)}
