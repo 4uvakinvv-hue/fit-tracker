@@ -987,7 +987,7 @@ function Home({schedule,sessions,profile,dailySteps,saveNotice,isBoss,adminNotif
           <Brand compact/>
           <FeedBell onOpen={onOpenFeed}/>
           {isBoss&&<button className="admin-bell" onClick={async()=>{setNotificationsOpen(true);await onMarkNotificationsRead();}} aria-label="Уведомления администратора">
-            <span>🔔</span>{unreadNotifications>0&&<b>{unreadNotifications>9?'9+':unreadNotifications}</b>}
+            <span>🛡</span>{unreadNotifications>0&&<b>{unreadNotifications>9?'9+':unreadNotifications}</b>}
           </button>}
         </div>
         <div className="season-title-row">
@@ -2289,7 +2289,7 @@ function FeedBell({onOpen}){
     const channel=supabase.channel('forma-feed-bell').on('postgres_changes',{event:'INSERT',schema:'public',table:'feed_events'},load).subscribe();
     const timer=setInterval(load,30000);return()=>{active=false;clearInterval(timer);supabase.removeChannel(channel);};
   },[]);
-  return <button className="feed-bell" onClick={onOpen} aria-label="Лента"><span>◉</span>{count>0&&<b>{count>99?'99+':count}</b>}</button>;
+  return <button className="feed-bell" onClick={onOpen} aria-label="Лента"><span>🔔</span>{count>0&&<b>{count>99?'99+':count}</b>}</button>;
 }
 function FeedEventCard({event}){
   const copy=feedEventCopy(event),meta=activityMeta(event.activity_type),p=event.payload||{};
