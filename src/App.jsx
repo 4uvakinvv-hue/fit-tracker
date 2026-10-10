@@ -936,16 +936,18 @@ export default function App(){
   if(loadError)return <main className="onboarding dark-screen"><Brand/><h1>Связь с базой</h1><p className="soft-text">{loadError}</p><div className="glass-card onboarding-form"><button className="gradient-button" onClick={loadData}>Повторить</button></div></main>;
 
   return <div className={`app-shell-dark season-${seasonKey()} screen-${screen}`}>
-    {screen==='home'&&<Home schedule={schedule} sessions={numberedSessions} profile={profile} dailySteps={dailySteps} saveNotice={saveNotice} isBoss={isBoss} adminNotifications={adminNotifications} onMarkNotificationsRead={markNotificationsRead} hookahEvents={hookahEvents} canUndoHookah={!!undoHookahId} onHookah={addHookah} onUndoHookah={undoHookah} stepsStatus={stepsStatus} stepsSyncing={stepsSyncing} onEnableSteps={()=>syncSteps(true,authSession)} onOpenSteps={()=>navigate('steps-history')} selectedDateKey={selectedDateKey} setSelectedDateKey={setSelectedDateKey} onSavePlan={savePlan} onDeletePlan={deletePlan} onProposal={sendProposal} onOpenWorkout={openAdd}/>} 
+    {screen==='home'&&<Home schedule={schedule} sessions={numberedSessions} profile={profile} dailySteps={dailySteps} saveNotice={saveNotice} isBoss={isBoss} adminNotifications={adminNotifications} onMarkNotificationsRead={markNotificationsRead} hookahEvents={hookahEvents} canUndoHookah={!!undoHookahId} onHookah={addHookah} onUndoHookah={undoHookah} stepsStatus={stepsStatus} stepsSyncing={stepsSyncing} onEnableSteps={()=>syncSteps(true,authSession)} onOpenSteps={()=>navigate('steps-history')} onOpenFeed={()=>navigate('feed')} selectedDateKey={selectedDateKey} setSelectedDateKey={setSelectedDateKey} onSavePlan={savePlan} onDeletePlan={deletePlan} onProposal={sendProposal} onOpenWorkout={openAdd}/>} 
     {screen==='history'&&<History sessions={numberedSessions} onDelete={deleteSession} onUpdate={updateSession}/>}
     {screen.startsWith('history-')&&screen!=='steps-history'&&<History sessions={numberedSessions} onDelete={deleteSession} onUpdate={updateSession} filterType={screen.slice(8)}/>} 
     {screen==='steps-history'&&<StepsHistoryV17 dailySteps={dailySteps} onBack={()=>goBack('home')}/>}
     {screen==='stats'&&<StatisticsV17 sessions={numberedSessions} dailySteps={dailySteps} isBoss={isBoss} hookahEvents={hookahEvents} hookahStartedOn={hookahStartedOn} profile={profile} memberCount={members.length} onOpenMembers={()=>navigate('members')} onOpenHistory={type=>navigate('history-'+type)} onOpenSteps={()=>navigate('steps-history')}/>}
-    {screen==='members'&&<MembersV17 members={members} profile={profile} previousTop5={previousTop5}/>}
+    {screen==='members'&&<MembersV17 members={members} profile={profile} previousTop5={previousTop5}/>} 
+    {screen==='feed'&&<FeedScreen profile={profile}/>} 
     {screen==='add-training'&&<AddTraining dateKey={draftDateKey} setDateKey={setDraftDateKey} onProposal={sendProposal} onBack={()=>goBack('home')} onChoose={chooseType}/>}
     {screen==='gym'&&<GymTraining dateKey={draftDateKey} setDateKey={setDraftDateKey} sessions={numberedSessions} gymTemplates={gymTemplates} onSaveTemplate={saveTemplate} onBack={()=>goBack('add-training')} onHistory={()=>navigate('gym-history')} onSave={saveSession} onTrainerRequest={requestTrainer}/>}
     {screen==='gym-history'&&<GymHistory sessions={numberedSessions.filter(s=>s.type==='gym'&&isHistorySession(s))} onBack={()=>goBack('gym')}/>}
-    {screen==='outdoor'&&<OutdoorTraining dateKey={draftDateKey} setDateKey={setDraftDateKey} sessions={numberedSessions} onBack={()=>goBack('add-training')} onSave={saveSession}/>}
+    {screen==='outdoor'&&<OutdoorTraining dateKey={draftDateKey} setDateKey={setDraftDateKey} sessions={numberedSessions} onBack={()=>goBack('add-training')} onSave={saveSession}/>} 
+    {screen==='crossfit'&&<CrossFitTraining dateKey={draftDateKey} setDateKey={setDraftDateKey} onBack={()=>goBack('add-training')} onSave={saveSession}/>} 
     {screen==='workout'&&<WorkoutTraining dateKey={draftDateKey} setDateKey={setDraftDateKey} sessions={numberedSessions} onBack={()=>goBack('add-training')} onHistory={()=>navigate('workout-history')} onSave={saveSession}/>}
     {screen==='workout-history'&&<WorkoutHistory sessions={numberedSessions.filter(s=>s.type==='workout'&&isHistorySession(s))} onBack={()=>goBack('workout')}/>}
     {screen==='combat'&&<CombatTraining dateKey={draftDateKey} setDateKey={setDraftDateKey} sessions={numberedSessions} onBack={()=>goBack('add-training')} onHistory={()=>navigate('combat-history')} onSave={saveSession}/>}
@@ -953,20 +955,21 @@ export default function App(){
     {screen==='hike'&&<HikeTraining dateKey={draftDateKey} setDateKey={setDraftDateKey} sessions={numberedSessions} onBack={()=>goBack('add-training')} onHistory={()=>navigate('hike-history')} onSave={saveSession}/>}
     {screen==='hike-history'&&<HikeHistory sessions={numberedSessions.filter(s=>s.type==='hike'&&isHistorySession(s))} onBack={()=>goBack('hike')}/>}
     {screen==='about'&&<AboutScreen isBoss={isBoss}/>}
-    {screen==='why'&&<WhyScreen onBack={()=>goBack('home')}/>}
+    {screen==='why'&&<WhyScreen onBack={()=>goBack('home')}/>} 
+    <FeedNotificationBridge userId={profile?.id} onOpenFeed={()=>navigate('feed')}/>
     <BottomNav screen={screen} onNavigate={navigate}/>
   </div>;
 }
 
 function BottomNav({screen,onNavigate}){
-  const active=screen==='steps-history'||screen.startsWith('history-')?'history':['add-training','gym','gym-history','outdoor','bike','workout','workout-history','combat','combat-history','hike','hike-history','why'].includes(screen)?'home':screen;
-  const items=[['home','⌂','Главная'],['history','▥','История'],['stats','▤','Статистика'],['members','♟','Участники'],['about','ⓘ','О приложении']];
-  return <nav className="bottom-nav five">
+  const active=screen==='steps-history'||screen.startsWith('history-')?'history':['add-training','gym','gym-history','outdoor','bike','workout','workout-history','combat','combat-history','hike','hike-history','crossfit','why'].includes(screen)?'home':screen;
+  const items=[['home','⌂','Главная'],['feed','◉','Лента'],['history','▥','История'],['stats','▤','Статистика'],['members','♟','Участники'],['about','ⓘ','О приложении']];
+  return <nav className="bottom-nav six">
     {items.map(([key,icon,label])=><button key={key} className={active===key?'active':''} onClick={()=>onNavigate(key)}><span className="nav-icon">{icon}</span>{label}</button>)}
   </nav>;
 }
 
-function Home({schedule,sessions,profile,dailySteps,saveNotice,isBoss,adminNotifications,onMarkNotificationsRead,hookahEvents,canUndoHookah,onHookah,onUndoHookah,stepsStatus,stepsSyncing,onEnableSteps,onOpenSteps,selectedDateKey,setSelectedDateKey,onSavePlan,onDeletePlan,onProposal,onOpenWorkout}){
+function Home({schedule,sessions,profile,dailySteps,saveNotice,isBoss,adminNotifications,onMarkNotificationsRead,hookahEvents,canUndoHookah,onHookah,onUndoHookah,stepsStatus,stepsSyncing,onEnableSteps,onOpenSteps,onOpenFeed,selectedDateKey,setSelectedDateKey,onSavePlan,onDeletePlan,onProposal,onOpenWorkout}){
   const [pointsOpen,setPointsOpen]=useState(false);
   const [notificationsOpen,setNotificationsOpen]=useState(false);
   const events=pointEvents(sessions,dailySteps,hookahEvents).slice(-10).reverse();
@@ -988,6 +991,7 @@ function Home({schedule,sessions,profile,dailySteps,saveNotice,isBoss,adminNotif
       <div className="home-brand-block">
         <div className="brand-admin-row">
           <Brand compact/>
+          <FeedBell onOpen={onOpenFeed}/>
           {isBoss&&<button className="admin-bell" onClick={async()=>{setNotificationsOpen(true);await onMarkNotificationsRead();}} aria-label="Уведомления администратора">
             <span>🔔</span>{unreadNotifications>0&&<b>{unreadNotifications>9?'9+':unreadNotifications}</b>}
           </button>}
