@@ -144,17 +144,31 @@ function haversineKm(a,b){
   const s=Math.sin(dLat/2)**2+Math.cos(rad(a.lat))*Math.cos(rad(b.lat))*Math.sin(dLng/2)**2;
   return 2*R*Math.asin(Math.min(1,Math.sqrt(s)));
 }
-function summarizeRoute(points=[]){
-  if(points.length<2)return {points:[...points],distance:0,totalSeconds:0,movingSeconds:0,avgSpeed:0,maxSpeed:0};
-  let distance=0,movingSeconds=0,maxSpeed=0;
+function summarizeRoute(points=[],type='bike'){
+  if(points.length<2)return {points:[...points],distance:0,totalSeconds:0,movingSeconds:0,stopSeconds:0,stopCount:0,avgSpeed:0,maxSpeed:0};
+  let distance=0,movingSeconds=0,stopSeconds=0,stopCount=0,maxSpeed=0,candidateStop=0;
+  const stopLogic=type==='bike'||type==='run';
+  const threshold=type==='bike'?1.8:1.0;
+  const flushCandidate=()=>{if(candidateStop>=10){stopSeconds+=candidateStop;stopCount+=1;}else movingSeconds+=candidateStop;candidateStop=0;};
   for(let i=1;i<points.length;i++){
     const a=points[i-1],b=points[i],dt=Math.max(0,(Number(b.t)-Number(a.t))/1000);
     if(dt<=0)continue;
-    const km=haversineKm(a,b),speed=km/(dt/3600);
-    distance+=km;if(speed>=1.5)movingSeconds+=dt;maxSpeed=Math.max(maxSpeed,speed);
+    const km=haversineKm(a,b),derived=km/(dt/3600);
+    const device=Number.isFinite(Number(b.speedKmh))?Math.max(0,Number(b.speedKmh)):null;
+    const observed=device==null?derived:Math.max(device,derived);
+    distance+=km;maxSpeed=Math.max(maxSpeed,observed);
+    if(!stopLogic){movingSeconds+=dt;continue;}
+    const accuracyOk=(a.accuracy==null||Number(a.accuracy)<=60)&&(b.accuracy==null||Number(b.accuracy)<=60);
+    if(dt>15){flushCandidate();movingSeconds+=dt;continue;}
+    const stationary=accuracyOk&&observed<threshold&&km<0.004;
+    if(stationary)candidateStop+=dt;else{flushCandidate();movingSeconds+=dt;}
   }
+  flushCandidate();
   const totalSeconds=Math.max(0,(Number(points[points.length-1].t)-Number(points[0].t))/1000);
-  return {points:[...points],distance,totalSeconds,movingSeconds,avgSpeed:movingSeconds>0?distance/(movingSeconds/3600):0,maxSpeed};
+  if(!stopLogic){stopSeconds=0;stopCount=0;movingSeconds=totalSeconds;}
+  movingSeconds=Math.max(0,Math.min(totalSeconds,movingSeconds));
+  const avgSpeed=movingSeconds>0?distance/(movingSeconds/3600):0;
+  return {points:[...points],distance,totalSeconds,movingSeconds,stopSeconds,stopCount,avgSpeed,maxSpeed};
 }
 function compactRoutePoints(points=[],max=1200){
   if(points.length<=max)return points;
