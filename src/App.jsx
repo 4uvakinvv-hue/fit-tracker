@@ -202,6 +202,47 @@ function downloadRoutePng(data,type,dateKey){
   let y=205;metrics.forEach(([label,value])=>{ctx.fillStyle='#8f9ca8';ctx.font='22px system-ui,sans-serif';ctx.fillText(label,820,y);ctx.fillStyle='#ffffff';ctx.font='700 32px system-ui,sans-serif';ctx.fillText(value,820,y+36);y+=90;});
   canvas.toBlob(blob=>{if(!blob)return;const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=`forma-${type}-${dateKey}.png`;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1200);},'image/png');
 }
+let formaAudioContext=null;
+function ensureAudioContext(){
+  try{if(!formaAudioContext)formaAudioContext=new (window.AudioContext||window.webkitAudioContext)();if(formaAudioContext.state==='suspended')formaAudioContext.resume().catch(()=>{});return formaAudioContext;}catch{return null;}
+}
+function playTone(freq=880,duration=.1,volume=.08,type='sine'){
+  const ctx=ensureAudioContext();if(!ctx)return;const o=ctx.createOscillator(),g=ctx.createGain();o.type=type;o.frequency.value=freq;g.gain.value=volume;o.connect(g);g.connect(ctx.destination);const t=ctx.currentTime;g.gain.setValueAtTime(volume,t);g.gain.exponentialRampToValueAtTime(.001,t+duration);o.start(t);o.stop(t+duration+.02);
+}
+function playGong(){playTone(520,.35,.12,'sine');setTimeout(()=>playTone(260,.65,.08,'sine'),65);navigator.vibrate?.([45,35,70]);}
+function playCoinEffect(){ensureAudioContext();navigator.vibrate?.([22,28,38]);[0,75,145,230].forEach((delay,i)=>setTimeout(()=>playTone([1320,1580,1180,1760][i],.12,.07,'triangle'),delay));}
+async function requestDeviceNotificationPermission(){
+  try{if(Capacitor.isNativePlatform()){const res=await LocalNotifications.requestPermissions();return res?.display==='granted';}if('Notification' in window){return (await Notification.requestPermission())==='granted';}}catch(err){console.warn('Forma notification permission',err);}return false;
+}
+async function showDeviceNotification(title,body,id=Date.now()){
+  try{if(Capacitor.isNativePlatform()){const perm=await LocalNotifications.checkPermissions();if(perm?.display!=='granted')return;await LocalNotifications.schedule({notifications:[{id:Math.abs(Number(id)||Date.now())%2147483000,title,body,schedule:{at:new Date(Date.now()+120)}}]});}else if('Notification' in window&&Notification.permission==='granted'){new Notification(title,{body,icon:import.meta.env.BASE_URL+'icon.svg'});}}catch(err){console.warn('Forma device notification failed',err);}
+}
+function feedCategory(type){return type==='new_user'?'new_user':(type==='gps_started'||type==='gps_finished'?'gps':'activity');}
+function feedEventCopy(event){
+  const name=event.actor_name||'Участник',p=event.payload||{},meta=activityMeta(event.activity_type),label=meta?.label||event.activity_type||'активность';
+  if(event.event_type==='new_user')return {title:'Новый участник',body:'К Forma присоединился '+name};
+  if(event.event_type==='gps_started')return {title:name+' начал тренировку',body:label+' · GPS-запись началась'};
+  if(event.event_type==='gps_finished'){const km=Number(p.distance||0),extra=km?' · '+km.toFixed(1)+' км':'';return {title:name+' завершил тренировку',body:(event.title||label)+extra};}
+  const km=Number(p.distance||0),days=Number(p.hike_days||0),extra=km?' · '+km.toFixed(1)+' км':(days?' · '+days+' дн.':'');return {title:name,body:(event.title||label)+extra};
+}
+function routeMetrics(data,type){
+  const distance=Number(data.distance)||0,total=Number(data.totalSeconds??data.duration)||0,moving=Number(data.movingSeconds??data.movingDuration??data.moving_duration)||0,stops=Number(data.stopCount??data.stop_count)||0,stopSeconds=Number(data.stopSeconds??data.stopDuration??data.stop_duration)||0,avg=Number(data.avgSpeed??data.avg_speed)||0,max=Number(data.maxSpeed??data.max_speed)||0;
+  const rows=[['Дистанция',distance.toFixed(1)+' км'],['Общее время',formatDuration(total)]];if(type==='bike'||type==='run')rows.push(['В движении',formatDuration(moving)],['Остановки',stops+' · '+formatDuration(stopSeconds)]);rows.push(['Средняя скорость',avg.toFixed(1)+' км/ч'],['Максимальная скорость',max.toFixed(1)+' км/ч']);return rows;
+}
+function drawRoutePoster(data,type,dateKey,transparent=false){
+  const points=data.routePoints||data.points||[];if(points.length<2)return null;const canvas=document.createElement('canvas');canvas.width=1080;canvas.height=1920;const ctx=canvas.getContext('2d'),meta=activityMeta(type)||{label:'Маршрут'},themes={bike:['#111a26','#f2aa45','#ffd68a'],run:['#21171e','#ec7566','#ffc0aa'],hike:['#102019','#63d3a1','#bcebcf']},theme=themes[type]||themes.bike,bg=theme[0],line=theme[1],accent=theme[2];
+  if(!transparent){ctx.fillStyle=bg;ctx.fillRect(0,0,1080,1920);const g=ctx.createRadialGradient(820,180,20,820,180,760);g.addColorStop(0,line+'55');g.addColorStop(1,'#00000000');ctx.fillStyle=g;ctx.fillRect(0,0,1080,1920);}ctx.textBaseline='alphabetic';ctx.shadowColor=transparent?'rgba(0,0,0,.8)':'transparent';ctx.shadowBlur=transparent?14:0;ctx.fillStyle='#fff';ctx.font='800 58px system-ui,sans-serif';ctx.fillText('Форма · '+meta.label,70,105);ctx.fillStyle=transparent?'#fff':'#aab5c0';ctx.font='32px system-ui,sans-serif';ctx.fillText(formatDate(dateKey,{day:'numeric',month:'long',year:'numeric'}),70,155);
+  const plot=routePlot(points,930,920,55);if(plot.length){ctx.save();ctx.translate(75,230);ctx.lineWidth=14;ctx.lineJoin='round';ctx.lineCap='round';ctx.strokeStyle=line;ctx.beginPath();ctx.moveTo(plot[0].x,plot[0].y);plot.slice(1).forEach(p=>ctx.lineTo(p.x,p.y));ctx.stroke();ctx.fillStyle='#65e6a8';ctx.beginPath();ctx.arc(plot[0].x,plot[0].y,17,0,Math.PI*2);ctx.fill();const last=plot[plot.length-1];ctx.fillStyle=accent;ctx.beginPath();ctx.arc(last.x,last.y,17,0,Math.PI*2);ctx.fill();ctx.restore();}
+  const metrics=routeMetrics(data,type),cellH=160,startY=1235;metrics.forEach(([label,value],i)=>{const col=i%2,row=Math.floor(i/2),x=70+col*500,y=startY+row*cellH;if(!transparent){ctx.fillStyle='rgba(255,255,255,.055)';ctx.beginPath();ctx.roundRect(x,y,440,130,24);ctx.fill();}ctx.fillStyle=transparent?'rgba(255,255,255,.9)':'#95a4b2';ctx.font='28px system-ui,sans-serif';ctx.fillText(label,x+22,y+40);ctx.fillStyle='#fff';ctx.font='800 40px system-ui,sans-serif';ctx.fillText(value,x+22,y+92);});return canvas;
+}
+function blobToBase64(blob){return new Promise((resolve,reject)=>{const r=new FileReader();r.onload=()=>resolve(String(r.result).split(',')[1]);r.onerror=reject;r.readAsDataURL(blob);});}
+async function saveCanvasPng(canvas,filename){
+  const blob=await new Promise(resolve=>canvas.toBlob(resolve,'image/png'));if(!blob)throw new Error('PNG не создан');
+  if(Capacitor.isNativePlatform()){const data=await blobToBase64(blob);try{await Filesystem.writeFile({path:filename,data,directory:Directory.Documents,recursive:true});return 'PNG сохранён в Документы';}catch(err){console.warn('Forma Documents PNG fallback',err);await Filesystem.writeFile({path:filename,data,directory:Directory.Cache});return 'PNG сохранён во временные файлы';}}
+  const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=filename;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1600);return 'PNG скачан';
+}
+async function exportRoutePng(data,type,dateKey,transparent=false){const canvas=drawRoutePoster(data,type,dateKey,transparent);if(!canvas)throw new Error('Для экспорта нужен GPS-маршрут');return saveCanvasPng(canvas,'forma-'+type+'-'+dateKey+(transparent?'-transparent':'')+'.png');}
+
 function withDynamicNumbers(list){
   const eligible=[...list]
     .filter(isQualifyingSession)
