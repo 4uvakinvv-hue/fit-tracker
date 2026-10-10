@@ -6,6 +6,7 @@ import { BackgroundGeolocation } from '@capgo/background-geolocation';
 import { Health } from '@capgo/capacitor-health';
 import { Filesystem, Directory } from '@capacitor/filesystem';
 import { LocalNotifications } from '@capacitor/local-notifications';
+import { Share } from '@capacitor/share';
 
 const APP_VERSION = '1.9.0';
 const ANDROID_APK_URL = 'https://github.com/4uvakinvv-hue/fit-tracker/releases/download/android-current/forma-android.apk';
@@ -232,7 +233,7 @@ function drawRoutePoster(data,type,dateKey,transparent=false){
 function blobToBase64(blob){return new Promise((resolve,reject)=>{const r=new FileReader();r.onload=()=>resolve(String(r.result).split(',')[1]);r.onerror=reject;r.readAsDataURL(blob);});}
 async function saveCanvasPng(canvas,filename){
   const blob=await new Promise(resolve=>canvas.toBlob(resolve,'image/png'));if(!blob)throw new Error('PNG не создан');
-  if(Capacitor.isNativePlatform()){const data=await blobToBase64(blob);try{await Filesystem.writeFile({path:filename,data,directory:Directory.Documents,recursive:true});return 'PNG сохранён в Документы';}catch(err){console.warn('Forma Documents PNG fallback',err);await Filesystem.writeFile({path:filename,data,directory:Directory.Cache});return 'PNG сохранён во временные файлы';}}
+  if(Capacitor.isNativePlatform()){const data=await blobToBase64(blob);let file;try{file=await Filesystem.writeFile({path:filename,data,directory:Directory.Documents,recursive:true});}catch(err){console.warn('Forma Documents PNG fallback',err);file=await Filesystem.writeFile({path:filename,data,directory:Directory.Cache});}try{await Share.share({title:'Forma · маршрут',url:file.uri,dialogTitle:'Сохранить или отправить PNG'});}catch(err){console.warn('Forma PNG share',err);}return 'PNG готов';}
   const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=filename;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1600);return 'PNG скачан';
 }
 async function exportRoutePng(data,type,dateKey,transparent=false){const canvas=drawRoutePoster(data,type,dateKey,transparent);if(!canvas)throw new Error('Для экспорта нужен GPS-маршрут');return saveCanvasPng(canvas,'forma-'+type+'-'+dateKey+(transparent?'-transparent':'')+'.png');}
