@@ -146,29 +146,23 @@ function haversineKm(a,b){
 }
 function summarizeRoute(points=[],type='bike'){
   if(points.length<2)return {points:[...points],distance:0,totalSeconds:0,movingSeconds:0,stopSeconds:0,stopCount:0,avgSpeed:0,maxSpeed:0};
-  let distance=0,movingSeconds=0,stopSeconds=0,stopCount=0,maxSpeed=0,candidateStop=0;
-  const stopLogic=type==='bike'||type==='run';
-  const threshold=type==='bike'?1.8:1.0;
-  const flushCandidate=()=>{if(candidateStop>=10){stopSeconds+=candidateStop;stopCount+=1;}else movingSeconds+=candidateStop;candidateStop=0;};
+  let distance=0,movingSeconds=0,stopSeconds=0,stopCount=0,maxSpeed=0,candidateStop=0,candidateDistance=0;
+  const stopLogic=type==='bike'||type==='run',threshold=type==='bike'?1.8:1.0;
+  const flushCandidate=()=>{if(candidateStop>=10){stopSeconds+=candidateStop;stopCount+=1;}else{movingSeconds+=candidateStop;distance+=candidateDistance;}candidateStop=0;candidateDistance=0;};
   for(let i=1;i<points.length;i++){
-    const a=points[i-1],b=points[i],dt=Math.max(0,(Number(b.t)-Number(a.t))/1000);
-    if(dt<=0)continue;
-    const km=haversineKm(a,b),derived=km/(dt/3600);
-    const device=Number.isFinite(Number(b.speedKmh))?Math.max(0,Number(b.speedKmh)):null;
-    const observed=device==null?derived:Math.max(device,derived);
-    distance+=km;maxSpeed=Math.max(maxSpeed,observed);
-    if(!stopLogic){movingSeconds+=dt;continue;}
+    const a=points[i-1],b=points[i],dt=Math.max(0,(Number(b.t)-Number(a.t))/1000);if(dt<=0)continue;
+    const km=haversineKm(a,b),derived=km/(dt/3600),device=Number.isFinite(Number(b.speedKmh))?Math.max(0,Number(b.speedKmh)):null,observed=device==null?derived:device;
+    maxSpeed=Math.max(maxSpeed,observed);
+    if(!stopLogic){distance+=km;movingSeconds+=dt;continue;}
     const accuracyOk=(a.accuracy==null||Number(a.accuracy)<=60)&&(b.accuracy==null||Number(b.accuracy)<=60);
-    if(dt>15){flushCandidate();movingSeconds+=dt;continue;}
-    const stationary=accuracyOk&&observed<threshold&&km<0.004;
-    if(stationary)candidateStop+=dt;else{flushCandidate();movingSeconds+=dt;}
+    if(dt>15){flushCandidate();distance+=km;movingSeconds+=dt;continue;}
+    const stationary=accuracyOk&&observed<threshold&&km<0.006;
+    if(stationary){candidateStop+=dt;candidateDistance+=km;}else{flushCandidate();distance+=km;movingSeconds+=dt;}
   }
   flushCandidate();
   const totalSeconds=Math.max(0,(Number(points[points.length-1].t)-Number(points[0].t))/1000);
-  if(!stopLogic){stopSeconds=0;stopCount=0;movingSeconds=totalSeconds;}
-  movingSeconds=Math.max(0,Math.min(totalSeconds,movingSeconds));
-  const avgSpeed=movingSeconds>0?distance/(movingSeconds/3600):0;
-  return {points:[...points],distance,totalSeconds,movingSeconds,stopSeconds,stopCount,avgSpeed,maxSpeed};
+  if(!stopLogic){stopSeconds=0;stopCount=0;movingSeconds=totalSeconds;}movingSeconds=Math.max(0,Math.min(totalSeconds,movingSeconds));
+  const avgSpeed=movingSeconds>0?distance/(movingSeconds/3600):0;return {points:[...points],distance,totalSeconds,movingSeconds,stopSeconds,stopCount,avgSpeed,maxSpeed};
 }
 function compactRoutePoints(points=[],max=1200){
   if(points.length<=max)return points;
