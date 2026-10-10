@@ -1,6 +1,6 @@
 {
   "name": "fit-tracker",
-  "version": "1.8.0",
+  "version": "1.9.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -15,6 +15,8 @@
     "@capacitor/core": "8.5.2",
     "@capacitor/android": "8.5.2",
     "@capacitor/app": "^8.0.0",
+    "@capacitor/filesystem": "^8.0.0",
+    "@capacitor/local-notifications": "^8.0.0",
     "@capgo/capacitor-health": "8.11.4",
     "@capgo/background-geolocation": "8.4.7"
   },
