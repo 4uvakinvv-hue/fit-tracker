@@ -4,8 +4,10 @@ import { App as NativeApp } from '@capacitor/app';
 import { Capacitor } from '@capacitor/core';
 import { BackgroundGeolocation } from '@capgo/background-geolocation';
 import { Health } from '@capgo/capacitor-health';
+import { Filesystem, Directory } from '@capacitor/filesystem';
+import { LocalNotifications } from '@capacitor/local-notifications';
 
-const APP_VERSION = '1.8.0';
+const APP_VERSION = '1.9.0';
 const ANDROID_APK_URL = 'https://github.com/4uvakinvv-hue/fit-tracker/releases/download/android-current/forma-android.apk';
 const IOS_INSTALL_URL = 'https://4uvakinvv-hue.github.io/fit-tracker/';
 
@@ -20,6 +22,7 @@ const ACTIVITIES = [
   { id: 'outdoor', label: 'Вело / Бег / Хайкинг', icon: '⌁', accent: 'amber' },
   { id: 'workout', label: 'Воркаут', icon: '┬', accent: 'coral' },
   { id: 'combat', label: 'Единоборства', icon: '🥊', accent: 'combat' },
+  { id: 'crossfit', label: 'CrossFit', icon: '⚡', accent: 'crossfit' },
 ];
 
 const GYM_GROUPS = [
@@ -100,12 +103,13 @@ function mapSession(row){
     routePoints:Array.isArray(row.route_points)?row.route_points:[],
     startedAt:row.started_at||null,endedAt:row.ended_at||null,
     editedAt:row.edited_at||null,distanceCorrected:row.distance_corrected===true,
+    stopDuration:Number(row.stop_duration)||0,stopCount:Number(row.stop_count)||0,
     confirmed:row.confirmed!==false,
   };
 }
 function isFuture(key){return key>localDateKey();}
 function isQualifyingSession(s){return s.confirmed!==false&&s.date<=localDateKey()&&(s.type!=='walk'||Number(s.steps||0)>=10000);}
-function isRatingSession(s){return s.confirmed!==false&&s.ratingEligible===true&&s.date<=localDateKey()&&['gym','bike','run','workout','hike','combat'].includes(s.type);}
+function isRatingSession(s){return s.confirmed!==false&&s.ratingEligible===true&&s.date<=localDateKey()&&['gym','bike','run','workout','hike','combat','crossfit'].includes(s.type);}
 function isStatsSession(s){return s.confirmed!==false&&s.date<=localDateKey();}
 function isHistorySession(s){return s.confirmed!==false&&s.date<=localDateKey();}
 function ratingActiveDates(sessions,dailySteps=[]){
@@ -750,6 +754,8 @@ export default function App(){
       tracking_mode:payload.trackingMode||'manual',
       gps_verified:payload.gpsVerified===true,
       moving_duration:payload.movingDuration??null,
+      stop_duration:payload.stopDuration??null,
+      stop_count:payload.stopCount??0,
       avg_speed:payload.avgSpeed??null,
       max_speed:payload.maxSpeed??null,
       route_points:payload.routePoints||null,
