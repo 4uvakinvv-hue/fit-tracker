@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { supabase } from './supabase.js';
+import FatSecretPanel from './FatSecretPanel.jsx';
 import { App as NativeApp } from '@capacitor/app';
 import { Capacitor } from '@capacitor/core';
 import { BackgroundGeolocation } from '@capgo/background-geolocation';
@@ -1159,6 +1160,7 @@ function AboutScreen({isBoss=false}){
   return <main className="tab-screen about-screen about-tab-screen">
     <p className="eyebrow-dark">Форма</p>
     <h1>О приложении</h1>
+    {isBoss&&<FatSecretPanel/>}
 
     <section className="why-intro glass-card about-concept-hero">
       <h2>Не про идеальные тренировки.<br/>Про то, чтобы чаще двигаться.</h2>
