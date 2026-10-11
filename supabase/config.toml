@@ -1,0 +1,3 @@
+[functions.forma-coach]
+# User JWT is validated with Auth inside the handler, not by the legacy JWT gateway.
+verify_jwt = false
