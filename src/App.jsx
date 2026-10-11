@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { supabase } from './supabase.js';
+import CoachPanel from './CoachPanel.jsx';
 import { App as NativeApp } from '@capacitor/app';
 import { Capacitor } from '@capacitor/core';
 import { BackgroundGeolocation } from '@capgo/background-geolocation';
@@ -1400,6 +1401,7 @@ function GymTraining({dateKey,setDateKey,sessions,gymTemplates,onSaveTemplate,on
       <button className="trainer-button" onClick={trainer} disabled={trainerState==='loading'||trainerState==='sent'}><span>♟</span>{trainerState==='sent'?'Заявка отправлена':'Заказать тренера'}</button>
     </div>
     {trainerState==='error'&&<p className="error-line">Не удалось отправить заявку. Попробуй ещё раз.</p>}
+    {import.meta.env.VITE_FORMA_COACH_ENABLED==='true'&&<CoachPanel/>}
   </main>;
 }
 
