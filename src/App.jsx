@@ -72,7 +72,9 @@ function activityMeta(type){
     ||(type==='steps'?{id:'steps',label:'Шаги',icon:'👣',accent:'green'}:null);
 }
 function activityLabel(item){return item?.customTitle||activityMeta(item?.type)?.label||'';}
-const ALL_GYM_EXERCISES=[...new Set([...Object.values(BASE_EXERCISES).flat(),...ACCESSORY_EXERCISES])];
+const ALL_GYM_EXERCISES=[...new Set([...Object.values(BASE_EXERCISES).flat(),...ACCESSORY_EXERCISES,
+  'Горизонтальная тяга с опорой груди','Сгибание ног в тренажёре','Сгибание рук на бицепс в блоке',
+])];
 
 function makeRows(n){return Array.from({length:n},()=>({exercise:'',sets:'',reps:'',weight:'',comment:''}));}
 function normalizeRows(rows,n){return Array.from({length:n},(_,i)=>({
