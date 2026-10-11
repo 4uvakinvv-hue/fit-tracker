@@ -405,6 +405,7 @@ function AuthScreen(){
 
     {message&&<p className="auth-message auth-global-message">{message}</p>}
     <p className="build-version">Версия {APP_VERSION}</p>
+    <p style={{fontSize:11}}><a href="https://platform.fatsecret.com">Powered by fatsecret Platform API</a></p>
   </main>;
 }
 export default function App(){

@@ -48,6 +48,6 @@ export default function FatSecretPanel(){
         <tbody>{snapshot.days.map(d=><tr key={d.date}><td>{d.date.slice(5)}</td>{['calories','protein','fat','carbohydrate','weight'].map(k=><td key={k}>{d[k]??'—'}</td>)}</tr>)}</tbody>
       </table>
     </div>}
-    <p style={{fontSize:11,marginBottom:0}}><a href="https://www.fatsecret.com" target="_blank" rel="noopener noreferrer" style={{color:'var(--mint)'}}>Powered by fatsecret</a></p>
+    <p style={{fontSize:11,marginBottom:0}}><a href="https://platform.fatsecret.com">Powered by fatsecret Platform API</a></p>
   </section>;
 }
