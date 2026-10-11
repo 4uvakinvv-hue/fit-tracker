@@ -3424,3 +3424,17 @@
 }
 
 .activity-choice.crossfit span,.stat-card-v17.crossfit .stat-icon{color:#f7c85c!important}.activity-choice.crossfit{border-color:rgba(247,200,92,.22)}
+
+/* Long gym forms use page scrolling so all eight custom rows remain reachable. */
+.app-shell-dark.screen-gym{
+  height:auto;
+  min-height:100dvh;
+  overflow:visible;
+}
+.app-shell-dark.screen-gym>.gym-screen{
+  height:auto;
+  min-height:calc(100dvh - 76px - env(safe-area-inset-bottom));
+  max-height:none;
+  overflow:visible;
+  padding-bottom:calc(100px + env(safe-area-inset-bottom));
+}
