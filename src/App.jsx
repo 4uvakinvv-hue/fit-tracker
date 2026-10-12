@@ -229,7 +229,7 @@ function routePlot(points=[],width=100,height=60,pad=5){
   const raw=points.map(p=>({x:Number(p.lng||0)*cos,y:Number(p.lat||0)})),xs=raw.map(p=>p.x),ys=raw.map(p=>p.y);
   const minX=Math.min(...xs),maxX=Math.max(...xs),minY=Math.min(...ys),maxY=Math.max(...ys),dx=Math.max(maxX-minX,1e-7),dy=Math.max(maxY-minY,1e-7);
   const scale=Math.min((width-pad*2)/dx,(height-pad*2)/dy),usedW=dx*scale,usedH=dy*scale,ox=(width-usedW)/2,oy=(height-usedH)/2;
-  return raw.map(p=>({x:ox+(p.x-minX)*scale,y:height-(oy+(p.y-minY)*scale)}));
+  return raw.map((p,i)=>({x:ox+(p.x-minX)*scale,y:height-(oy+(p.y-minY)*scale),segment:points[i]?.segment||'walk'}));
 }
 function formatDuration(seconds){
   const total=Math.max(0,Math.round(Number(seconds)||0)),h=Math.floor(total/3600),m=Math.floor((total%3600)/60),s=total%60;
@@ -257,8 +257,13 @@ function ensureAudioContext(){
 function playTone(freq=880,duration=.1,volume=.08,type='sine'){
   const ctx=ensureAudioContext();if(!ctx)return;const o=ctx.createOscillator(),g=ctx.createGain();o.type=type;o.frequency.value=freq;g.gain.value=volume;o.connect(g);g.connect(ctx.destination);const t=ctx.currentTime;g.gain.setValueAtTime(volume,t);g.gain.exponentialRampToValueAtTime(.001,t+duration);o.start(t);o.stop(t+duration+.02);
 }
-function playGong(){playTone(520,.35,.12,'sine');setTimeout(()=>playTone(260,.65,.08,'sine'),65);navigator.vibrate?.([45,35,70]);}
-function playCoinEffect(){ensureAudioContext();navigator.vibrate?.([22,28,38]);[0,75,145,230].forEach((delay,i)=>setTimeout(()=>playTone([1320,1580,1180,1760][i],.12,.07,'triangle'),delay));}
+function playSoundAsset(file,volume=1){
+  try{ensureAudioContext();const audio=new Audio(import.meta.env.BASE_URL+'sounds/'+file);audio.volume=Math.max(0,Math.min(1,volume));audio.play().catch(err=>console.warn('Forma sound blocked',err));return audio;}catch(err){console.warn('Forma sound failed',err);return null;}
+}
+function playRoundGong(){playSoundAsset('boxing-bell.wav',1);navigator.vibrate?.([55,30,85]);}
+function playFinalGong(){playSoundAsset('boxing-final.wav',1);navigator.vibrate?.([90,65,90,65,130]);}
+function playCoinEffect(){playSoundAsset('coins.wav',1);navigator.vibrate?.([24,26,44]);}
+function playBonusHookahEffect(){playSoundAsset('reward.wav',1);navigator.vibrate?.([35,35,70,40,90]);}
 async function requestDeviceNotificationPermission(){
   try{if(Capacitor.isNativePlatform()){const res=await LocalNotifications.requestPermissions();return res?.display==='granted';}if('Notification' in window){return (await Notification.requestPermission())==='granted';}}catch(err){console.warn('Forma notification permission',err);}return false;
 }
@@ -274,13 +279,24 @@ function feedEventCopy(event){
   const km=Number(p.distance||0),days=Number(p.hike_days||0),extra=km?' · '+km.toFixed(1)+' км':(days?' · '+days+' дн.':'');return {title:name,body:(event.title||label)+extra};
 }
 function routeMetrics(data,type){
-  const distance=Number(data.distance)||0,total=Number(data.totalSeconds??data.duration)||0,moving=Number(data.movingSeconds??data.movingDuration??data.moving_duration)||0,stops=Number(data.stopCount??data.stop_count)||0,stopSeconds=Number(data.stopSeconds??data.stopDuration??data.stop_duration)||0,avg=Number(data.avgSpeed??data.avg_speed)||0,max=Number(data.maxSpeed??data.max_speed)||0;
-  const rows=[['Дистанция',distance.toFixed(1)+' км'],['Общее время',formatDuration(total)]];if(type==='bike'||type==='run')rows.push(['В движении',formatDuration(moving)],['Остановки',stops+' · '+formatDuration(stopSeconds)]);rows.push(['Средняя скорость',avg.toFixed(1)+' км/ч'],['Максимальная скорость',max.toFixed(1)+' км/ч']);return rows;
+  const distance=Number(data.distance)||0,total=Number(data.totalSeconds??data.duration)||0,moving=Number(data.movingSeconds??data.movingDuration??data.moving_duration)||0,stops=Number(data.stopCount??data.stop_count)||0,stopSeconds=Number(data.stopSeconds??data.stopDuration??data.stop_duration)||0,transport=Number(data.transportDistance??data.transport_distance)||0,avg=Number(data.avgSpeed??data.avg_speed)||0,max=Number(data.maxSpeed??data.max_speed)||0;
+  if(type==='hike'){
+    const rows=[['Пешком',distance.toFixed(1)+' км'],['Общее время',formatDuration(total)]];
+    if(transport>0)rows.push(['Транспорт',transport.toFixed(1)+' км']);
+    return rows;
+  }
+  const rows=[['Дистанция',distance.toFixed(1)+' км'],['Общее время',formatDuration(total)]];
+  if(type==='bike'||type==='run'||type==='moto'){
+    rows.push(['В движении',formatDuration(moving)]);
+    rows.push([type==='moto'?'Отдых':'Остановки',stops+' · '+formatDuration(stopSeconds)]);
+  }
+  rows.push(['Средняя скорость',avg.toFixed(1)+' км/ч'],['Максимальная скорость',max.toFixed(1)+' км/ч']);
+  return rows;
 }
 function drawRoutePoster(data,type,dateKey,transparent=false){
-  const points=data.routePoints||data.points||[];if(points.length<2)return null;const canvas=document.createElement('canvas');canvas.width=1080;canvas.height=1920;const ctx=canvas.getContext('2d'),meta=activityMeta(type)||{label:'Маршрут'},themes={bike:['#111a26','#f2aa45','#ffd68a'],run:['#21171e','#ec7566','#ffc0aa'],hike:['#102019','#63d3a1','#bcebcf']},theme=themes[type]||themes.bike,bg=theme[0],line=theme[1],accent=theme[2];
+  const points=data.routePoints||data.points||[];if(points.length<2)return null;const canvas=document.createElement('canvas');canvas.width=1080;canvas.height=1920;const ctx=canvas.getContext('2d'),meta=activityMeta(type)||{label:'Маршрут'},themes={bike:['#111a26','#f2aa45','#ffd68a'],run:['#21171e','#ec7566','#ffc0aa'],hike:['#102019','#63d3a1','#bcebcf'],moto:['#17181c','#f0b34e','#f8dc9a']},theme=themes[type]||themes.bike,bg=theme[0],line=theme[1],accent=theme[2];
   if(!transparent){ctx.fillStyle=bg;ctx.fillRect(0,0,1080,1920);const g=ctx.createRadialGradient(820,180,20,820,180,760);g.addColorStop(0,line+'55');g.addColorStop(1,'#00000000');ctx.fillStyle=g;ctx.fillRect(0,0,1080,1920);}ctx.textBaseline='alphabetic';ctx.shadowColor=transparent?'rgba(0,0,0,.8)':'transparent';ctx.shadowBlur=transparent?14:0;ctx.fillStyle='#fff';ctx.font='800 58px system-ui,sans-serif';ctx.fillText('Форма · '+meta.label,70,105);ctx.fillStyle=transparent?'#fff':'#aab5c0';ctx.font='32px system-ui,sans-serif';ctx.fillText(formatDate(dateKey,{day:'numeric',month:'long',year:'numeric'}),70,155);
-  const plot=routePlot(points,930,920,55);if(plot.length){ctx.save();ctx.translate(75,230);ctx.lineWidth=14;ctx.lineJoin='round';ctx.lineCap='round';ctx.strokeStyle=line;ctx.beginPath();ctx.moveTo(plot[0].x,plot[0].y);plot.slice(1).forEach(p=>ctx.lineTo(p.x,p.y));ctx.stroke();ctx.fillStyle='#65e6a8';ctx.beginPath();ctx.arc(plot[0].x,plot[0].y,17,0,Math.PI*2);ctx.fill();const last=plot[plot.length-1];ctx.fillStyle=accent;ctx.beginPath();ctx.arc(last.x,last.y,17,0,Math.PI*2);ctx.fill();ctx.restore();}
+  const plot=routePlot(points,930,920,55);if(plot.length){ctx.save();ctx.translate(75,230);ctx.lineWidth=14;ctx.lineJoin='round';ctx.lineCap='round';ctx.strokeStyle=line;for(let i=1;i<plot.length;i++){ctx.setLineDash(plot[i].segment==='transport'?[28,20]:[]);ctx.beginPath();ctx.moveTo(plot[i-1].x,plot[i-1].y);ctx.lineTo(plot[i].x,plot[i].y);ctx.stroke();}ctx.setLineDash([]);ctx.fillStyle='#65e6a8';ctx.beginPath();ctx.arc(plot[0].x,plot[0].y,17,0,Math.PI*2);ctx.fill();const last=plot[plot.length-1];ctx.fillStyle=accent;ctx.beginPath();ctx.arc(last.x,last.y,17,0,Math.PI*2);ctx.fill();ctx.restore();}
   const metrics=routeMetrics(data,type),cellH=160,startY=1235;metrics.forEach(([label,value],i)=>{const col=i%2,row=Math.floor(i/2),x=70+col*500,y=startY+row*cellH;if(!transparent){ctx.fillStyle='rgba(255,255,255,.055)';ctx.beginPath();ctx.roundRect(x,y,440,130,24);ctx.fill();}ctx.fillStyle=transparent?'rgba(255,255,255,.9)':'#95a4b2';ctx.font='28px system-ui,sans-serif';ctx.fillText(label,x+22,y+40);ctx.fillStyle='#fff';ctx.font='800 40px system-ui,sans-serif';ctx.fillText(value,x+22,y+92);});return canvas;
 }
 function blobToBase64(blob){return new Promise((resolve,reject)=>{const r=new FileReader();r.onload=()=>resolve(String(r.result).split(',')[1]);r.onerror=reject;r.readAsDataURL(blob);});}
@@ -329,27 +345,48 @@ function pointEvents(sessions,dailySteps=[],hookahEvents=[]){
   function day(date){if(!byDate.has(date))byDate.set(date,{date,gpsBonus:0,createdAt:''});return byDate.get(date);}
   sessions.filter(s=>isRatingSession(s)&&s.date>=season.start&&s.date<=season.end).forEach(s=>{const d=day(s.date);d.gpsBonus=Math.max(d.gpsBonus,gpsBonusForSession(s));d.createdAt=String(s.created_at||d.createdAt||'');});
   dailySteps.filter(x=>x.date>=season.start&&x.date<=season.end&&Number(x.steps||0)>=15000).forEach(x=>day(x.date));
-  const ordered=[...byDate.values()].sort((a,b)=>a.date.localeCompare(b.date)),events=[];let prev=null,streak=0,sportBalance=0;
-  ordered.forEach(d=>{
-    if(prev){const gap=daysBetween(prev,d.date);if(gap===1)streak=streak>=6?1:streak+1;else{const penalty=Math.max(gap-4,0);if(penalty>0){const applied=Math.min(sportBalance,penalty);sportBalance-=applied;if(applied>0)events.push({id:`pause-${d.date}`,date:d.date,delta:-applied,reasons:'Пауза: −1 за каждый день после трёх дней без активности'});}streak=1;}}else streak=1;
-    const streakBonus=Math.max(streak-1,0),delta=5+streakBonus+d.gpsBonus;sportBalance+=delta;
-    const reasons=['Активный день: +5'];if(streakBonus)reasons.push(`Серия ${streak} дн.: +${streakBonus}`);if(d.gpsBonus)reasons.push('GPS-вело более 100 км: +5');
-    events.push({id:`activity-${d.date}`,date:d.date,createdAt:d.createdAt,delta,reasons:reasons.join(' · ')});prev=d.date;
-  });
-  if(prev){const penalty=Math.max(daysBetween(prev,localDateKey())-3,0),applied=Math.min(sportBalance,penalty);if(applied>0)events.push({id:`inactivity-${localDateKey()}`,date:localDateKey(),delta:-applied,reasons:'Нет активности более трёх дней: −1 за день'});}
-  hookahEvents.filter(h=>h.event_date>=season.start&&h.event_date<=season.end).forEach(h=>events.push({id:`hookah-${h.id}`,date:h.event_date,createdAt:h.smoked_at||'',delta:-2,reasons:'Вредная привычка'}));
+  const ordered=[...byDate.values()].sort((a,b)=>a.date.localeCompare(b.date)),events=[];
+  let streak=0,closed=0,prevCounted=null,recoveryDate=null,penaltyAnchor=null,sportBalance=0;
+  for(const d of ordered){
+    let recoveryActivity=false;
+    if(recoveryDate&&d.date===recoveryDate){
+      recoveryActivity=true;prevCounted=null;streak=0;penaltyAnchor=d.date;recoveryDate=null;
+    }else{
+      if(recoveryDate&&d.date>recoveryDate){penaltyAnchor=recoveryDate;prevCounted=null;streak=0;recoveryDate=null;}
+      if(penaltyAnchor){
+        const gap=daysBetween(penaltyAnchor,d.date),penalty=Math.max(gap-4,0);
+        if(penalty>0){const applied=Math.min(sportBalance,penalty);sportBalance-=applied;if(applied>0)events.push({id:'pause-'+d.date,date:d.date,delta:-applied,reasons:'Пауза: −1 за каждый день после трёх дней без активности'});}
+      }
+      if(prevCounted&&daysBetween(prevCounted,d.date)===1)streak+=1;else streak=1;
+      prevCounted=d.date;penaltyAnchor=d.date;
+    }
+    let streakBonus=recoveryActivity?0:Math.max(streak-1,0);
+    const delta=5+streakBonus+d.gpsBonus;sportBalance+=delta;
+    const reasons=['Активный день: +5'];
+    if(recoveryActivity)reasons.push('День восстановления · серия не продолжается');
+    else if(streakBonus)reasons.push('Серия '+streak+' дн.: +'+streakBonus);
+    if(d.gpsBonus)reasons.push('GPS-вело более 100 км: +5');
+    events.push({id:'activity-'+d.date,date:d.date,createdAt:d.createdAt,delta,reasons:reasons.join(' · ')});
+    if(!recoveryActivity&&streak===6){closed+=1;recoveryDate=localDateKey(addDays(dateFromKey(d.date),1));penaltyAnchor=recoveryDate;prevCounted=null;streak=0;}
+  }
+  const anchor=recoveryDate||penaltyAnchor;
+  if(anchor){const penalty=Math.max(daysBetween(anchor,localDateKey())-3,0),applied=Math.min(sportBalance,penalty);if(applied>0)events.push({id:'inactivity-'+localDateKey(),date:localDateKey(),delta:-applied,reasons:'Нет активности более трёх дней: −1 за день'});}
+  hookahEvents.filter(h=>!h.isBonus&&h.event_date>=season.start&&h.event_date<=season.end).forEach(h=>events.push({id:'hookah-'+h.id,date:h.event_date,createdAt:h.smoked_at||'',delta:-2,reasons:'Вредная привычка'}));
+  hookahEvents.filter(h=>h.isBonus&&h.event_date>=season.start&&h.event_date<=season.end).forEach(h=>events.push({id:'hookah-bonus-'+h.id,date:h.event_date,createdAt:h.smoked_at||'',delta:0,reasons:'Бонусный кальян · 0 баллов'}));
   return events.sort((a,b)=>a.date.localeCompare(b.date)||String(a.createdAt||'').localeCompare(String(b.createdAt||'')));
 }
 function scoreHint(sessions,dailySteps=[]){
+  const state=streakState(sessions,dailySteps);
+  if(state.isRecovery)return 'Серия №'+state.closedSeries+' закрыта · сегодня восстановление';
   const dates=ratingActiveDates(sessions,dailySteps);if(!dates.length)return 'Первый активный день даст +5 баллов';
-  const latest=dates[dates.length-1],gap=daysBetween(latest,localDateKey()),streak=currentStreakLength(sessions,dailySteps);
-  if(gap===0)return `Цикл: день ${streak} из 6 · сегодня уже в зачёте`;
-  if(gap===1){const next=streak>=6?1:streak+1,bonus=next-1;return bonus?`Сегодня: +5 +${bonus} за серию`:'Сегодня начинается новый цикл: +5';}
+  const latest=dates[dates.length-1],gap=daysBetween(latest,localDateKey());
+  if(gap===0&&state.day)return 'Серия: день '+state.day+' из 6 · сегодня уже в зачёте';
+  if(gap<=1){const next=Math.min(6,(state.day||0)+1),bonus=Math.max(0,next-1);return bonus?'Сегодня: +5 +'+bonus+' за серию':'Сегодня начинается новая серия: +5';}
   return 'Серия прервана · новый активный день даст +5';
 }
 
 function sessionValue(s){
-  if(s.type==='bike'||s.type==='run')return s.distance?`${Number(s.distance).toLocaleString('ru-RU')} км`:'Без километража';
+  if(s.type==='bike'||s.type==='run'||s.type==='moto')return s.distance?`${Number(s.distance).toLocaleString('ru-RU')} км`:'Без километража';
   if(s.type==='walk')return s.steps?`${Number(s.steps).toLocaleString('ru-RU')} шагов`:'Без шагов';
   if(s.type==='workout')return s.workoutText?'Описание':'Воркаут';
   if(s.type==='combat')return s.combatType||'Единоборства';
@@ -366,6 +403,7 @@ function ActivityGlyph({type,className=''}) {
   if(type==='workout') return <svg className={`activity-svg ${className}`} viewBox="0 0 64 64" aria-hidden="true"><path d="M10 12v42M54 12v42M10 16h44"/><circle cx="32" cy="25" r="5"/><path d="M32 30v15M32 33 21 22M32 33l11-11M32 45l-8 9M32 45l8 9"/></svg>;
   if(type==='steps') return <span className={className}>👣</span>;
   if(type==='hike') return <svg className={`activity-svg ${className}`} viewBox="0 0 64 64" aria-hidden="true"><path d="M5 51 23 23l9 14 8-12 19 26H5Z"/><path d="m18 31 5-8 5 8m8 2 4-8 5 7"/><path d="M12 51h40"/></svg>;
+  if(type==='moto') return <span className={className}>🏍️</span>;
   if(type==='crossfit') return <span className={className}>⚡</span>;
   const meta=activityMeta(type);
   return <span className={className}>{meta?.icon||'•'}</span>;
