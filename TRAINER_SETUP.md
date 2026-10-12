@@ -20,3 +20,6 @@ Add provider checkout and signature-verified, idempotent webhook events with mer
 
 ## Multiple chats
 Always start from current main and respect AGENTS.md. Main commit history is shared; database settings live in Supabase and do not vanish with ordinary web updates. Deploying stale files or changing schema/functions can break integration, so never replace these with an old snapshot.
+
+## Gym coach mode (2.1)
+See GYM_TRAINER_SETUP.md for persistent drafts, exercise search, the coach_workout_plans schema, actual-result saving and publishing the next assignment. Recommendations now have a dedicated workout window, while free-form AI conversation remains in ChatGPT.

@@ -1,7 +1,7 @@
 import {useEffect,useState} from 'react';
 import {supabase} from './supabase.js';
 import FatSecretPanel from './FatSecretPanel.jsx';
-export default function TrainerModal({onClose}){
+export default function TrainerModal({onClose,onWorkout}){
  const [state,setState]=useState(null),[members,setMembers]=useState([]),[busy,setBusy]=useState(false),[error,setError]=useState('');
  async function call(action,extra={}){
   const {data,error}=await supabase.functions.invoke('trainer-access',{body:{action,...extra}});
@@ -22,6 +22,7 @@ export default function TrainerModal({onClose}){
     {state.active?<>
      <p><b>Доступ открыт</b>{state.access_until?' до '+date(state.access_until):''}.</p>
      <p className="soft-text">Сейчас рекомендации и разбор тренировок ведём в чате с главным тренером. Чат внутри Forma появится после подключения сервиса тренера.</p>
+     <button className="gradient-button coach-workout-entry" onClick={onWorkout}>Тренировка от тренера<b>›</b></button>
      <FatSecretPanel/>
     </>:<>
      <p>{state.status==='pending'?'Заявка отправлена. Василий увидит её в уведомлениях и откроет доступ.':state.status==='expired'?'Период доступа закончился. Отправь заявку на продление.':'Отправь заявку, чтобы начать работу с тренером.'}</p>

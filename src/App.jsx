@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { supabase } from './supabase.js';
 import TrainerModal from './TrainerModal.jsx';
+import GymTraining from './GymTraining.jsx';
+import TrainerWorkout from './TrainerWorkout.jsx';
 import { App as NativeApp } from '@capacitor/app';
 import { Capacitor } from '@capacitor/core';
 import { BackgroundGeolocation } from '@capgo/background-geolocation';
@@ -9,7 +11,7 @@ import { Filesystem, Directory } from '@capacitor/filesystem';
 import { LocalNotifications } from '@capacitor/local-notifications';
 import { Share } from '@capacitor/share';
 
-const APP_VERSION = '1.10.0';
+const APP_VERSION = '2.1';
 const ANDROID_APK_URL = 'https://github.com/4uvakinvv-hue/fit-tracker/releases/download/android-current/forma-android.apk';
 const IOS_INSTALL_URL = 'https://4uvakinvv-hue.github.io/fit-tracker/';
 
@@ -87,7 +89,7 @@ function normalizeRows(rows,n){return Array.from({length:n},(_,i)=>({
   comment:rows?.[i]?.comment||''
 }));}
 function rowTonnage(row){
-  return Math.max(0,Number(row?.sets)||0)*Math.max(0,Number(row?.reps)||0)*Math.max(0,Number(row?.weight)||0);
+  return Math.max(0,Number(row?.sets)||0)*Math.max(0,Number(row?.reps)||0)*Math.max(0,Number(String(row?.weight??'').replace(',','.'))||0)*(row?.weightBasis==='per_hand'?2:1);
 }
 function workoutTonnage(baseRows=[],extraRows=[]){
   return [...baseRows,...extraRows].reduce((sum,row)=>sum+rowTonnage(row),0);
@@ -546,6 +548,7 @@ export default function App(){
   const [expeditionDays,setExpeditionDays]=useState([]);
   const [isBoss,setIsBoss]=useState(false);
   const [trainerOpen,setTrainerOpen]=useState(false);
+  const [trainerWorkoutOpen,setTrainerWorkoutOpen]=useState(false);
   const [hookahEvents,setHookahEvents]=useState([]);
   const [adminNotifications,setAdminNotifications]=useState([]);
   const [hookahStartedOn,setHookahStartedOn]=useState(localDateKey());
@@ -924,6 +927,8 @@ export default function App(){
 
     const lowWalk=payload.type==='walk'&&Number(payload.steps||0)<10000;
     const row={
+      ...(payload.draftId?{id:payload.draftId}:{}),
+      ...(payload.trainerPlanId?{coach_plan_id:payload.trainerPlanId}:{}),
       user_id:authSession.user.id,
       number:null,
       type:payload.type,
@@ -955,7 +960,12 @@ export default function App(){
     };
 
     const {error}=await supabase.from('sessions').insert(row);
-    if(error)throw error;
+    if(error){
+      if(error.code==='23505'&&payload.draftId){
+        const {data:existing,error:lookupError}=await supabase.from('sessions').select('id').eq('id',payload.draftId).eq('user_id',authSession.user.id).eq('date',payload.date).maybeSingle();
+        if(lookupError||!existing)throw error;
+      }else throw error;
+    }
 
     await savePlan(payload.date,payload.type,payload.title||'',lowWalk?'planned':'completed');
     if(payload.type==='gym'){
@@ -1105,7 +1115,7 @@ export default function App(){
     {screen==='members'&&<MembersV17 members={members} profile={profile} previousTop5={previousTop5}/>} 
     {screen==='feed'&&<FeedScreen profile={profile}/>} 
     {screen==='add-training'&&<AddTraining dateKey={draftDateKey} setDateKey={setDraftDateKey} onProposal={sendProposal} onBack={()=>goBack('home')} onChoose={chooseType}/>}
-    {screen==='gym'&&<GymTraining dateKey={draftDateKey} setDateKey={setDraftDateKey} sessions={numberedSessions} gymTemplates={gymTemplates} onSaveTemplate={saveTemplate} onBack={()=>goBack('add-training')} onHistory={()=>navigate('gym-history')} onSave={saveSession} onTrainerRequest={requestTrainer}/>}
+    {screen==='gym'&&<GymTraining userId={authSession.user.id} onTrainerWorkout={()=>setTrainerWorkoutOpen(true)} dateKey={draftDateKey} setDateKey={setDraftDateKey} sessions={numberedSessions} gymTemplates={gymTemplates} onSaveTemplate={saveTemplate} onBack={()=>goBack('add-training')} onHistory={()=>navigate('gym-history')} onSave={saveSession} onTrainerRequest={requestTrainer}/>}
     {screen==='gym-history'&&<GymHistory sessions={numberedSessions.filter(s=>s.type==='gym'&&isHistorySession(s))} onBack={()=>goBack('gym')}/>}
     {screen==='outdoor'&&<OutdoorTraining dateKey={draftDateKey} setDateKey={setDraftDateKey} sessions={numberedSessions} onBack={()=>goBack('add-training')} onSave={saveSession} onSaveExpedition={saveExpedition}/>} 
     {screen==='crossfit'&&<CrossFitTraining dateKey={draftDateKey} setDateKey={setDraftDateKey} onBack={()=>goBack('add-training')} onSave={saveSession}/>} 
@@ -1116,7 +1126,8 @@ export default function App(){
     {screen==='hike'&&<HikeTraining dateKey={draftDateKey} setDateKey={setDraftDateKey} sessions={numberedSessions} onBack={()=>goBack('add-training')} onHistory={()=>navigate('hike-history')} onSave={saveSession}/>}
     {screen==='hike-history'&&<HikeHistory sessions={numberedSessions.filter(s=>s.type==='hike'&&isHistorySession(s))} onBack={()=>goBack('hike')}/>}
     {screen==='about'&&<AboutScreen isBoss={isBoss}/>}
-    {trainerOpen&&<TrainerModal onClose={()=>setTrainerOpen(false)}/>}
+    {trainerOpen&&<TrainerModal onClose={()=>setTrainerOpen(false)} onWorkout={()=>{setTrainerOpen(false);setTrainerWorkoutOpen(true);}}/>}
+    {trainerWorkoutOpen&&<TrainerWorkout userId={authSession.user.id} onClose={()=>setTrainerWorkoutOpen(false)} onSave={saveSession}/>}
     {screen==='why'&&<WhyScreen onBack={()=>goBack('home')}/>} 
     <FeedNotificationBridge userId={profile?.id} onOpenFeed={()=>navigate('feed')}/>
     <BottomNav screen={screen} onNavigate={navigate}/>
@@ -1511,92 +1522,6 @@ function ScreenBack({onBack,title}){
   return <div className="screen-back-row"><button className="back-button" onClick={onBack}>‹</button>{title&&<strong>{title}</strong>}</div>;
 }
 
-function GymTraining({dateKey,setDateKey,sessions,gymTemplates,onSaveTemplate,onBack,onHistory,onSave,onTrainerRequest}){
-  const [group,setGroup]=useState('chest');
-  const [baseRows,setBaseRows]=useState(makeRows(3));
-  const [extraRows,setExtraRows]=useState(makeRows(5));
-  const [error,setError]=useState('');
-  const previousGym=sessions.filter(s=>s.type==='gym'&&isHistorySession(s));
-  const averageGymTonnage=previousGym.length?previousGym.reduce((sum,s)=>sum+workoutTonnage(s.baseRows||[],s.extraRows||[]),0)/previousGym.length:0;
-
-  useEffect(()=>{
-    const t=gymTemplates[group];
-    if(group==='custom'){
-      setBaseRows(normalizeRows(t?.baseRows,8));
-      setExtraRows([]);
-    }else{
-      setBaseRows(normalizeRows(t?.baseRows,3));
-      setExtraRows(normalizeRows(t?.extraRows,5));
-    }
-    setError('');
-  },[group,gymTemplates]);
-
-  function update(kind,index,field,value){
-    const setter=kind==='base'?setBaseRows:setExtraRows;
-    setter(cur=>cur.map((row,i)=>i===index?{...row,[field]:value}:row));
-  }
-
-  async function save(){
-    if(![...baseRows,...extraRows].some(r=>r.exercise)){
-      setError('Выбери хотя бы одно упражнение.');
-      return;
-    }
-    const templateBase=baseRows.map(({comment,...row})=>row);
-    const templateExtra=extraRows.map(({comment,...row})=>row);
-    const tonnage=workoutTonnage(baseRows,extraRows);
-    await onSaveTemplate(group,templateBase,templateExtra);
-    await onSave({type:'gym',date:dateKey,gymGroup:group,baseRows,extraRows,title:GYM_GROUPS.find(g=>g.id===group)?.label||'Тренажёрка'});
-  }
-
-
-  return <main className="sub-screen gym-screen">
-    <ScreenBack onBack={onBack} title="Тренировка"/>
-    <label className="date-control compact-date"><span>Дата</span><input type="date" value={dateKey} onChange={e=>setDateKey(e.target.value)}/></label>
-
-    <div className="gym-tabs">{GYM_GROUPS.map(g=><button key={g.id} className={group===g.id?'active':''} onClick={()=>setGroup(g.id)}><span>{g.icon}</span>{g.label}</button>)}</div>
-
-    {group==='custom'
-      ?<ExerciseBlock title="Упражнения" subtitle="Любые упражнения из общего списка" rows={baseRows} options={ALL_GYM_EXERCISES} kind="base" onChange={update} accent="mint"/>
-      :<>
-        <ExerciseBlock title="База" subtitle="Основные упражнения на выбранную группу" rows={baseRows} options={BASE_EXERCISES[group]} kind="base" onChange={update} accent="mint"/>
-        <ExerciseBlock title="Доп" subtitle="Дельты, руки, пресс и другие мелкие группы" rows={extraRows} options={ACCESSORY_EXERCISES} kind="extra" onChange={update} accent="violet"/>
-      </>}
-
-    <div className="tonnage-summary"><span>Тоннаж тренировки</span><strong>{formatKg(workoutTonnage(baseRows,extraRows))} кг</strong>{averageGymTonnage>0&&<small>Средний тоннаж: {formatKg(averageGymTonnage)} кг / тренировку</small>}</div>
-
-    {error&&<p className="error-line">{error}</p>}
-    <button className="gradient-button save-training" onClick={save}><span>▣</span>{isFuture(dateKey)?'Запланировать тренировку':'Сохранить тренировку'}<b>›</b></button>
-
-    <div className="gym-bottom-actions">
-      <button className="previous-button" onClick={onHistory}><span>◴</span>Предыдущие тренировки<b>›</b></button>
-      <button className="trainer-button" onClick={onTrainerRequest}><span>♟</span>Заказать тренера</button>
-    </div>
-  </main>;
-}
-
-function ExerciseBlock({title,subtitle,rows,options,kind,onChange,accent}){
-  const [openComment,setOpenComment]=useState(null);
-
-  return <section className={`exercise-block ${accent}`}>
-    <header><div><h2>{title}</h2><p>{subtitle}</p></div><span>{rows.length} упражнений</span></header>
-    <div className="exercise-head"><span>Упражнение</span><span>Подх.</span><span>Повт.</span><span>Вес</span><span></span></div>
-
-    <div className="exercise-rows">{rows.map((row,i)=><div className="exercise-row-wrap" key={i}>
-      <div className="exercise-row">
-        <select value={row.exercise} onChange={e=>onChange(kind,i,'exercise',e.target.value)}><option value="">Выбрать упражнение</option>{options.map(o=><option key={o}>{o}</option>)}</select>
-        <input inputMode="numeric" value={row.sets} onChange={e=>onChange(kind,i,'sets',e.target.value)} placeholder="3"/>
-        <input inputMode="numeric" value={row.reps} onChange={e=>onChange(kind,i,'reps',e.target.value)} placeholder="10"/>
-        <div className="weight-input"><input inputMode="decimal" value={row.weight} onChange={e=>onChange(kind,i,'weight',e.target.value)} placeholder="0"/><small>кг</small></div>
-        <button className={`exercise-note-button ${row.comment?'has-note':''}`} onClick={()=>setOpenComment(openComment===i?null:i)} type="button" aria-label="Комментарий">▤</button>
-      </div>
-
-      {openComment===i&&<div className="exercise-comment-row">
-        <input value={row.comment||''} onChange={e=>onChange(kind,i,'comment',e.target.value)} placeholder="Комментарий к упражнению"/>
-        <button type="button" onClick={()=>setOpenComment(null)}>Сохранить</button>
-      </div>}
-    </div>)}</div>
-  </section>;
-}
 function GymHistory({sessions,onBack}){
   const ordered=[...sessions].sort((a,b)=>b.date.localeCompare(a.date)||String(b.created_at||'').localeCompare(String(a.created_at||'')));
   const [openId,setOpenId]=useState(ordered[0]?.id||null);
@@ -1610,7 +1535,7 @@ function GymHistory({sessions,onBack}){
       return <article className={`history-accordion ${open?'open':''}`} key={s.id}>
         <button className="accordion-title" onClick={()=>setOpenId(open?null:s.id)}>
           <span className="accordion-icon">{group?.icon||'🏋︎'}</span>
-          <span><strong>Тренировка №{s.displayNumber||'—'} · {group?.label||'Тренажёрка'}</strong><small>{formatDate(s.date,{day:'numeric',month:'long',year:'numeric'})}</small></span>
+          <span><strong>Тренировка №{s.displayNumber||'—'} · {s.coach_plan_id?'От тренера':group?.label||'Тренажёрка'}</strong><small>{formatDate(s.date,{day:'numeric',month:'long',year:'numeric'})}</small></span>
           <b>{open?'⌃':'⌄'}</b>
         </button>
         {open&&<div className="accordion-body">
@@ -1633,6 +1558,10 @@ function ReadonlyExerciseBlock({title,rows}){
     <div className="readonly-head"><span>Упражнение</span><span>Подх.</span><span>Повт.</span><span>Вес</span></div>
     {visible.map((r,i)=><div className="readonly-row-wrap" key={i}>
       <div className="readonly-row"><span>{r.exercise}</span><span>{r.sets||'—'}</span><span>{r.reps||'—'}</span><span>{r.weight||'—'} кг</span></div>
+      {r.coachNote&&<div className="readonly-comment">Тренер: {r.coachNote}</div>}
+      {r.weightBasis==='per_hand'&&<div className="readonly-comment">Вес указан на одну руку; выполнено с обеих сторон.</div>}
+      {r.setRir?.length>0&&<div className="readonly-comment">Запас по подходам: {Array.from({length:Number(r.sets)||r.setRir.length},(_,n)=>r.setRir[n]||'неизвестно').join(' / ')}</div>}
+      {r.rir&&<div className="readonly-comment">Повторения в запасе: {r.rir}</div>}
       {r.comment&&<div className="readonly-comment">▤ {r.comment}</div>}
     </div>)}
   </section>;
