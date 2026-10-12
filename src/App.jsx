@@ -1119,26 +1119,31 @@ export default function App(){
 }
 
 function BottomNav({screen,onNavigate}){
-  const active=screen==='steps-history'||screen.startsWith('history-')?'history':['add-training','gym','gym-history','outdoor','bike','workout','workout-history','combat','combat-history','hike','hike-history','crossfit','why'].includes(screen)?'home':screen;
-  const items=[['home','⌂','Главная'],['feed','◉','Лента'],['history','▥','История'],['stats','▤','Статистика'],['members','♟','Участники'],['about','ⓘ','О приложении']];
-  return <nav className="bottom-nav six">
+  const homeScreens=['add-training','gym','gym-history','outdoor','bike','workout','workout-history','combat','combat-history','hike','hike-history','crossfit','why'];
+  const active=homeScreens.includes(screen)?'home':(screen==='history'||screen.startsWith('history-')||screen==='steps-history'?'':screen);
+  const items=[['home','⌂','Главная'],['feed','◉','Лента'],['stats','▤','Статистика'],['members','♟','Участники'],['about','ⓘ','О приложении']];
+  return <nav className="bottom-nav five">
     {items.map(([key,icon,label])=><button key={key} className={active===key?'active':''} onClick={()=>onNavigate(key)}><span className="nav-icon">{icon}</span>{label}</button>)}
   </nav>;
 }
 
-function Home({schedule,sessions,profile,dailySteps,saveNotice,isBoss,adminNotifications,onTrainer,onMarkNotificationsRead,hookahEvents,canUndoHookah,onHookah,onUndoHookah,stepsStatus,stepsSyncing,onEnableSteps,onOpenSteps,onOpenFeed,selectedDateKey,setSelectedDateKey,onSavePlan,onDeletePlan,onProposal,onOpenWorkout}){
+function Home({schedule,sessions,profile,dailySteps,saveNotice,isBoss,adminNotifications,onTrainer,onMarkNotificationsRead,hookahEvents,hookahProgramStartedOn,canUndoHookah,onHookah,onBonusHookah,onUndoHookah,stepsStatus,stepsSyncing,onEnableSteps,onOpenSteps,onOpenFeed,selectedDateKey,setSelectedDateKey,onSavePlan,onDeletePlan,onProposal,onOpenWorkout}){
   const [pointsOpen,setPointsOpen]=useState(false);
   const [notificationsOpen,setNotificationsOpen]=useState(false);
   const events=pointEvents(sessions,dailySteps,hookahEvents).slice(-10).reverse();
   const unreadNotifications=(adminNotifications||[]).filter(n=>!n.read_at).length;
   const todayKey=localDateKey();
-  const todayHookahs=hookahEvents.filter(h=>h.event_date===todayKey).length;
+  const todayPlan=hookahDayPlan(todayKey,hookahProgramStartedOn);
+  const todayHookahs=hookahCountForDate(hookahEvents,todayKey);
   const sevenStart=localDateKey(addDays(new Date(),-6));
-  const sevenHookahs=hookahEvents.filter(h=>h.event_date>=sevenStart&&h.event_date<=todayKey).length;
-  const todayMoney=Math.max(0,1000-todayHookahs*500);
+  const sevenHookahs=ordinaryHookahEvents(hookahEvents).filter(h=>h.event_date>=sevenStart&&h.event_date<=todayKey).length;
+  const sevenSlots=Array.from({length:7},(_,i)=>hookahDayPlan(localDateKey(addDays(dateFromKey(sevenStart),i)),hookahProgramStartedOn).slots).reduce((a,b)=>a+b,0);
+  const todayMoney=hookahEarningForDay(hookahEvents,todayKey,hookahProgramStartedOn);
+  const bonusState=hookahBonusState(hookahEvents,todayKey);
   const season=seasonMeta();
   const seasonProgress=Math.max(0,Math.min(100,(season.day/season.total)*100));
-  const streak=currentStreakLength(sessions,dailySteps);
+  const streakInfo=streakState(sessions,dailySteps);
+  const streak=streakInfo.day;
   const stepHistory=[...(dailySteps||[])].filter(x=>x.date<=todayKey).sort((a,b)=>b.date.localeCompare(a.date));
   const stepAverageSource=stepHistory.length>=30?stepHistory.slice(0,30):stepHistory;
   const averageSteps30=stepAverageSource.length?Math.round(stepAverageSource.reduce((sum,x)=>sum+Number(x.steps||0),0)/stepAverageSource.length):0;
@@ -1181,8 +1186,9 @@ function Home({schedule,sessions,profile,dailySteps,saveNotice,isBoss,adminNotif
     <button className="trainer-button home-trainer-button" onClick={onTrainer}>Заказать тренера</button>
     <div className="home-quick-row">
       {isBoss&&<section className="hookah-quick-card">
-        <div className="hookah-money"><small>Сегодня доступно</small><strong>{todayMoney.toLocaleString('ru-RU')} ₽</strong></div>
-        <div className="hookah-seven"><small>За 7 дней</small><strong>{sevenHookahs} из 14</strong></div>
+        <div className="hookah-money"><small>Сегодня можно заработать</small><strong>{todayMoney.toLocaleString('ru-RU')} ₽</strong><em>{todayPlan.label} · доступно {todayPlan.slots}</em></div>
+        <div className="hookah-seven"><small>За 7 дней</small><strong>{sevenHookahs} из {sevenSlots}</strong></div>
+        {bonusState.eligible&&<button className="hookah-bonus-button" onClick={onBonusHookah}><strong>Бонусный кальян</strong><small>Заработан за неделю · 0 ₽ · 0 баллов</small></button>}
         <button className="hookah-button" onClick={onHookah}>Выкуренный кальян</button>
         {canUndoHookah&&<button className="hookah-undo" onClick={onUndoHookah}>Отменить последнее</button>}
       </section>}
@@ -1209,7 +1215,7 @@ function Home({schedule,sessions,profile,dailySteps,saveNotice,isBoss,adminNotif
     </div>
 
     <DateWheelV17 schedule={schedule} dailySteps={dailySteps} selectedDateKey={selectedDateKey} setSelectedDateKey={setSelectedDateKey}/>
-    <StreakStrip streak={streak}/>
+    <StreakStrip streak={streak} state={streakInfo}/>
 
     <button className="gradient-button workout-cta" onClick={onOpenWorkout}><span>＋</span>Добавить тренировку<b>›</b></button>
     <p className="helper-text">Выбранная дата: {formatDate(selectedDateKey)}.</p>
@@ -1249,9 +1255,12 @@ function Home({schedule,sessions,profile,dailySteps,saveNotice,isBoss,adminNotif
   </main>;
 }
 
-function StreakStrip({streak=0}){
+function StreakStrip({streak=0,state=null}){
+  if(state?.isRecovery){
+    return <section className="streak-recovery-card"><small>СЕРИЯ №{state.closedSeries} ЗАКРЫТА</small><strong>Отличная работа.</strong><p>Сегодня — восстановление. Отдыхай.</p></section>;
+  }
   const filled=Math.min(Math.max(Number(streak)||0,0),6);
-  return <section className="streak-strip"><div className="streak-caption"><strong>Серия</strong><span>{streak?streak+' дн.':'начни сегодня'}</span></div><div className="streak-dots">{[0,1,2,3,4,5].map(i=><div className="streak-step" key={i}><span className={i<filled?'filled':''}>{i<filled?'✓':''}</span><small>{i===0?'старт':'+'+i}</small></div>)}</div></section>;
+  return <section className="streak-strip"><div className="streak-caption"><strong>Серия</strong><span>{streak?streak+' из 6':'начни сегодня'}</span></div><div className="streak-dots">{[0,1,2,3,4,5].map(i=><div className="streak-step" key={i}><span className={i<filled?'filled':''}>{i<filled?'✓':''}</span><small>{i===0?'старт':'+'+i}</small></div>)}</div></section>;
 }
 function WhyScreen({onBack}){
   return <main className="sub-screen why-screen">
