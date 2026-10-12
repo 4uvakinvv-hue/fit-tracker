@@ -8,3 +8,5 @@
 - Run `npm run build` and relevant tests. For FatSecret/trainer changes run `node --test tests/fatsecret.test.mjs tests/trainer-access.test.mjs`.
 - Check `TRAINER_SETUP.md` and `FATSECRET_SETUP.md` before altering these integrations. A web deployment does not redeploy Supabase functions or change database schedules.
 - Keep `main` as the shared source of truth for work from multiple chats. A chat is not an independent deployment environment.
+
+- Release versions use `major.minor` only. The next planned Forma release is `2.1`; do not publish it as `2.1.0`. Keep the same two-part version in app UI, Git tags, release names, APK/AAB filenames, and web package filenames.
