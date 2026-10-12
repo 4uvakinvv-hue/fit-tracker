@@ -2288,7 +2288,30 @@ function V17StatCard({type,accent,title,value,unit,secondary='',wide=false,onCli
   </button>;
 }
 
-function StatisticsV17({sessions,dailySteps,isBoss,hookahEvents,hookahStartedOn,profile,memberCount,onOpenMembers,onOpenHistory,onOpenSteps}){
+function HookahHistoryFullscreen({hookahEvents,hookahStartedOn,hookahProgramStartedOn,withdrawals,onClose}){
+  const [weekOffset,setWeekOffset]=useState(0);
+  const touchStart=useRef(null);
+  const todayKey=localDateKey(),currentMonday=mondayOf(new Date()),weekStart=addDays(currentMonday,weekOffset*7);
+  const weekdays=['Пн','Вт','Ср','Чт','Пт','Сб','Вс'];
+  const days=Array.from({length:7},(_,i)=>localDateKey(addDays(weekStart,i)));
+  function shift(delta){setWeekOffset(v=>Math.min(0,v+delta));}
+  function touchEnd(e){if(touchStart.current==null)return;const dx=(e.changedTouches?.[0]?.clientX||0)-touchStart.current;touchStart.current=null;if(Math.abs(dx)<45)return;shift(dx<0?1:-1);}
+  return <div className="hookah-fullscreen" onTouchStart={e=>{touchStart.current=e.touches?.[0]?.clientX??null;}} onTouchEnd={touchEnd}>
+    <header className="hookah-fullscreen-head"><div><small>Фонд ерунды</small><h2>Кальян · история</h2></div><button onClick={onClose}>×</button></header>
+    <section className="hookah-week-switch"><button onClick={()=>shift(-1)}>‹</button><div><strong>{weekOffset===0?'Эта неделя':formatDate(days[0],{day:'numeric',month:'short'})+' — '+formatDate(days[6],{day:'numeric',month:'short'})}</strong><small>Листай недели влево / вправо</small></div><button onClick={()=>shift(1)} disabled={weekOffset===0}>›</button></section>
+    <section className="hookah-full-week">{days.map((key,i)=>{
+      const plan=hookahDayPlan(key,hookahProgramStartedOn),ordinary=hookahCountForDate(hookahEvents,key),bonus=hookahEvents.some(h=>h.event_date===key&&h.isBonus),started=key>=hookahStartedOn,finished=key<todayKey,money=started?hookahEarningForDay(hookahEvents,key,hookahProgramStartedOn):null;
+      return <article key={key} className={(finished?'finished ':'')+(money>0?'earned ':'')+(key===todayKey?'today ':'')}>
+        <div className="hookah-day-name"><small>{weekdays[i]}</small><strong>{dateFromKey(key).getDate()}</strong></div>
+        <div className="hookah-day-data"><span>{plan.label}</span><strong>{ordinary} / {plan.slots} обычных</strong>{bonus&&<em>Бонусный ✓</em>}</div>
+        <div className="hookah-day-money">{!started?<small>—</small>:<><strong>{money.toLocaleString('ru-RU')} ₽</strong><small>{finished?'заработано':'можно заработать'}</small></>}</div>
+      </article>;
+    })}</section>
+    <section className="withdraw-history-full"><header><strong>История выводов</strong><span>{withdrawals.length}</span></header>{!withdrawals.length?<small>Выводов пока не было.</small>:withdrawals.map(row=><div key={row.id}><span>{new Intl.DateTimeFormat('ru-RU',{day:'numeric',month:'long',year:'numeric',hour:'2-digit',minute:'2-digit'}).format(new Date(row.withdrawn_at))}</span><b>{Number(row.amount||0).toLocaleString('ru-RU')} ₽</b></div>)}</section>
+  </div>;
+}
+
+function StatisticsV17({sessions,dailySteps,isBoss,hookahEvents,hookahStartedOn,hookahProgramStartedOn,profile,memberCount,onOpenMembers,onOpenHistory,onOpenSteps}){
   const [range,setRange]=useState('30d');
   const [customStart,setCustomStart]=useState(localDateKey(addDays(new Date(),-30)));
   const [customEnd,setCustomEnd]=useState(localDateKey());
@@ -2332,6 +2355,9 @@ function StatisticsV17({sessions,dailySteps,isBoss,hookahEvents,hookahStartedOn,
   const workoutCount=filtered.filter(x=>x.type==='workout').length;
   const combatCount=filtered.filter(x=>x.type==='combat').length;
   const crossfitCount=filtered.filter(x=>x.type==='crossfit').length;
+  const motoSessions=filtered.filter(x=>x.type==='moto');
+  const motoDistance=motoSessions.reduce((n,x)=>n+(Number(x.distance)||0),0);
+  const avgMoto=motoSessions.length?motoDistance/motoSessions.length:0;
   const hikes=filtered.filter(x=>x.type==='hike');
   const hikeCount=hikes.length;
   const hikeDays=hikes.reduce((n,x)=>n+Math.max(Number(x.hikeDays)||1,1),0);
@@ -2340,13 +2366,13 @@ function StatisticsV17({sessions,dailySteps,isBoss,hookahEvents,hookahStartedOn,
   const todayKey=localDateKey();
   const trackedStart=start<hookahStartedOn?hookahStartedOn:start;
   const trackedEnd=end>todayKey?todayKey:end;
-  const hookahInRange=isBoss?hookahEvents.filter(h=>h.event_date>=trackedStart&&h.event_date<=trackedEnd):[];
+  const hookahInRange=isBoss?ordinaryHookahEvents(hookahEvents).filter(h=>h.event_date>=trackedStart&&h.event_date<=trackedEnd):[];
   const hookahCount=hookahInRange.length;
   const hookahDays=trackedEnd>=trackedStart?daysBetween(trackedStart,trackedEnd)+1:0;
-  const hookahSlots=hookahDays*2;
+  let hookahSlots=0;
+  if(hookahDays>0){for(let i=0;i<Math.min(hookahDays,5000);i++)hookahSlots+=hookahDayPlan(localDateKey(addDays(dateFromKey(trackedStart),i)),hookahProgramStartedOn).slots;}
   const hookahWeeklyAvg=hookahDays?hookahCount*7/hookahDays:0;
-  const hookahCountForDay=key=>(hookahEvents||[]).filter(h=>h.event_date===key).length;
-  const earningForDay=key=>Math.max(0,1000-Math.min(hookahCountForDay(key),2)*500);
+  const earningForDay=key=>hookahEarningForDay(hookahEvents,key,hookahProgramStartedOn);
 
   const yesterdayKey=localDateKey(addDays(dateFromKey(todayKey),-1));
   let lifetimeEarned=0;
@@ -2372,15 +2398,12 @@ function StatisticsV17({sessions,dailySteps,isBoss,hookahEvents,hookahStartedOn,
   const compact=[];
   if(bike>0)compact.push({key:'bike',type:'bike',accent:'amber',title:'Вело',value:bike.toLocaleString('ru-RU'),unit:'км',secondary:bikeSessions.length?'Среднее '+avgBike.toFixed(1)+' км / поездку':'',open:()=>onOpenHistory('bike')});
   if(runDistance>0)compact.push({key:'run',type:'run',accent:'run',title:'Бег',value:runDistance.toLocaleString('ru-RU'),unit:'км',secondary:runSessions.length?'Среднее '+avgRun.toFixed(1)+' км / пробежку':'',open:()=>onOpenHistory('run')});
-  if(hikeCount>0)compact.push({key:'hike',type:'hike',accent:'hike',title:'Хайкинг',value:(hikeDistance||hikeCount).toLocaleString('ru-RU'),unit:hikeDistance?'км':'походов',secondary:hikeCount+' походов · '+hikeDays+' дн.',open:()=>onOpenHistory('hike')});
+  if(hikeCount>0)compact.push({key:'hike',type:'hike',accent:'hike',title:'ПВД / Поход',value:(hikeDistance||hikeCount).toLocaleString('ru-RU'),unit:hikeDistance?'км':'походов',secondary:hikeCount+' походов · '+hikeDays+' дн.',open:()=>onOpenHistory('hike')});
+  if(motoDistance>0)compact.push({key:'moto',type:'moto',accent:'moto',title:'Мото',value:motoDistance.toLocaleString('ru-RU'),unit:'км',secondary:motoSessions.length?'Среднее '+avgMoto.toFixed(1)+' км / поездку':'',open:()=>onOpenHistory('moto')});
   if(stepTotal>0)compact.push({key:'steps',type:'steps',accent:'green',title:'Шаги',value:stepTotal.toLocaleString('ru-RU'),unit:'шагов',secondary:stepRows.length?'Среднее '+Math.round(avgSteps).toLocaleString('ru-RU')+' / день':'',open:onOpenSteps});
   if(workoutCount>0)compact.push({key:'workout',type:'workout',accent:'coral',title:'Воркаут',value:workoutCount.toLocaleString('ru-RU'),unit:'тренировок',secondary:'',open:()=>onOpenHistory('workout')});
   if(combatCount>0)compact.push({key:'combat',type:'combat',accent:'combat',title:'Единоборства',value:combatCount.toLocaleString('ru-RU'),unit:'тренировок',secondary:'',open:()=>onOpenHistory('combat')});
   if(crossfitCount>0)compact.push({key:'crossfit',type:'crossfit',accent:'crossfit',title:'CrossFit',value:crossfitCount.toLocaleString('ru-RU'),unit:'тренировок',secondary:'',open:()=>onOpenHistory('crossfit')});
-
-  const currentMonday=mondayOf(new Date());
-  const fundWeeks=[addDays(currentMonday,-14),addDays(currentMonday,-7),currentMonday];
-  const weekdays=['Пн','Вт','Ср','Чт','Пт','Сб','Вс'];
 
   return <main className="tab-screen stats-screen stats-v17">
     <p className="eyebrow-dark">Сводка</p><h1>Статистика</h1>
@@ -2392,17 +2415,15 @@ function StatisticsV17({sessions,dailySteps,isBoss,hookahEvents,hookahStartedOn,
     <div className="stats-grid-big stats-grid-v17">
       {gym>0&&<button type="button" className="gym-stat-card-v17 stat-wide" onClick={()=>onOpenHistory('gym')}><span className="stat-icon"><ActivityGlyph type="gym" className="violet"/></span><span><small>Тренажёрка</small><strong>{gym} тренировок</strong><em>Тоннаж {formatKg(tonnage)} кг · среднее {formatKg(avgTonnage)} кг / трен.</em></span><b>›</b></button>}
       {compact.map((card,index)=><V17StatCard key={card.key} {...card} onClick={card.open} wide={compact.length%2===1&&index===compact.length-1}/>)}
+      {Number(profile?.seriesCount||0)>0&&<article className="series-stat-card-v110"><small>Серии сезона</small><strong>{profile.seriesCount}</strong><em>закрыто полностью</em></article>}
       {!gym&&!compact.length&&!isBoss&&<div className="empty-state stat-empty-v17">В выбранном периоде пока нет активности.</div>}
-      {isBoss&&<article className={'hookah-stat-card hookah-stat-v17 '+(hookahOpen?'open':'')} onClick={()=>setHookahOpen(v=>!v)}>
-        <div className="hookah-stat-main-v17"><small>Кальян</small><strong>{hookahCount} из {hookahSlots}</strong><em>В среднем {hookahWeeklyAvg.toFixed(1)} / неделю</em></div>
+      {isBoss&&<article className="hookah-stat-card hookah-stat-v17" onClick={()=>setHookahOpen(true)}>
+        <div className="hookah-stat-main-v17"><small>Кальян</small><strong>{hookahCount} из {hookahSlots}</strong><em>В среднем {hookahWeeklyAvg.toFixed(1)} / неделю · {hookahDayPlan(todayKey,hookahProgramStartedOn).label}</em></div>
         <div className="hookah-fund-v17"><small>Фонд ерунды</small><strong>{available.toLocaleString('ru-RU')} ₽</strong><em>Доступно к выводу</em><button type="button" disabled={!available||withdrawing} onClick={e=>{e.stopPropagation();withdraw();}}>{withdrawing?'Фиксирую…':'Вывел деньги'}</button></div>
-        <b className="hookah-expand-v17">{hookahOpen?'⌃':'⌄'}</b>
-        {hookahOpen&&<div className="hookah-history-v17" onClick={e=>e.stopPropagation()}>
-          <div className="hookah-weeks-v17">{fundWeeks.map((weekStart,wi)=><section key={localDateKey(weekStart)}><header><strong>{wi===2?'Эта неделя':wi===1?'Неделю назад':'Две недели назад'}</strong><small>{formatDate(localDateKey(weekStart),{day:'numeric',month:'short'})} — {formatDate(localDateKey(addDays(weekStart,6)),{day:'numeric',month:'short'})}</small></header>{Array.from({length:7},(_,i)=>{const key=localDateKey(addDays(weekStart,i));const finalized=key>=hookahStartedOn&&key<todayKey;const money=finalized?earningForDay(key):null;return <div className={'hookah-day-v17 '+(finalized?(money>0?'earned':'zero'):'pending')} key={key}><span>{weekdays[i]} <b>{dateFromKey(key).getDate()}</b></span>{finalized?(money>0?<em>{money.toLocaleString('ru-RU')} ₽ <i>✓</i></em>:<i className="zero-dot-v17"/>):<em/>}</div>;})}</section>)}</div>
-          <div className="withdraw-history-v17"><header><strong>История выводов</strong><span>{withdrawals.length}</span></header>{!withdrawals.length?<small>Выводов пока не было.</small>:withdrawals.map(row=><div key={row.id}><span>{new Intl.DateTimeFormat('ru-RU',{day:'numeric',month:'long',year:'numeric',hour:'2-digit',minute:'2-digit'}).format(new Date(row.withdrawn_at))}</span><b>{Number(row.amount||0).toLocaleString('ru-RU')} ₽</b></div>)}</div>
-        </div>}
+        <b className="hookah-expand-v17">›</b>
       </article>}
     </div>
+    {hookahOpen&&<HookahHistoryFullscreen hookahEvents={hookahEvents} hookahStartedOn={hookahStartedOn} hookahProgramStartedOn={hookahProgramStartedOn} withdrawals={withdrawals} onClose={()=>setHookahOpen(false)}/>}
   </main>;
 }
 
