@@ -1843,14 +1843,14 @@ function CrossFitTraining({dateKey,setDateKey,onBack,onSave}){
   useEffect(()=>{
     if(!tabataRunning)return;const t=now;let end=phaseEndRef.current,phase=phaseRef.current,round=tabataRound,changed=false,guard=0;
     while(t>=end&&guard<50){phase=phase==='work'?'rest':'work';if(phase==='work')round+=1;end+=Math.max(1,phase==='work'?Number(workSec):Number(restSec))*1000;changed=true;guard+=1;}
-    if(changed){phaseRef.current=phase;phaseEndRef.current=end;setTabataPhase(phase);setTabataRound(round);beepRef.current=null;playGong();}
+    if(changed){phaseRef.current=phase;phaseEndRef.current=end;setTabataPhase(phase);setTabataRound(round);beepRef.current=null;playRoundGong();}
     const rem=Math.max(0,Math.ceil((end-t)/1000));setTabataRemain(rem);if(rem>0&&rem<=5&&beepRef.current!==rem){beepRef.current=rem;playTone(980,.085,.07,'square');navigator.vibrate?.(12);}
   },[now,tabataRunning,workSec,restSec]);
   function startWatch(){ensureAudioContext();if(watchRunning)return;watchStarted.current=Date.now();setWatchRunning(true);}
   function pauseWatch(){if(!watchRunning)return;setWatchAccum(v=>v+Math.max(0,Date.now()-watchStarted.current));watchStarted.current=null;setWatchRunning(false);}
   function resetWatch(){watchStarted.current=null;setWatchRunning(false);setWatchAccum(0);}
-  function startTabata(){ensureAudioContext();const w=Math.max(1,Number(workSec)||20);setWorkSec(w);phaseRef.current='work';setTabataPhase('work');setTabataRound(1);setTabataRemain(w);phaseEndRef.current=Date.now()+w*1000;beepRef.current=null;setTabataRunning(true);playGong();}
-  function stopTabata(){setTabataRunning(false);beepRef.current=null;}
+  function startTabata(){ensureAudioContext();const w=Math.max(1,Number(workSec)||20);setWorkSec(w);phaseRef.current='work';setTabataPhase('work');setTabataRound(1);setTabataRemain(w);phaseEndRef.current=Date.now()+w*1000;beepRef.current=null;setTabataRunning(true);playRoundGong();}
+  function stopTabata(){if(tabataRunning)playFinalGong();setTabataRunning(false);beepRef.current=null;}
   async function save(){setSaving(true);try{if(watchRunning)pauseWatch();await onSave({type:'crossfit',date:dateKey,title:title.trim()||'CrossFit',workoutText:exercises.trim(),duration:Math.round(watchMs/1000)});}finally{setSaving(false);}}
   return <main className="sub-screen crossfit-screen"><ScreenBack onBack={onBack} title="CrossFit"/><p className="eyebrow-dark">Тренировка</p><h1>CrossFit</h1>
     <label className="date-control add-date-compact"><span>Дата</span><input type="date" value={dateKey} onChange={e=>setDateKey(e.target.value)}/></label>
