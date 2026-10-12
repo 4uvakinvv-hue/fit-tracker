@@ -3453,3 +3453,245 @@
 .trainer-admin button{padding:10px;font-size:12px}
 .trainer-notices{padding:8px 12px;border-radius:12px;background:rgba(132,231,180,.08);font-size:13px;margin:12px 0}
 .home-trainer-button{width:100%;margin:0 0 12px;min-height:44px}
+
+
+/* Forma 1.10.0 */
+.feed-list{
+  grid-auto-rows:max-content!important;
+  align-content:start!important;
+}
+.feed-event{
+  min-height:0!important;
+  height:auto!important;
+  padding:10px 12px!important;
+  align-self:start!important;
+}
+.feed-event-icon{width:38px!important;height:38px!important;border-radius:12px!important}
+.feed-event strong{font-size:10.5px!important}
+.feed-event p{font-size:8.5px!important;line-height:1.32!important}
+.feed-event small,.feed-event em{font-size:7px!important}
+
+.streak-recovery-card{
+  margin-top:8px;
+  min-height:98px;
+  padding:16px 18px;
+  border-radius:20px;
+  background:
+    radial-gradient(circle at 82% 10%,rgba(182,255,211,.3),transparent 38%),
+    linear-gradient(135deg,#126743,#1b945f 58%,#0e5f3e);
+  border:1px solid rgba(176,255,209,.56);
+  box-shadow:0 0 24px rgba(55,221,139,.24),inset 0 1px 0 rgba(255,255,255,.16);
+  color:#f0fff7;
+}
+.streak-recovery-card small{
+  display:block;
+  color:#bbffd9;
+  font-size:8px;
+  font-weight:900;
+  letter-spacing:.12em;
+}
+.streak-recovery-card strong{
+  display:block;
+  margin-top:5px;
+  font-size:20px;
+  line-height:1.05;
+  text-shadow:0 0 14px rgba(218,255,232,.42);
+}
+.streak-recovery-card p{
+  margin:5px 0 0;
+  color:#d7ffea;
+  font-size:10px;
+}
+
+.hookah-money em{
+  display:block;
+  margin-top:2px;
+  color:#d0a46b;
+  font-size:7px;
+  font-style:normal;
+}
+.hookah-bonus-button{
+  grid-column:1/-1;
+  width:100%;
+  min-height:56px;
+  margin-top:5px;
+  padding:9px 12px;
+  border-radius:15px;
+  border:1px solid rgba(151,255,194,.5);
+  background:
+    radial-gradient(circle at 15% 0,rgba(200,255,221,.18),transparent 42%),
+    linear-gradient(130deg,#15714b,#1c9a63);
+  box-shadow:0 0 20px rgba(54,219,135,.18);
+  color:#effff6;
+  text-align:left;
+}
+.hookah-bonus-button strong,.hookah-bonus-button small{display:block}
+.hookah-bonus-button strong{font-size:11px}
+.hookah-bonus-button small{margin-top:2px;color:#c8f7dc;font-size:7px}
+
+.hookah-fullscreen{
+  position:fixed;
+  inset:0;
+  z-index:13000;
+  overflow-y:auto;
+  overscroll-behavior:contain;
+  padding:max(18px,env(safe-area-inset-top)) 14px max(28px,env(safe-area-inset-bottom));
+  background:
+    radial-gradient(circle at 70% -5%,rgba(222,132,46,.22),transparent 35%),
+    linear-gradient(180deg,#21140d,#0c1118 52%,#080c12);
+  color:#f7f3ed;
+}
+.hookah-fullscreen-head{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  margin-bottom:14px;
+}
+.hookah-fullscreen-head small{display:block;color:#e9a85d;font-size:8px;font-weight:900;text-transform:uppercase;letter-spacing:.08em}
+.hookah-fullscreen-head h2{margin:3px 0 0;font-size:27px}
+.hookah-fullscreen-head>button{
+  width:44px;height:44px;border-radius:50%;
+  background:rgba(255,255,255,.06);
+  border:1px solid rgba(255,255,255,.14);
+  color:#fff;font-size:27px;
+}
+.hookah-week-switch{
+  display:grid;
+  grid-template-columns:42px 1fr 42px;
+  align-items:center;
+  gap:8px;
+  margin-bottom:10px;
+}
+.hookah-week-switch>button{
+  width:42px;height:42px;border-radius:13px;
+  background:#17202b;border:1px solid rgba(255,183,88,.18);
+  color:#f1b769;font-size:24px;
+}
+.hookah-week-switch>button:disabled{opacity:.25}
+.hookah-week-switch>div{text-align:center}
+.hookah-week-switch strong,.hookah-week-switch small{display:block}
+.hookah-week-switch strong{font-size:11px}
+.hookah-week-switch small{margin-top:2px;color:#7f8b98;font-size:7px}
+.hookah-full-week{
+  display:grid;
+  gap:7px;
+}
+.hookah-full-week article{
+  min-height:74px;
+  padding:10px 11px;
+  display:grid;
+  grid-template-columns:48px minmax(0,1fr) auto;
+  align-items:center;
+  gap:9px;
+  border-radius:16px;
+  background:rgba(22,29,38,.92);
+  border:1px solid rgba(255,255,255,.07);
+}
+.hookah-full-week article.today{border-color:rgba(246,184,92,.5);box-shadow:0 0 18px rgba(246,157,61,.1)}
+.hookah-full-week article.earned{border-color:rgba(73,211,145,.24)}
+.hookah-day-name{width:48px;height:52px;display:grid;place-items:center;border-radius:13px;background:rgba(255,255,255,.04)}
+.hookah-day-name small,.hookah-day-name strong{display:block;text-align:center}
+.hookah-day-name small{font-size:7px;color:#8d98a4}
+.hookah-day-name strong{margin-top:-5px;font-size:19px}
+.hookah-day-data span,.hookah-day-data strong,.hookah-day-data em{display:block}
+.hookah-day-data span{color:#a87846;font-size:7px}
+.hookah-day-data strong{margin-top:2px;font-size:10px}
+.hookah-day-data em{margin-top:2px;color:#86e4b2;font-size:7px;font-style:normal}
+.hookah-day-money{text-align:right}
+.hookah-day-money strong,.hookah-day-money small{display:block}
+.hookah-day-money strong{color:#84dfad;font-size:12px}
+.hookah-day-money small{margin-top:2px;color:#727f8c;font-size:6.5px}
+.withdraw-history-full{
+  margin-top:14px;
+  padding:12px;
+  border-radius:17px;
+  background:rgba(17,25,34,.88);
+  border:1px solid rgba(255,255,255,.06);
+}
+.withdraw-history-full>header{display:flex;justify-content:space-between;margin-bottom:7px}
+.withdraw-history-full>header strong{font-size:10px}
+.withdraw-history-full>header span{color:#83909e;font-size:8px}
+.withdraw-history-full>div{display:flex;justify-content:space-between;gap:12px;padding:8px 0;border-top:1px solid rgba(255,255,255,.05)}
+.withdraw-history-full>div span{color:#8995a1;font-size:7px}
+.withdraw-history-full>div b{font-size:9px;color:#dfae6d}
+
+.series-stat-card-v110{
+  min-height:88px;
+  padding:11px;
+  border-radius:18px;
+  background:linear-gradient(140deg,#173426,#10241b);
+  border:1px solid rgba(91,220,151,.24);
+  text-align:left;
+}
+.series-stat-card-v110 small,.series-stat-card-v110 strong,.series-stat-card-v110 em{display:block}
+.series-stat-card-v110 small{color:#78b996;font-size:7px}
+.series-stat-card-v110 strong{margin-top:3px;color:#b6ffd5;font-size:27px}
+.series-stat-card-v110 em{color:#789889;font-size:7px;font-style:normal}
+
+.leader-row>div>em{
+  display:block;
+  margin-top:2px;
+  color:#6fcf9e;
+  font-size:7px;
+  font-style:normal;
+}
+.previous-row>strong>em{
+  display:block;
+  margin-top:2px;
+  color:rgba(255,255,255,.58);
+  font-size:6.5px;
+  font-style:normal;
+  font-weight:600;
+}
+
+.route-sketch svg line{
+  stroke:currentColor;
+  stroke-width:2.2;
+  fill:none;
+  stroke-linecap:round;
+}
+.route-sketch svg line.transport{
+  stroke-dasharray:4 3;
+  opacity:.6;
+}
+.route-legend{
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:6px;
+  margin:5px 0 8px!important;
+  color:#8ea0ae!important;
+  font-size:7px!important;
+}
+.route-legend i{
+  width:22px;height:0;border-top:2px solid currentColor;
+}
+.route-legend i.transport{border-top-style:dashed;opacity:.7}
+.route-legend.compact{margin-top:-2px!important}
+.route-fullscreen.moto{background:#16171b}
+.route-result-card.moto{border-color:rgba(240,179,78,.22)}
+.outdoor-moto .outdoor-mode-tabs button.active{color:#f2b64c}
+.activity-choice.moto span,.stat-card-v17.moto .stat-icon{color:#f2b64c!important}
+
+.expedition-resume-card{
+  margin-top:10px;
+  padding:14px;
+  border-radius:19px;
+  background:linear-gradient(145deg,#14271e,#0e1914);
+  border:1px solid rgba(90,210,150,.28);
+}
+.expedition-resume-card small,.expedition-resume-card strong,.expedition-resume-card span{display:block}
+.expedition-resume-card small{color:#6bc395;font-size:7px;font-weight:900;letter-spacing:.06em}
+.expedition-resume-card strong{margin-top:5px;font-size:15px}
+.expedition-resume-card span{margin-top:3px;color:#84988c;font-size:8px}
+.expedition-resume-card button{width:100%;margin-top:8px!important}
+.expedition-button{width:100%!important}
+.expedition-live{border-color:rgba(90,210,150,.34)!important}
+.expedition-live .gps-live-pulse{color:#7adbaa!important}
+
+@media(max-width:420px){
+  .hookah-fullscreen{padding-left:10px;padding-right:10px}
+  .hookah-full-week article{grid-template-columns:44px minmax(0,1fr) auto;padding:8px}
+  .hookah-day-name{width:44px}
+}
