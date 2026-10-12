@@ -118,15 +118,16 @@ function isQualifyingSession(s){return s.confirmed!==false&&s.date<=localDateKey
 function isRatingSession(s){return s.confirmed!==false&&s.ratingEligible===true&&s.date<=localDateKey()&&['gym','bike','run','workout','hike','combat','crossfit','moto'].includes(s.type);}
 function isStatsSession(s){return s.confirmed!==false&&s.date<=localDateKey();}
 function isHistorySession(s){return s.confirmed!==false&&s.date<=localDateKey();}
-function ratingActiveDates(sessions,dailySteps=[]){
+function ratingActiveDates(sessions,dailySteps=[],expeditionDays=[]){
   const set=new Set();
   sessions.filter(isRatingSession).forEach(s=>set.add(s.date));
   dailySteps.filter(x=>Number(x.steps||0)>=15000&&x.date<=localDateKey()).forEach(x=>set.add(x.date));
+  expeditionDays.filter(x=>x.verified!==false&&x.event_date<=localDateKey()).forEach(x=>set.add(x.event_date));
   return [...set].sort();
 }
-function streakState(sessions,dailySteps=[],asOfKey=localDateKey()){
+function streakState(sessions,dailySteps=[],expeditionDays=[],asOfKey=localDateKey()){
   const season=seasonMeta(dateFromKey(asOfKey));
-  const dates=ratingActiveDates(sessions,dailySteps).filter(d=>d>=season.start&&d<=asOfKey);
+  const dates=ratingActiveDates(sessions,dailySteps,expeditionDays).filter(d=>d>=season.start&&d<=asOfKey);
   let streak=0,closedSeries=0,prevCounted=null,recoveryDate=null,lastClosureDate=null;
   for(const date of dates){
     if(recoveryDate&&date===recoveryDate){
@@ -152,7 +153,7 @@ function streakState(sessions,dailySteps=[],asOfKey=localDateKey()){
   else if(latest&&daysBetween(latest,asOfKey)>1)day=0;
   return {day,closedSeries,isRecovery,lastClosureDate,activeToday:dates.includes(asOfKey)};
 }
-function currentStreakLength(sessions,dailySteps=[]){return streakState(sessions,dailySteps).day;}
+function currentStreakLength(sessions,dailySteps=[],expeditionDays=[]){return streakState(sessions,dailySteps,expeditionDays).day;}
 function gpsBonusForSession(s){
   if(!s?.gpsVerified||s.avgSpeed==null)return 0;
   const distance=Number(s.distance||s.hikeDistance||0);
@@ -376,11 +377,12 @@ function hookahBonusState(events=[],todayKey=localDateKey()){
   return {eligible:weekCount<=2&&!used,used,weekCount};
 }
 
-function pointEvents(sessions,dailySteps=[],hookahEvents=[]){
+function pointEvents(sessions,dailySteps=[],hookahEvents=[],expeditionDays=[]){
   const season=seasonMeta(),byDate=new Map();
   function day(date){if(!byDate.has(date))byDate.set(date,{date,gpsBonus:0,createdAt:''});return byDate.get(date);}
   sessions.filter(s=>isRatingSession(s)&&s.date>=season.start&&s.date<=season.end).forEach(s=>{const d=day(s.date);d.gpsBonus=Math.max(d.gpsBonus,gpsBonusForSession(s));d.createdAt=String(s.created_at||d.createdAt||'');});
   dailySteps.filter(x=>x.date>=season.start&&x.date<=season.end&&Number(x.steps||0)>=15000).forEach(x=>day(x.date));
+  expeditionDays.filter(x=>x.verified!==false&&x.event_date>=season.start&&x.event_date<=season.end).forEach(x=>day(x.event_date));
   const ordered=[...byDate.values()].sort((a,b)=>a.date.localeCompare(b.date)),events=[];
   let streak=0,closed=0,prevCounted=null,recoveryDate=null,penaltyAnchor=null,sportBalance=0;
   for(const d of ordered){
@@ -411,10 +413,10 @@ function pointEvents(sessions,dailySteps=[],hookahEvents=[]){
   hookahEvents.filter(h=>h.isBonus&&h.event_date>=season.start&&h.event_date<=season.end).forEach(h=>events.push({id:'hookah-bonus-'+h.id,date:h.event_date,createdAt:h.smoked_at||'',delta:0,reasons:'Бонусный кальян · 0 баллов'}));
   return events.sort((a,b)=>a.date.localeCompare(b.date)||String(a.createdAt||'').localeCompare(String(b.createdAt||'')));
 }
-function scoreHint(sessions,dailySteps=[]){
-  const state=streakState(sessions,dailySteps);
+function scoreHint(sessions,dailySteps=[],expeditionDays=[]){
+  const state=streakState(sessions,dailySteps,expeditionDays);
   if(state.isRecovery)return 'Серия №'+state.closedSeries+' закрыта · сегодня восстановление';
-  const dates=ratingActiveDates(sessions,dailySteps);if(!dates.length)return 'Первый активный день даст +5 баллов';
+  const dates=ratingActiveDates(sessions,dailySteps,expeditionDays);if(!dates.length)return 'Первый активный день даст +5 баллов';
   const latest=dates[dates.length-1],gap=daysBetween(latest,localDateKey());
   if(gap===0&&state.day)return 'Серия: день '+state.day+' из 6 · сегодня уже в зачёте';
   if(gap<=1){const next=Math.min(6,(state.day||0)+1),bonus=Math.max(0,next-1);return bonus?'Сегодня: +5 +'+bonus+' за серию':'Сегодня начинается новая серия: +5';}
@@ -541,6 +543,7 @@ export default function App(){
   const [schedule,setSchedule]=useState({});
   const [gymTemplates,setGymTemplates]=useState({});
   const [dailySteps,setDailySteps]=useState([]);
+  const [expeditionDays,setExpeditionDays]=useState([]);
   const [isBoss,setIsBoss]=useState(false);
   const [trainerOpen,setTrainerOpen]=useState(false);
   const [hookahEvents,setHookahEvents]=useState([]);
@@ -827,13 +830,14 @@ export default function App(){
         supabase.from('plans').select('*').eq('user_id',userId),
         supabase.from('gym_templates').select('*').eq('user_id',userId),
         supabase.from('daily_steps').select('date,steps').eq('user_id',userId).gte('date',localDateKey(addYears(new Date(),-1))).order('date',{ascending:true}),
+        supabase.from('expedition_days').select('event_date,distance,point_count,verified').eq('user_id',userId).gte('event_date',localDateKey(addYears(new Date(),-1))).order('event_date',{ascending:true}),
         supabase.from('boss_users').select('user_id,hookah_started_on,hookah_program_started_on').eq('user_id',userId).maybeSingle(),
         supabase.from('hookah_events').select('id,event_date,smoked_at,is_bonus').eq('user_id',userId).order('smoked_at',{ascending:true}),
         supabase.from('admin_notifications').select('id,type,title,member_name,member_email,created_at,read_at').eq('recipient_user_id',userId).order('created_at',{ascending:false}).limit(200),
       ]);
 
       const timeout=new Promise((_,reject)=>setTimeout(()=>reject(new Error('timeout')),9000));
-      const [profileRes,leaderRes,previousRes,sessionsRes,plansRes,templatesRes,stepsRes,bossRes,hookahRes,notificationsRes]=await Promise.race([queries,timeout]);
+      const [profileRes,leaderRes,previousRes,sessionsRes,plansRes,templatesRes,stepsRes,expeditionRes,bossRes,hookahRes,notificationsRes]=await Promise.race([queries,timeout]);
       progress.onProgress?.(68,'Собираем тренировки и статистику');
 
       if(profileRes.error)throw profileRes.error;
@@ -860,6 +864,7 @@ export default function App(){
       (templatesRes.data||[]).forEach(t=>{templates[t.gym_group]={baseRows:t.base_rows||[],extraRows:t.extra_rows||[]};});
       setGymTemplates(templates);
       setDailySteps((stepsRes.data||[]).map(x=>({date:x.date,steps:Number(x.steps)||0})));
+      setExpeditionDays((expeditionRes.data||[]).map(x=>({...x,distance:Number(x.distance)||0,pointCount:Number(x.point_count)||0})));
       const boss=!!bossRes.data;
       setIsBoss(boss);
       setHookahStartedOn(bossRes.data?.hookah_started_on||localDateKey());
@@ -1092,7 +1097,7 @@ export default function App(){
   if(loadError)return <main className="onboarding dark-screen"><Brand/><h1>Связь с базой</h1><p className="soft-text">{loadError}</p><div className="glass-card onboarding-form"><button className="gradient-button" onClick={loadData}>Повторить</button></div></main>;
 
   return <div className={`app-shell-dark season-${seasonKey()} screen-${screen}`}>
-    {screen==='home'&&<Home schedule={schedule} sessions={numberedSessions} profile={profile} dailySteps={dailySteps} saveNotice={saveNotice} isBoss={isBoss} adminNotifications={adminNotifications} onTrainer={requestTrainer} onMarkNotificationsRead={markNotificationsRead} hookahEvents={hookahEvents} hookahProgramStartedOn={hookahProgramStartedOn} canUndoHookah={!!undoHookahId} onHookah={addHookah} onBonusHookah={addBonusHookah} onUndoHookah={undoHookah} stepsStatus={stepsStatus} stepsSyncing={stepsSyncing} onEnableSteps={()=>syncSteps(true,authSession)} onOpenSteps={()=>navigate('steps-history')} onOpenFeed={()=>navigate('feed')} selectedDateKey={selectedDateKey} setSelectedDateKey={setSelectedDateKey} onSavePlan={savePlan} onDeletePlan={deletePlan} onProposal={sendProposal} onOpenWorkout={openAdd}/>} 
+    {screen==='home'&&<Home schedule={schedule} sessions={numberedSessions} profile={profile} dailySteps={dailySteps} expeditionDays={expeditionDays} saveNotice={saveNotice} isBoss={isBoss} adminNotifications={adminNotifications} onTrainer={requestTrainer} onMarkNotificationsRead={markNotificationsRead} hookahEvents={hookahEvents} hookahProgramStartedOn={hookahProgramStartedOn} canUndoHookah={!!undoHookahId} onHookah={addHookah} onBonusHookah={addBonusHookah} onUndoHookah={undoHookah} stepsStatus={stepsStatus} stepsSyncing={stepsSyncing} onEnableSteps={()=>syncSteps(true,authSession)} onOpenSteps={()=>navigate('steps-history')} onOpenFeed={()=>navigate('feed')} selectedDateKey={selectedDateKey} setSelectedDateKey={setSelectedDateKey} onSavePlan={savePlan} onDeletePlan={deletePlan} onProposal={sendProposal} onOpenWorkout={openAdd}/>} 
     {screen==='history'&&<History sessions={numberedSessions} onDelete={deleteSession} onUpdate={updateSession}/>}
     {screen.startsWith('history-')&&screen!=='steps-history'&&<History sessions={numberedSessions} onDelete={deleteSession} onUpdate={updateSession} filterType={screen.slice(8)}/>} 
     {screen==='steps-history'&&<StepsHistoryV17 dailySteps={dailySteps} onBack={()=>goBack('home')}/>}
@@ -1127,10 +1132,10 @@ function BottomNav({screen,onNavigate}){
   </nav>;
 }
 
-function Home({schedule,sessions,profile,dailySteps,saveNotice,isBoss,adminNotifications,onTrainer,onMarkNotificationsRead,hookahEvents,hookahProgramStartedOn,canUndoHookah,onHookah,onBonusHookah,onUndoHookah,stepsStatus,stepsSyncing,onEnableSteps,onOpenSteps,onOpenFeed,selectedDateKey,setSelectedDateKey,onSavePlan,onDeletePlan,onProposal,onOpenWorkout}){
+function Home({schedule,sessions,profile,dailySteps,expeditionDays,saveNotice,isBoss,adminNotifications,onTrainer,onMarkNotificationsRead,hookahEvents,hookahProgramStartedOn,canUndoHookah,onHookah,onBonusHookah,onUndoHookah,stepsStatus,stepsSyncing,onEnableSteps,onOpenSteps,onOpenFeed,selectedDateKey,setSelectedDateKey,onSavePlan,onDeletePlan,onProposal,onOpenWorkout}){
   const [pointsOpen,setPointsOpen]=useState(false);
   const [notificationsOpen,setNotificationsOpen]=useState(false);
-  const events=pointEvents(sessions,dailySteps,hookahEvents).slice(-10).reverse();
+  const events=pointEvents(sessions,dailySteps,hookahEvents,expeditionDays).slice(-10).reverse();
   const unreadNotifications=(adminNotifications||[]).filter(n=>!n.read_at).length;
   const todayKey=localDateKey();
   const todayPlan=hookahDayPlan(todayKey,hookahProgramStartedOn);
@@ -1142,7 +1147,7 @@ function Home({schedule,sessions,profile,dailySteps,saveNotice,isBoss,adminNotif
   const bonusState=hookahBonusState(hookahEvents,todayKey);
   const season=seasonMeta();
   const seasonProgress=Math.max(0,Math.min(100,(season.day/season.total)*100));
-  const streakInfo=streakState(sessions,dailySteps);
+  const streakInfo=streakState(sessions,dailySteps,expeditionDays);
   const streak=streakInfo.day;
   const stepHistory=[...(dailySteps||[])].filter(x=>x.date<=todayKey).sort((a,b)=>b.date.localeCompare(a.date));
   const stepAverageSource=stepHistory.length>=30?stepHistory.slice(0,30):stepHistory;
@@ -1179,7 +1184,7 @@ function Home({schedule,sessions,profile,dailySteps,saveNotice,isBoss,adminNotif
           </div>
           <span className="season-progress-track"><i style={{width:`${seasonProgress}%`}}/></span>
         </button>
-        <small>{scoreHint(sessions,dailySteps)}</small>
+        <small>{scoreHint(sessions,dailySteps,expeditionDays)}</small>
       </div>
     </header>
 
