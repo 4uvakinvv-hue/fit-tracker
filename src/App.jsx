@@ -9,19 +9,20 @@ import { Filesystem, Directory } from '@capacitor/filesystem';
 import { LocalNotifications } from '@capacitor/local-notifications';
 import { Share } from '@capacitor/share';
 
-const APP_VERSION = '1.9.0';
+const APP_VERSION = '1.10.0';
 const ANDROID_APK_URL = 'https://github.com/4uvakinvv-hue/fit-tracker/releases/download/android-current/forma-android.apk';
 const IOS_INSTALL_URL = 'https://4uvakinvv-hue.github.io/fit-tracker/';
 
 const OUTDOOR_MODES = [
   { id: 'bike', label: 'Вело', icon: '🚴', accent: 'amber', bonusAvgLimit: 50 },
   { id: 'run', label: 'Бег', icon: '🏃', accent: 'run', bonusAvgLimit: 30 },
-  { id: 'hike', label: 'Хайкинг', icon: '△', accent: 'hike', bonusAvgLimit: 30 },
+  { id: 'hike', label: 'ПВД / Поход', icon: '△', accent: 'hike' },
+  { id: 'moto', label: 'Мото', icon: '🏍️', accent: 'moto' },
 ];
 
 const ACTIVITIES = [
   { id: 'gym', label: 'Тренажёрка', icon: '🏋︎', accent: 'violet' },
-  { id: 'outdoor', label: 'Вело / Бег / Хайкинг', icon: '⌁', accent: 'amber' },
+  { id: 'outdoor', label: 'Вело / Бег / ПВД / Мото', icon: '⌁', accent: 'amber' },
   { id: 'workout', label: 'Воркаут', icon: '┬', accent: 'coral' },
   { id: 'combat', label: 'Единоборства', icon: '🥊', accent: 'combat' },
   { id: 'crossfit', label: 'CrossFit', icon: '⚡', accent: 'crossfit' },
@@ -108,12 +109,13 @@ function mapSession(row){
     startedAt:row.started_at||null,endedAt:row.ended_at||null,
     editedAt:row.edited_at||null,distanceCorrected:row.distance_corrected===true,
     stopDuration:Number(row.stop_duration)||0,stopCount:Number(row.stop_count)||0,
+    transportDistance:Number(row.transport_distance)||0,
     confirmed:row.confirmed!==false,
   };
 }
 function isFuture(key){return key>localDateKey();}
 function isQualifyingSession(s){return s.confirmed!==false&&s.date<=localDateKey()&&(s.type!=='walk'||Number(s.steps||0)>=10000);}
-function isRatingSession(s){return s.confirmed!==false&&s.ratingEligible===true&&s.date<=localDateKey()&&['gym','bike','run','workout','hike','combat','crossfit'].includes(s.type);}
+function isRatingSession(s){return s.confirmed!==false&&s.ratingEligible===true&&s.date<=localDateKey()&&['gym','bike','run','workout','hike','combat','crossfit','moto'].includes(s.type);}
 function isStatsSession(s){return s.confirmed!==false&&s.date<=localDateKey();}
 function isHistorySession(s){return s.confirmed!==false&&s.date<=localDateKey();}
 function ratingActiveDates(sessions,dailySteps=[]){
@@ -122,15 +124,35 @@ function ratingActiveDates(sessions,dailySteps=[]){
   dailySteps.filter(x=>Number(x.steps||0)>=15000&&x.date<=localDateKey()).forEach(x=>set.add(x.date));
   return [...set].sort();
 }
-function currentStreakLength(sessions,dailySteps=[]){
-  const dates=ratingActiveDates(sessions,dailySteps);
-  if(!dates.length)return 0;
-  const latest=dates[dates.length-1];
-  if(daysBetween(latest,localDateKey())>1)return 0;
-  let consecutive=1;
-  for(let i=dates.length-1;i>0;i--){if(daysBetween(dates[i-1],dates[i])!==1)break;consecutive++;}
-  return ((consecutive-1)%6)+1;
+function streakState(sessions,dailySteps=[],asOfKey=localDateKey()){
+  const season=seasonMeta(dateFromKey(asOfKey));
+  const dates=ratingActiveDates(sessions,dailySteps).filter(d=>d>=season.start&&d<=asOfKey);
+  let streak=0,closedSeries=0,prevCounted=null,recoveryDate=null,lastClosureDate=null;
+  for(const date of dates){
+    if(recoveryDate&&date===recoveryDate){
+      recoveryDate=null;prevCounted=null;streak=0;
+      continue;
+    }
+    if(recoveryDate&&date>recoveryDate){
+      recoveryDate=null;prevCounted=null;streak=0;
+    }
+    if(prevCounted&&daysBetween(prevCounted,date)===1)streak+=1;
+    else streak=1;
+    prevCounted=date;
+    if(streak===6){
+      closedSeries+=1;lastClosureDate=date;
+      recoveryDate=localDateKey(addDays(dateFromKey(date),1));
+      prevCounted=null;streak=0;
+    }
+  }
+  const isRecovery=!!lastClosureDate&&localDateKey(addDays(dateFromKey(lastClosureDate),1))===asOfKey;
+  const latest=dates[dates.length-1]||null;
+  let day=lastClosureDate===asOfKey?6:streak;
+  if(isRecovery)day=0;
+  else if(latest&&daysBetween(latest,asOfKey)>1)day=0;
+  return {day,closedSeries,isRecovery,lastClosureDate,activeToday:dates.includes(asOfKey)};
 }
+function currentStreakLength(sessions,dailySteps=[]){return streakState(sessions,dailySteps).day;}
 function gpsBonusForSession(s){
   if(!s?.gpsVerified||s.avgSpeed==null)return 0;
   const distance=Number(s.distance||s.hikeDistance||0);
@@ -148,25 +170,53 @@ function haversineKm(a,b){
   const s=Math.sin(dLat/2)**2+Math.cos(rad(a.lat))*Math.cos(rad(b.lat))*Math.sin(dLng/2)**2;
   return 2*R*Math.asin(Math.min(1,Math.sqrt(s)));
 }
+function classifyHikeRoute(points=[]){
+  const out=points.map(p=>({...p,segment:'walk'}));
+  let candidate=[],candidateSeconds=0,inTransport=false;
+  const markCandidate=()=>{candidate.forEach(i=>{if(out[i])out[i].segment='transport';});};
+  for(let i=1;i<out.length;i++){
+    const a=out[i-1],b=out[i],dt=Math.max(0,(Number(b.t)-Number(a.t))/1000);
+    if(dt<=0||dt>180){candidate=[];candidateSeconds=0;inTransport=false;continue;}
+    const km=haversineKm(a,b),derived=km/(dt/3600);
+    const device=Number.isFinite(Number(b.speedKmh))?Math.max(0,Number(b.speedKmh)):null;
+    const speed=device==null?derived:device;
+    if(speed>10){
+      candidate.push(i);candidateSeconds+=dt;
+      if(inTransport||candidateSeconds>=45){inTransport=true;markCandidate();}
+    }else{
+      candidate=[];candidateSeconds=0;inTransport=false;
+    }
+  }
+  return out;
+}
 function summarizeRoute(points=[],type='bike'){
-  if(points.length<2)return {points:[...points],distance:0,totalSeconds:0,movingSeconds:0,stopSeconds:0,stopCount:0,avgSpeed:0,maxSpeed:0};
-  let distance=0,movingSeconds=0,stopSeconds=0,stopCount=0,maxSpeed=0,candidateStop=0,candidateDistance=0;
-  const stopLogic=type==='bike'||type==='run',threshold=type==='bike'?1.8:1.0;
-  const flushCandidate=()=>{if(candidateStop>=10){stopSeconds+=candidateStop;stopCount+=1;}else{movingSeconds+=candidateStop;distance+=candidateDistance;}candidateStop=0;candidateDistance=0;};
-  for(let i=1;i<points.length;i++){
-    const a=points[i-1],b=points[i],dt=Math.max(0,(Number(b.t)-Number(a.t))/1000);if(dt<=0)continue;
+  if(points.length<2)return {points:[...points],distance:0,totalSeconds:0,movingSeconds:0,stopSeconds:0,stopCount:0,transportDistance:0,avgSpeed:0,maxSpeed:0};
+  const prepared=type==='hike'?classifyHikeRoute(points):points.map(p=>({...p}));
+  let distance=0,movingSeconds=0,stopSeconds=0,stopCount=0,transportDistance=0,maxSpeed=0,candidateStop=0,candidateDistance=0;
+  const stopLogic=type==='bike'||type==='run'||type==='moto';
+  const threshold=type==='bike'?1.8:type==='run'?1.0:3.0;
+  const minStopSeconds=type==='moto'?120:10;
+  const flushCandidate=()=>{if(candidateStop>=minStopSeconds){stopSeconds+=candidateStop;stopCount+=1;}else{movingSeconds+=candidateStop;distance+=candidateDistance;}candidateStop=0;candidateDistance=0;};
+  for(let i=1;i<prepared.length;i++){
+    const a=prepared[i-1],b=prepared[i],dt=Math.max(0,(Number(b.t)-Number(a.t))/1000);if(dt<=0)continue;
     const km=haversineKm(a,b),derived=km/(dt/3600),device=Number.isFinite(Number(b.speedKmh))?Math.max(0,Number(b.speedKmh)):null,observed=device==null?derived:device;
     maxSpeed=Math.max(maxSpeed,observed);
+    if(type==='hike'){
+      if(b.segment==='transport'){transportDistance+=km;continue;}
+      distance+=km;movingSeconds+=dt;continue;
+    }
     if(!stopLogic){distance+=km;movingSeconds+=dt;continue;}
     const accuracyOk=(a.accuracy==null||Number(a.accuracy)<=60)&&(b.accuracy==null||Number(b.accuracy)<=60);
-    if(dt>15){flushCandidate();distance+=km;movingSeconds+=dt;continue;}
-    const stationary=accuracyOk&&observed<threshold&&km<0.006;
+    if(dt>(type==='moto'?240:15)){flushCandidate();distance+=km;movingSeconds+=dt;continue;}
+    const jitterLimit=type==='moto'?0.015:0.006;
+    const stationary=accuracyOk&&observed<threshold&&km<jitterLimit;
     if(stationary){candidateStop+=dt;candidateDistance+=km;}else{flushCandidate();distance+=km;movingSeconds+=dt;}
   }
   flushCandidate();
-  const totalSeconds=Math.max(0,(Number(points[points.length-1].t)-Number(points[0].t))/1000);
-  if(!stopLogic){stopSeconds=0;stopCount=0;movingSeconds=totalSeconds;}movingSeconds=Math.max(0,Math.min(totalSeconds,movingSeconds));
-  const avgSpeed=movingSeconds>0?distance/(movingSeconds/3600):0;return {points:[...points],distance,totalSeconds,movingSeconds,stopSeconds,stopCount,avgSpeed,maxSpeed};
+  const totalSeconds=Math.max(0,(Number(prepared[prepared.length-1].t)-Number(prepared[0].t))/1000);
+  movingSeconds=Math.max(0,Math.min(totalSeconds,movingSeconds));
+  const avgSpeed=movingSeconds>0?distance/(movingSeconds/3600):0;
+  return {points:prepared,distance,totalSeconds,movingSeconds,stopSeconds,stopCount,transportDistance,avgSpeed,maxSpeed};
 }
 function compactRoutePoints(points=[],max=1200){
   if(points.length<=max)return points;
