@@ -351,6 +351,31 @@ function seasonMeta(date=new Date()){
   return {name,start:localDateKey(start),end:localDateKey(end),day,total,previousName};
 }
 
+const HOOKAH_PHASE_50=[2,2,1,2,2,2,1,2,2,2,2,2,2,1];
+const HOOKAH_PHASE_40=[2,1,2,1,2,1,1,2,1,2,1,2,1,1];
+function hookahDayPlan(dateKey,programStartOn){
+  if(!programStartOn||dateKey<programStartOn)return {phase:60,slots:2,slotValue:500,label:'Базовый режим'};
+  const d=daysBetween(programStartOn,dateKey);
+  if(d<14)return {phase:50,slots:HOOKAH_PHASE_50[Math.max(0,d)%14],slotValue:500,label:'50 / месяц'};
+  if(d<28)return {phase:40,slots:HOOKAH_PHASE_40[(d-14)%14],slotValue:500,label:'40 / месяц'};
+  const cycle=(d-28)%30;
+  return {phase:30,slots:1,slotValue:cycle%3===2?666:667,label:'30 / месяц'};
+}
+function ordinaryHookahEvents(events=[]){return events.filter(h=>!h.isBonus);}
+function hookahCountForDate(events,key){return ordinaryHookahEvents(events).filter(h=>h.event_date===key).length;}
+function hookahEarningForDay(events,key,programStartOn){
+  const plan=hookahDayPlan(key,programStartOn),used=Math.min(hookahCountForDate(events,key),plan.slots);
+  return Math.max(0,plan.slots-used)*plan.slotValue;
+}
+function hookahBonusState(events=[],todayKey=localDateKey()){
+  const date=dateFromKey(todayKey);
+  if(date.getDay()!==0)return {eligible:false,used:false,weekCount:0};
+  const monday=localDateKey(addDays(date,-6)),saturday=localDateKey(addDays(date,-1));
+  const weekCount=ordinaryHookahEvents(events).filter(h=>h.event_date>=monday&&h.event_date<=saturday).length;
+  const used=events.some(h=>h.event_date===todayKey&&h.isBonus);
+  return {eligible:weekCount<=2&&!used,used,weekCount};
+}
+
 function pointEvents(sessions,dailySteps=[],hookahEvents=[]){
   const season=seasonMeta(),byDate=new Map();
   function day(date){if(!byDate.has(date))byDate.set(date,{date,gpsBonus:0,createdAt:''});return byDate.get(date);}
@@ -521,6 +546,7 @@ export default function App(){
   const [hookahEvents,setHookahEvents]=useState([]);
   const [adminNotifications,setAdminNotifications]=useState([]);
   const [hookahStartedOn,setHookahStartedOn]=useState(localDateKey());
+  const [hookahProgramStartedOn,setHookahProgramStartedOn]=useState('2026-10-12');
   const [undoHookahId,setUndoHookahId]=useState(null);
   const [saveNotice,setSaveNotice]=useState('');
   const [stepsStatus,setStepsStatus]=useState('loading');
@@ -801,8 +827,8 @@ export default function App(){
         supabase.from('plans').select('*').eq('user_id',userId),
         supabase.from('gym_templates').select('*').eq('user_id',userId),
         supabase.from('daily_steps').select('date,steps').eq('user_id',userId).gte('date',localDateKey(addYears(new Date(),-1))).order('date',{ascending:true}),
-        supabase.from('boss_users').select('user_id,hookah_started_on').eq('user_id',userId).maybeSingle(),
-        supabase.from('hookah_events').select('id,event_date,smoked_at').eq('user_id',userId).order('smoked_at',{ascending:true}),
+        supabase.from('boss_users').select('user_id,hookah_started_on,hookah_program_started_on').eq('user_id',userId).maybeSingle(),
+        supabase.from('hookah_events').select('id,event_date,smoked_at,is_bonus').eq('user_id',userId).order('smoked_at',{ascending:true}),
         supabase.from('admin_notifications').select('id,type,title,member_name,member_email,created_at,read_at').eq('recipient_user_id',userId).order('created_at',{ascending:false}).limit(200),
       ]);
 
@@ -816,7 +842,7 @@ export default function App(){
 
       const leaderboard=leaderRes.data||[];
       const me=leaderboard.find(x=>x.id===userId);
-      if(profileRes.data)setProfile({...profileRes.data,points:me?.points||0,rank:me?.rank||null});
+      if(profileRes.data)setProfile({...profileRes.data,points:me?.points||0,rank:me?.rank||null,seriesCount:Number(me?.series_count)||0});
       setMembers(leaderboard);
       setPreviousTop5(previousRes.data||[]);
       const loadedSessions=(sessionsRes.data||[]).map(mapSession);
@@ -837,7 +863,8 @@ export default function App(){
       const boss=!!bossRes.data;
       setIsBoss(boss);
       setHookahStartedOn(bossRes.data?.hookah_started_on||localDateKey());
-      setHookahEvents(boss?(hookahRes.data||[]):[]);
+      setHookahProgramStartedOn(bossRes.data?.hookah_program_started_on||'2026-10-12');
+      setHookahEvents(boss?(hookahRes.data||[]).map(h=>({...h,isBonus:h.is_bonus===true})):[]);
       setAdminNotifications(boss?(notificationsRes.data||[]):[]);
       progress.onProgress?.(78,'Подготавливаем главный экран');
       return true;
