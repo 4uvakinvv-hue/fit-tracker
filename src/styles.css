@@ -3438,3 +3438,18 @@
   overflow:visible;
   padding-bottom:calc(100px + env(safe-area-inset-bottom));
 }
+
+
+/* Trainer portal: confined scrolling keeps controls reachable on mobile. */
+.trainer-backdrop{z-index:150;align-items:center;padding:12px}
+.trainer-modal{width:min(100%,560px);max-height:calc(100dvh - 24px);overflow-y:auto;overscroll-behavior:contain;padding:18px;text-align:left}
+.trainer-modal>header{display:flex;justify-content:space-between;align-items:center;gap:12px}
+.trainer-modal>header h2{margin:4px 0 14px}
+.trainer-modal>header button{background:none;border:0;color:var(--text);font-size:30px;padding:8px}
+.trainer-modal>.gradient-button{width:100%}
+.trainer-admin article{padding:12px 0;border-top:1px solid rgba(255,255,255,.12)}
+.trainer-admin article small{display:block;margin:7px 0;opacity:.75}
+.trainer-admin article>div{display:flex;flex-wrap:wrap;gap:8px}
+.trainer-admin button{padding:10px;font-size:12px}
+.trainer-notices{padding:8px 12px;border-radius:12px;background:rgba(132,231,180,.08);font-size:13px;margin:12px 0}
+.home-trainer-button{width:100%;margin:0 0 12px;min-height:44px}

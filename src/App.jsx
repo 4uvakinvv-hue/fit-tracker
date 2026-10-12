@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { supabase } from './supabase.js';
-import FatSecretPanel from './FatSecretPanel.jsx';
+import TrainerModal from './TrainerModal.jsx';
 import { App as NativeApp } from '@capacitor/app';
 import { Capacitor } from '@capacitor/core';
 import { BackgroundGeolocation } from '@capgo/background-geolocation';
@@ -418,6 +418,7 @@ export default function App(){
   const [gymTemplates,setGymTemplates]=useState({});
   const [dailySteps,setDailySteps]=useState([]);
   const [isBoss,setIsBoss]=useState(false);
+  const [trainerOpen,setTrainerOpen]=useState(false);
   const [hookahEvents,setHookahEvents]=useState([]);
   const [adminNotifications,setAdminNotifications]=useState([]);
   const [hookahStartedOn,setHookahStartedOn]=useState(localDateKey());
@@ -921,21 +922,14 @@ export default function App(){
     setAdminNotifications(cur=>cur.map(n=>unread.includes(n.id)?{...n,read_at:readAt}:n));
   }
 
-  async function requestTrainer(){
-    const {error}=await supabase.from('trainer_requests').insert({
-      user_id:authSession.user.id,
-      contact_email:authSession.user.email||null,
-      member_name:profile?.name||null,
-    });
-    if(error)throw error;
-  }
+  function requestTrainer(){setTrainerOpen(true);}
 
   if(booting||(authSession&&loading))return <SplashScreen progress={bootProgress} stage={bootStage}/>;
   if(!authSession)return <AuthScreen/>;
   if(loadError)return <main className="onboarding dark-screen"><Brand/><h1>Связь с базой</h1><p className="soft-text">{loadError}</p><div className="glass-card onboarding-form"><button className="gradient-button" onClick={loadData}>Повторить</button></div></main>;
 
   return <div className={`app-shell-dark season-${seasonKey()} screen-${screen}`}>
-    {screen==='home'&&<Home schedule={schedule} sessions={numberedSessions} profile={profile} dailySteps={dailySteps} saveNotice={saveNotice} isBoss={isBoss} adminNotifications={adminNotifications} onMarkNotificationsRead={markNotificationsRead} hookahEvents={hookahEvents} canUndoHookah={!!undoHookahId} onHookah={addHookah} onUndoHookah={undoHookah} stepsStatus={stepsStatus} stepsSyncing={stepsSyncing} onEnableSteps={()=>syncSteps(true,authSession)} onOpenSteps={()=>navigate('steps-history')} onOpenFeed={()=>navigate('feed')} selectedDateKey={selectedDateKey} setSelectedDateKey={setSelectedDateKey} onSavePlan={savePlan} onDeletePlan={deletePlan} onProposal={sendProposal} onOpenWorkout={openAdd}/>} 
+    {screen==='home'&&<Home schedule={schedule} sessions={numberedSessions} profile={profile} dailySteps={dailySteps} saveNotice={saveNotice} isBoss={isBoss} adminNotifications={adminNotifications} onTrainer={requestTrainer} onMarkNotificationsRead={markNotificationsRead} hookahEvents={hookahEvents} canUndoHookah={!!undoHookahId} onHookah={addHookah} onUndoHookah={undoHookah} stepsStatus={stepsStatus} stepsSyncing={stepsSyncing} onEnableSteps={()=>syncSteps(true,authSession)} onOpenSteps={()=>navigate('steps-history')} onOpenFeed={()=>navigate('feed')} selectedDateKey={selectedDateKey} setSelectedDateKey={setSelectedDateKey} onSavePlan={savePlan} onDeletePlan={deletePlan} onProposal={sendProposal} onOpenWorkout={openAdd}/>} 
     {screen==='history'&&<History sessions={numberedSessions} onDelete={deleteSession} onUpdate={updateSession}/>}
     {screen.startsWith('history-')&&screen!=='steps-history'&&<History sessions={numberedSessions} onDelete={deleteSession} onUpdate={updateSession} filterType={screen.slice(8)}/>} 
     {screen==='steps-history'&&<StepsHistoryV17 dailySteps={dailySteps} onBack={()=>goBack('home')}/>}
@@ -954,6 +948,7 @@ export default function App(){
     {screen==='hike'&&<HikeTraining dateKey={draftDateKey} setDateKey={setDraftDateKey} sessions={numberedSessions} onBack={()=>goBack('add-training')} onHistory={()=>navigate('hike-history')} onSave={saveSession}/>}
     {screen==='hike-history'&&<HikeHistory sessions={numberedSessions.filter(s=>s.type==='hike'&&isHistorySession(s))} onBack={()=>goBack('hike')}/>}
     {screen==='about'&&<AboutScreen isBoss={isBoss}/>}
+    {trainerOpen&&<TrainerModal onClose={()=>setTrainerOpen(false)}/>}
     {screen==='why'&&<WhyScreen onBack={()=>goBack('home')}/>} 
     <FeedNotificationBridge userId={profile?.id} onOpenFeed={()=>navigate('feed')}/>
     <BottomNav screen={screen} onNavigate={navigate}/>
@@ -968,7 +963,7 @@ function BottomNav({screen,onNavigate}){
   </nav>;
 }
 
-function Home({schedule,sessions,profile,dailySteps,saveNotice,isBoss,adminNotifications,onMarkNotificationsRead,hookahEvents,canUndoHookah,onHookah,onUndoHookah,stepsStatus,stepsSyncing,onEnableSteps,onOpenSteps,onOpenFeed,selectedDateKey,setSelectedDateKey,onSavePlan,onDeletePlan,onProposal,onOpenWorkout}){
+function Home({schedule,sessions,profile,dailySteps,saveNotice,isBoss,adminNotifications,onTrainer,onMarkNotificationsRead,hookahEvents,canUndoHookah,onHookah,onUndoHookah,stepsStatus,stepsSyncing,onEnableSteps,onOpenSteps,onOpenFeed,selectedDateKey,setSelectedDateKey,onSavePlan,onDeletePlan,onProposal,onOpenWorkout}){
   const [pointsOpen,setPointsOpen]=useState(false);
   const [notificationsOpen,setNotificationsOpen]=useState(false);
   const events=pointEvents(sessions,dailySteps,hookahEvents).slice(-10).reverse();
@@ -1020,6 +1015,7 @@ function Home({schedule,sessions,profile,dailySteps,saveNotice,isBoss,adminNotif
       </div>
     </header>
 
+    <button className="trainer-button home-trainer-button" onClick={onTrainer}>Заказать тренера</button>
     <div className="home-quick-row">
       {isBoss&&<section className="hookah-quick-card">
         <div className="hookah-money"><small>Сегодня доступно</small><strong>{todayMoney.toLocaleString('ru-RU')} ₽</strong></div>
@@ -1063,6 +1059,7 @@ function Home({schedule,sessions,profile,dailySteps,saveNotice,isBoss,adminNotif
           <button onClick={()=>setNotificationsOpen(false)}>×</button>
         </header>
         {!adminNotifications.length&&<div className="empty-state compact-empty">Новых событий пока нет.</div>}
+        <button className="secondary-dark" onClick={()=>{setNotificationsOpen(false);onTrainer();}}>Заявки и доступ к тренеру</button>
         <div className="admin-notification-list">
           {adminNotifications.map(n=><article key={n.id} className={!n.read_at?'unread':''}>
             <span className="admin-notification-icon">{n.type==='trainer_request'?'♟':'👤'}</span>
@@ -1161,7 +1158,6 @@ function AboutScreen({isBoss=false}){
   return <main className="tab-screen about-screen about-tab-screen">
     <p className="eyebrow-dark">Форма</p>
     <h1>О приложении</h1>
-    {isBoss&&<FatSecretPanel/>}
 
     <section className="why-intro glass-card about-concept-hero">
       <h2>Не про идеальные тренировки.<br/>Про то, чтобы чаще двигаться.</h2>
@@ -1343,7 +1339,6 @@ function GymTraining({dateKey,setDateKey,sessions,gymTemplates,onSaveTemplate,on
   const [baseRows,setBaseRows]=useState(makeRows(3));
   const [extraRows,setExtraRows]=useState(makeRows(5));
   const [error,setError]=useState('');
-  const [trainerState,setTrainerState]=useState('');
   const previousGym=sessions.filter(s=>s.type==='gym'&&isHistorySession(s));
   const averageGymTonnage=previousGym.length?previousGym.reduce((sum,s)=>sum+workoutTonnage(s.baseRows||[],s.extraRows||[]),0)/previousGym.length:0;
 
@@ -1376,11 +1371,6 @@ function GymTraining({dateKey,setDateKey,sessions,gymTemplates,onSaveTemplate,on
     await onSave({type:'gym',date:dateKey,gymGroup:group,baseRows,extraRows,title:GYM_GROUPS.find(g=>g.id===group)?.label||'Тренажёрка'});
   }
 
-  async function trainer(){
-    setTrainerState('loading');
-    try{await onTrainerRequest();setTrainerState('sent');}
-    catch{setTrainerState('error');}
-  }
 
   return <main className="sub-screen gym-screen">
     <ScreenBack onBack={onBack} title="Тренировка"/>
@@ -1402,9 +1392,8 @@ function GymTraining({dateKey,setDateKey,sessions,gymTemplates,onSaveTemplate,on
 
     <div className="gym-bottom-actions">
       <button className="previous-button" onClick={onHistory}><span>◴</span>Предыдущие тренировки<b>›</b></button>
-      <button className="trainer-button" onClick={trainer} disabled={trainerState==='loading'||trainerState==='sent'}><span>♟</span>{trainerState==='sent'?'Заявка отправлена':'Заказать тренера'}</button>
+      <button className="trainer-button" onClick={onTrainerRequest}><span>♟</span>Заказать тренера</button>
     </div>
-    {trainerState==='error'&&<p className="error-line">Не удалось отправить заявку. Попробуй ещё раз.</p>}
   </main>;
 }
 
@@ -2332,3 +2321,4 @@ function FeedNotificationBridge({userId,onOpenFeed}){
   },[userId]);
   return null;
 }
+

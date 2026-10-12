@@ -15,26 +15,42 @@ export function createHandler(env,fetcher=fetch) {
     if(req.method==='OPTIONS')return new Response(null,{status:204,headers});
     if(req.method==='GET')return reply({service:'Forma FatSecret',configured:configured()});
     if(req.method!=='POST')return reply({error:'Метод не поддерживается.'},405);
+    let syncUser=null;
     try {
-      const auth=req.headers.get('Authorization')||'';
-      if(!/^Bearer \S+$/.test(auth))return reply({error:'Войди в Forma.'},401);
       const base=envValue('SUPABASE_URL');
-      const authResult=await fetcher(`${base}/auth/v1/user`,{headers:{Authorization:auth,apikey:envValue('SUPABASE_ANON_KEY')},signal:AbortSignal.timeout(15000)});
-      if(!authResult.ok)return reply({error:'Сессия истекла. Войди в Forma повторно.'},401);
-      const user=await authResult.json();
-      if(user.id!==ALLOWED_USER)return reply({error:'Подключение пока доступно только владельцу Forma.'},403);
       const text=await req.text();
       if(text.length>4096)return reply({error:'Слишком большой запрос.'},413);
       let body;try{body=JSON.parse(text);}catch{return reply({error:'Некорректный запрос.'},400);}
       if(!['status','begin','complete','sync','disconnect'].includes(body.action))return reply({error:'Неизвестное действие.'},400);
+      const schedule=req.headers.get('X-Forma-Schedule');
+      let user;
+      if(schedule){
+        if(origin||body.action!=='sync'||!/^[0-9a-f-]{36}$/i.test(body.user_id||''))return reply({error:'Недопустимый запрос планировщика.'},403);
+        const claim=await fetcher(`${base}/rest/v1/rpc/claim_fatsecret_sync`,{method:'POST',headers:{apikey:envValue('SUPABASE_SERVICE_ROLE_KEY'),Authorization:`Bearer ${envValue('SUPABASE_SERVICE_ROLE_KEY')}`,'Content-Type':'application/json'},body:JSON.stringify({p_secret:schedule,p_user:body.user_id}),signal:AbortSignal.timeout(15000)});
+        if(!claim.ok||await claim.json()!==true)return reply({skipped:true},403);
+        user={id:body.user_id};
+      }else{
+        const auth=req.headers.get('Authorization')||'';
+        if(!/^Bearer \S+$/.test(auth))return reply({error:'Войди в Forma.'},401);
+        const authResult=await fetcher(`${base}/auth/v1/user`,{headers:{Authorization:auth,apikey:envValue('SUPABASE_ANON_KEY')},signal:AbortSignal.timeout(15000)});
+        if(!authResult.ok)return reply({error:'Сессия истекла. Войди в Forma повторно.'},401);
+        user=await authResult.json();
+      }
       const db=async(path,method='GET',data)=>{
         const r=await fetcher(`${base}/rest/v1/${path}`,{method,headers:{apikey:envValue('SUPABASE_SERVICE_ROLE_KEY'),Authorization:`Bearer ${envValue('SUPABASE_SERVICE_ROLE_KEY')}`,'Content-Type':'application/json',Prefer:'resolution=merge-duplicates,return=representation'},body:data===undefined?undefined:JSON.stringify(data),signal:AbortSignal.timeout(15000)});
         if(!r.ok)throw new Error('Не удалось сохранить подключение. Попробуй позже.');
         return r.status===204?null:await r.json();
       };
+      if(user.id!==ALLOWED_USER&&body.action!=='disconnect'){
+        const access=await db(`coach_memberships?user_id=eq.${user.id}&select=status,access_until`);
+        if(!access[0]||access[0].status!=='active'||(access[0].access_until&&Date.parse(access[0].access_until)<=Date.now()))return reply({error:'Доступ к тренеру не открыт или закончился.'},403);
+      }
       const path=`fatsecret_connections?user_id=eq.${user.id}`;
       const rows=await db(path+'&select=*');const connection=rows[0];
-      if(body.action==='status')return reply({configured:configured(),connected:!!connection?.access_cipher,pending:!!connection?.pending_cipher&&Date.parse(connection.pending_expires_at)>Date.now()});
+      if(body.action==='status'){
+        const cached=await db(`fatsecret_diary_cache?user_id=eq.${user.id}&expires_at=gt.${encodeURIComponent(new Date().toISOString())}&select=payload,fetched_at`);
+        return reply({configured:configured(),connected:!!connection?.access_cipher,pending:!!connection?.pending_cipher&&Date.parse(connection.pending_expires_at)>Date.now(),lastSyncedAt:connection?.last_synced_at||null,lastError:connection?.last_sync_error||null,snapshot:cached[0]?.payload||null,autoSync:true});
+      }
       if(body.action==='disconnect'){
         await db(path,'DELETE');await db(`fatsecret_diary_cache?user_id=eq.${user.id}`,'DELETE');
         return reply({connected:false});
@@ -67,12 +83,14 @@ export function createHandler(env,fetcher=fetch) {
         const pending=await cipher.open(connection.pending_cipher,user.id);
         const token=await provider('GET',`${PROVIDER}/oauth/access_token`,{oauth_verifier:body.verifier.trim()},pending,true);
         // Compare pending ciphertext to avoid replacing a concurrent/newer connection.
-        const updated=await db(path+`&pending_cipher=eq.${encodeURIComponent(connection.pending_cipher)}`,'PATCH',{access_cipher:await cipher.seal(token,user.id),pending_cipher:null,pending_expires_at:null,connected_at:new Date().toISOString()});
+        const updated=await db(path+`&pending_cipher=eq.${encodeURIComponent(connection.pending_cipher)}`,'PATCH',{access_cipher:await cipher.seal(token,user.id),pending_cipher:null,pending_expires_at:null,connected_at:new Date().toISOString(),last_synced_at:null,last_sync_error:null});
         if(!updated.length)return reply({error:'Подключение изменилось. Начни заново.'},409);
+        await db(`fatsecret_diary_cache?user_id=eq.${user.id}`,'DELETE');
         return reply({connected:true});
       }
       if(!connection?.access_cipher)return reply({error:'Сначала подключи аккаунт FatSecret.'},400);
       if(connection.last_synced_at&&Date.now()-Date.parse(connection.last_synced_at)<60000)return reply({error:'Повторное обновление доступно через минуту.'},429);
+      syncUser=user.id;
       const token=await cipher.open(connection.access_cipher,user.id);
       const today=new Intl.DateTimeFormat('en-CA',{timeZone:'Europe/Moscow',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
       const end=Math.floor(Date.parse(today+'T00:00:00Z')/86400000),start=end-13;
@@ -92,12 +110,13 @@ export function createHandler(env,fetcher=fetch) {
         }
       }
       const snapshot={source:'FatSecret',from:days[0].date,to:days.at(-1).date,days:days.map((d,i)=>({...d,weight:weights.get(start+i)??null,completeness:'not_confirmed'}))};
-      await db('fatsecret_diary_cache?on_conflict=user_id','POST',{user_id:user.id,payload:snapshot,fetched_at:new Date().toISOString(),expires_at:new Date(Date.now()+23*3600000).toISOString()});
-      await db(path,'PATCH',{last_synced_at:new Date().toISOString()});
+      const saved=await db('rpc/save_fatsecret_snapshot','POST',{p_user:user.id,p_cipher:connection.access_cipher,p_payload:snapshot});
+      if(saved!==true)return reply({error:'Подключение или доступ изменились. Обнови окно тренера.'},409);
       return reply({snapshot});
     }catch(error){
       const message=error instanceof Error?error.message:'';
       const safe=message.startsWith('FatSecret')||message.startsWith('Не удалось сохранить')?message:'Не удалось выполнить подключение. Попробуй позже.';
+      if(syncUser){try{await fetcher(`${envValue('SUPABASE_URL')}/rest/v1/fatsecret_connections?user_id=eq.${syncUser}`,{method:'PATCH',headers:{apikey:envValue('SUPABASE_SERVICE_ROLE_KEY'),Authorization:`Bearer ${envValue('SUPABASE_SERVICE_ROLE_KEY')}`,'Content-Type':'application/json'},body:JSON.stringify({last_sync_error:safe}),signal:AbortSignal.timeout(10000)});}catch{}}
       return reply({error:safe},502);
     }
   };

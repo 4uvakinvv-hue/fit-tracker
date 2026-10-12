@@ -21,7 +21,7 @@ test('empty and invalid diaries do not become zero intake',()=>{
   assert.equal(summarizeEntries({food_entries:{food_entry:{calories:'invalid'}}}).calories,null);
   assert.equal(summarizeEntries({food_entries:{food_entry:[{calories:'100'},{calories:'50.5'}]}}).calories,150.5);
 });
-function fixture({authUser=userId,providerFailure=false}={}){
+function fixture({authUser=userId,providerFailure=false,memberActive=false,scheduleValid=false}={}){
   const env={SUPABASE_URL:'https://database.test',SUPABASE_ANON_KEY:'publishable',SUPABASE_SERVICE_ROLE_KEY:'server',FATSECRET_CONSUMER_KEY:'consumer',FATSECRET_CONSUMER_SECRET:'consumer-secret'};
   let connection=null,cache=null,providerCalls=0;
   const json=(data,status=200)=>new Response(JSON.stringify(data),{status});
@@ -29,6 +29,9 @@ function fixture({authUser=userId,providerFailure=false}={}){
     const u=new URL(url);
     if(u.pathname==='/auth/v1/user')return authUser?json({id:authUser}):json({},401);
     if(u.hostname==='database.test'){
+      if(u.pathname.endsWith('save_fatsecret_snapshot')){const v=JSON.parse(options.body);if(!connection||connection.access_cipher!==v.p_cipher)return json(false);cache={user_id:v.p_user,payload:v.p_payload,fetched_at:new Date().toISOString(),expires_at:new Date(Date.now()+23*3600000).toISOString()};connection.last_synced_at=new Date().toISOString();return json(true);}
+      if(u.pathname.endsWith('claim_fatsecret_sync'))return json(scheduleValid&&JSON.parse(options.body).p_secret==='valid-schedule-secret');
+      if(u.pathname.endsWith('coach_memberships'))return json(memberActive?[{status:'active',access_until:new Date(Date.now()+86400000).toISOString()}]:[]);
       const value=options.body?JSON.parse(options.body):null;
       if(u.pathname.endsWith('fatsecret_connections')){
         if(!options.method||options.method==='GET')return json(connection?[connection]:[]);
@@ -36,7 +39,7 @@ function fixture({authUser=userId,providerFailure=false}={}){
         if(options.method==='PATCH'&&u.searchParams.has('pending_cipher')&&u.searchParams.get('pending_cipher')!==`eq.${connection.pending_cipher}`)return json([]);
         connection={...connection,...value};return json([connection]);
       }
-      if(u.pathname.endsWith('fatsecret_diary_cache')){cache=options.method==='DELETE'?null:value;return json(cache?[cache]:[]);}
+      if(u.pathname.endsWith('fatsecret_diary_cache')){if(!options.method||options.method==='GET')return json(cache?[cache]:[]);cache=options.method==='DELETE'?null:value;return json(cache?[cache]:[]);}
     }
     providerCalls++;
     if(providerFailure)return new Response('oauth_problem=signature_invalid',{status:401});
@@ -80,4 +83,20 @@ test('provider failure never leaks raw response or creates a connected account',
 test('health reports presence of secrets without returning values',async()=>{
   const f=fixture();const r=await f.handler(new Request('https://function.test'));
   assert.deepEqual(await r.json(),{service:'Forma FatSecret',configured:true});
+});
+
+test('active members can connect; expired or unapproved members cannot',async()=>{
+ const f=fixture({authUser:'33333333-3333-4333-8333-333333333333',memberActive:true});
+ assert.equal((await f.invoke({action:'begin'})).status,200);
+ const denied=fixture({authUser:'33333333-3333-4333-8333-333333333333'});
+ assert.equal((await denied.invoke({action:'begin'})).status,403);assert.equal(denied.providerCalls,0);
+});
+test('scheduler requires a private claim and never trusts a supplied user id',async()=>{
+ const f=fixture({scheduleValid:true});
+ await f.invoke({action:'begin'});await f.invoke({action:'complete',verifier:'123456'});
+ const req=(secret,origin)=>new Request('https://function.test',{method:'POST',headers:{'X-Forma-Schedule':secret,...(origin?{Origin:origin}:{})},body:JSON.stringify({action:'sync',user_id:userId})});
+ assert.equal((await f.handler(req('wrong'))).status,403);
+ assert.equal((await f.handler(req('valid-schedule-secret','https://4uvakinvv-hue.github.io'))).status,403);
+ assert.equal((await f.handler(req('valid-schedule-secret'))).status,200);
+ const status=await (await f.invoke({action:'status'})).json();assert.equal(status.snapshot.days.length,14);assert.ok(status.lastSyncedAt);
 });

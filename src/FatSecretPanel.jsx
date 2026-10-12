@@ -10,14 +10,14 @@ export default function FatSecretPanel(){
     if(data?.error)throw new Error(data.error);
     return data;
   }
-  useEffect(()=>{let active=true;request('status').then(data=>{if(active)setStatus(data);}).catch(e=>{if(active)setError(e.message);});return()=>{active=false;};},[]);
+  useEffect(()=>{let active=true;request('status').then(data=>{if(active){setStatus(data);setSnapshot(data.snapshot||null);}}).catch(e=>{if(active)setError(e.message);});return()=>{active=false;};},[]);
   async function run(action,extra={}){
     setPending(true);setError('');
     try{
       const data=await request(action,extra);
       if(action==='begin'){setUrl(data.authorizationUrl);setStatus(s=>({...s,pending:true}));}
       if(action==='complete'){setVerifier('');setUrl('');setStatus(s=>({...s,connected:true,pending:false}));}
-      if(action==='sync')setSnapshot(data.snapshot);
+      if(action==='sync'){setSnapshot(data.snapshot);setStatus(s=>({...s,lastSyncedAt:new Date().toISOString(),lastError:null}));}
       if(action==='disconnect'){setSnapshot(null);setUrl('');setVerifier('');setStatus(s=>({...s,connected:false,pending:false}));}
     }catch(e){setError(e.message);}finally{setPending(false);}
   }
@@ -26,8 +26,10 @@ export default function FatSecretPanel(){
     <h2 style={{marginTop:0}}>Питание · FatSecret</h2>
     <p className="soft-text">Подключи свой дневник питания и веса. Forma получает данные для тренера; записи в FatSecret не изменяет.</p>
     {status?.connected?<>
-      <p>Аккаунт подключён.</p>
-      <button className="gradient-button" style={style} disabled={pending} onClick={()=>run('sync')}>{pending?'Загружаем дневник…':'Загрузить последние 14 дней'}</button>
+      <p>Аккаунт подключён. Дневник обновляется автоматически каждые 6 часов.</p>
+      <p className="soft-text">Последнее обновление: {status.lastSyncedAt?new Intl.DateTimeFormat('ru-RU',{dateStyle:'short',timeStyle:'short',timeZone:'Europe/Moscow'}).format(new Date(status.lastSyncedAt))+' МСК':'ожидается'}.</p>
+      {status.lastError&&<p className="error-line">Последняя попытка: {status.lastError}</p>}
+      <button className="gradient-button" style={style} disabled={pending} onClick={()=>run('sync')}>{pending?'Загружаем дневник…':'Обновить сейчас'}</button>
       <button className="secondary-dark" style={style} disabled={pending} onClick={()=>run('disconnect')}>Отключить от Forma</button>
     </>:<>
       <button className="gradient-button" style={style} disabled={pending||!status?.configured} onClick={()=>run('begin')}>{pending?'Подготавливаем подключение…':'Подключить FatSecret'}</button>
