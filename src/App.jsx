@@ -934,12 +934,13 @@ export default function App(){
       gym_group:payload.gymGroup||null,
       base_rows:payload.baseRows||null,
       extra_rows:payload.extraRows||null,
-      rating_eligible:payload.ratingEligible??(payload.date===localDateKey()),
+      rating_eligible:payload.ratingEligible??(payload.type==='moto'?false:(payload.date===localDateKey())),
       tracking_mode:payload.trackingMode||'manual',
       gps_verified:payload.gpsVerified===true,
       moving_duration:payload.movingDuration??null,
       stop_duration:payload.stopDuration??null,
       stop_count:payload.stopCount??0,
+      transport_distance:payload.transportDistance??null,
       avg_speed:payload.avgSpeed??null,
       max_speed:payload.maxSpeed??null,
       route_points:payload.routePoints||null,
@@ -962,6 +963,32 @@ export default function App(){
     resetHome();
   }
 
+  async function saveExpedition(payload){
+    if(!authSession?.user)throw new Error('Нужно войти в Forma.');
+    const days=(payload.days||[]).filter(d=>d.date&&Number(d.pointCount||0)>=2);
+    if(!days.length)throw new Error('Недостаточно контрольных GPS-точек для подтверждения дней похода.');
+    const row={
+      user_id:authSession.user.id,number:null,type:'hike',date:payload.startDate,
+      title:payload.title||'Многодневный поход',distance:payload.distance??0,duration:payload.duration??null,
+      hike_days:days.length,hike_distance:payload.distance??0,rating_eligible:false,
+      tracking_mode:'expedition',gps_verified:true,moving_duration:payload.movingDuration??null,
+      transport_distance:payload.transportDistance??null,route_points:payload.routePoints||null,
+      started_at:payload.startedAt||null,ended_at:payload.endedAt||null,confirmed:true,
+    };
+    const {data:sessionRow,error}=await supabase.from('sessions').insert(row).select('id').single();
+    if(error)throw error;
+    const dayRows=days.map(d=>({
+      session_id:sessionRow.id,user_id:authSession.user.id,event_date:d.date,
+      distance:Math.max(0,Number(d.distance)||0),point_count:Math.max(0,Number(d.pointCount)||0),verified:true,
+    }));
+    const {error:dayError}=await supabase.from('expedition_days').insert(dayRows);
+    if(dayError){await supabase.from('sessions').delete().eq('id',sessionRow.id);throw dayError;}
+    await savePlan(payload.startDate,'hike',row.title,'completed');
+    setSelectedDateKey(payload.startDate);
+    await loadData();
+    resetHome();
+  }
+
   async function updateSession(id,patch={}){
     const target=sessions.find(s=>s.id===id);
     if(!target)throw new Error('Тренировка не найдена.');
@@ -971,7 +998,7 @@ export default function App(){
       title:(patch.title??target.title??activityMeta(target.type)?.label??'').trim()||null,
       edited_at:new Date().toISOString(),
     };
-    if(['bike','run','hike'].includes(target.type)&&patch.distance!==undefined){
+    if(['bike','run','hike','moto'].includes(target.type)&&patch.distance!==undefined){
       const nextDistance=Math.max(0,Number(patch.distance)||0);
       changes.distance=nextDistance;
       changes.distance_corrected=Math.abs(nextDistance-Number(target.distance||target.hikeDistance||0))>0.0001||target.distanceCorrected;
@@ -1019,10 +1046,20 @@ export default function App(){
     const {data,error}=await supabase.from('hookah_events').insert({
       user_id:authSession.user.id,
       event_date:today,
-    }).select('id,event_date,smoked_at').single();
+      is_bonus:false,
+    }).select('id,event_date,smoked_at,is_bonus').single();
     if(error)throw error;
     setUndoHookahId(data.id);
     setTimeout(()=>setUndoHookahId(cur=>cur===data.id?null:cur),15000);
+    await loadData(true);
+  }
+
+  async function addBonusHookah(){
+    if(!isBoss||!authSession?.user)return;
+    ensureAudioContext();
+    const {data,error}=await supabase.rpc('claim_hookah_bonus');
+    if(error)throw error;
+    if(data?.length)playBonusHookahEffect();
     await loadData(true);
   }
 
@@ -1055,17 +1092,17 @@ export default function App(){
   if(loadError)return <main className="onboarding dark-screen"><Brand/><h1>Связь с базой</h1><p className="soft-text">{loadError}</p><div className="glass-card onboarding-form"><button className="gradient-button" onClick={loadData}>Повторить</button></div></main>;
 
   return <div className={`app-shell-dark season-${seasonKey()} screen-${screen}`}>
-    {screen==='home'&&<Home schedule={schedule} sessions={numberedSessions} profile={profile} dailySteps={dailySteps} saveNotice={saveNotice} isBoss={isBoss} adminNotifications={adminNotifications} onTrainer={requestTrainer} onMarkNotificationsRead={markNotificationsRead} hookahEvents={hookahEvents} canUndoHookah={!!undoHookahId} onHookah={addHookah} onUndoHookah={undoHookah} stepsStatus={stepsStatus} stepsSyncing={stepsSyncing} onEnableSteps={()=>syncSteps(true,authSession)} onOpenSteps={()=>navigate('steps-history')} onOpenFeed={()=>navigate('feed')} selectedDateKey={selectedDateKey} setSelectedDateKey={setSelectedDateKey} onSavePlan={savePlan} onDeletePlan={deletePlan} onProposal={sendProposal} onOpenWorkout={openAdd}/>} 
+    {screen==='home'&&<Home schedule={schedule} sessions={numberedSessions} profile={profile} dailySteps={dailySteps} saveNotice={saveNotice} isBoss={isBoss} adminNotifications={adminNotifications} onTrainer={requestTrainer} onMarkNotificationsRead={markNotificationsRead} hookahEvents={hookahEvents} hookahProgramStartedOn={hookahProgramStartedOn} canUndoHookah={!!undoHookahId} onHookah={addHookah} onBonusHookah={addBonusHookah} onUndoHookah={undoHookah} stepsStatus={stepsStatus} stepsSyncing={stepsSyncing} onEnableSteps={()=>syncSteps(true,authSession)} onOpenSteps={()=>navigate('steps-history')} onOpenFeed={()=>navigate('feed')} selectedDateKey={selectedDateKey} setSelectedDateKey={setSelectedDateKey} onSavePlan={savePlan} onDeletePlan={deletePlan} onProposal={sendProposal} onOpenWorkout={openAdd}/>} 
     {screen==='history'&&<History sessions={numberedSessions} onDelete={deleteSession} onUpdate={updateSession}/>}
     {screen.startsWith('history-')&&screen!=='steps-history'&&<History sessions={numberedSessions} onDelete={deleteSession} onUpdate={updateSession} filterType={screen.slice(8)}/>} 
     {screen==='steps-history'&&<StepsHistoryV17 dailySteps={dailySteps} onBack={()=>goBack('home')}/>}
-    {screen==='stats'&&<StatisticsV17 sessions={numberedSessions} dailySteps={dailySteps} isBoss={isBoss} hookahEvents={hookahEvents} hookahStartedOn={hookahStartedOn} profile={profile} memberCount={members.length} onOpenMembers={()=>navigate('members')} onOpenHistory={type=>navigate('history-'+type)} onOpenSteps={()=>navigate('steps-history')}/>}
+    {screen==='stats'&&<StatisticsV17 sessions={numberedSessions} dailySteps={dailySteps} isBoss={isBoss} hookahEvents={hookahEvents} hookahStartedOn={hookahStartedOn} hookahProgramStartedOn={hookahProgramStartedOn} profile={profile} memberCount={members.length} onOpenMembers={()=>navigate('members')} onOpenHistory={type=>navigate('history-'+type)} onOpenSteps={()=>navigate('steps-history')}/>} 
     {screen==='members'&&<MembersV17 members={members} profile={profile} previousTop5={previousTop5}/>} 
     {screen==='feed'&&<FeedScreen profile={profile}/>} 
     {screen==='add-training'&&<AddTraining dateKey={draftDateKey} setDateKey={setDraftDateKey} onProposal={sendProposal} onBack={()=>goBack('home')} onChoose={chooseType}/>}
     {screen==='gym'&&<GymTraining dateKey={draftDateKey} setDateKey={setDraftDateKey} sessions={numberedSessions} gymTemplates={gymTemplates} onSaveTemplate={saveTemplate} onBack={()=>goBack('add-training')} onHistory={()=>navigate('gym-history')} onSave={saveSession} onTrainerRequest={requestTrainer}/>}
     {screen==='gym-history'&&<GymHistory sessions={numberedSessions.filter(s=>s.type==='gym'&&isHistorySession(s))} onBack={()=>goBack('gym')}/>}
-    {screen==='outdoor'&&<OutdoorTraining dateKey={draftDateKey} setDateKey={setDraftDateKey} sessions={numberedSessions} onBack={()=>goBack('add-training')} onSave={saveSession}/>} 
+    {screen==='outdoor'&&<OutdoorTraining dateKey={draftDateKey} setDateKey={setDraftDateKey} sessions={numberedSessions} onBack={()=>goBack('add-training')} onSave={saveSession} onSaveExpedition={saveExpedition}/>} 
     {screen==='crossfit'&&<CrossFitTraining dateKey={draftDateKey} setDateKey={setDraftDateKey} onBack={()=>goBack('add-training')} onSave={saveSession}/>} 
     {screen==='workout'&&<WorkoutTraining dateKey={draftDateKey} setDateKey={setDraftDateKey} sessions={numberedSessions} onBack={()=>goBack('add-training')} onHistory={()=>navigate('workout-history')} onSave={saveSession}/>}
     {screen==='workout-history'&&<WorkoutHistory sessions={numberedSessions.filter(s=>s.type==='workout'&&isHistorySession(s))} onBack={()=>goBack('workout')}/>}
