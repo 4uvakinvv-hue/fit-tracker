@@ -3768,3 +3768,11 @@
 .app-shell-dark.screen-coach-workout>.coach-workout-screen{height:auto;min-height:100dvh;max-height:none;overflow:visible}
 .coach-screen-header>strong{font-size:16px;line-height:1.4;letter-spacing:0}
 .coach-screen-header .back-button{width:36px;height:36px;flex-shrink:0;font-size:26px}
+
+.steps-sync-panel{padding:14px;margin:0 0 14px;border:1px solid #394459;border-radius:16px;background:#192231;color:#dce4ef}
+.steps-sync-panel p{font-size:12px;line-height:1.5;margin:0 0 8px}
+.steps-sync-panel small{display:block;font-size:10px;color:#abb9cb;margin:4px 0}
+.steps-sync-panel>div{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0}
+.steps-sync-panel button{font-size:12px;padding:10px 12px}
+.steps-sync-panel summary{font-size:11px;cursor:pointer}
+.steps-sync-panel details p{margin-top:8px}
