@@ -89,7 +89,7 @@ function normalizeRows(rows,n){return Array.from({length:n},(_,i)=>({
   comment:rows?.[i]?.comment||''
 }));}
 function rowTonnage(row){
-  return Math.max(0,Number(row?.sets)||0)*Math.max(0,Number(row?.reps)||0)*Math.max(0,Number(String(row?.weight??'').replace(',','.'))||0)*(row?.weightBasis==='per_hand'?2:1);
+  return Math.max(0,Number(row?.sets)||0)*Math.max(0,Number(String(row?.reps??'').replace(',','.'))||0)*Math.max(0,Number(String(row?.weight??'').replace(',','.'))||0)*(row?.weightBasis==='per_hand'?2:1);
 }
 function workoutTonnage(baseRows=[],extraRows=[]){
   return [...baseRows,...extraRows].reduce((sum,row)=>sum+rowTonnage(row),0);
@@ -548,7 +548,6 @@ export default function App(){
   const [expeditionDays,setExpeditionDays]=useState([]);
   const [isBoss,setIsBoss]=useState(false);
   const [trainerOpen,setTrainerOpen]=useState(false);
-  const [trainerWorkoutOpen,setTrainerWorkoutOpen]=useState(false);
   const [hookahEvents,setHookahEvents]=useState([]);
   const [adminNotifications,setAdminNotifications]=useState([]);
   const [hookahStartedOn,setHookahStartedOn]=useState(localDateKey());
@@ -1115,7 +1114,7 @@ export default function App(){
     {screen==='members'&&<MembersV17 members={members} profile={profile} previousTop5={previousTop5}/>} 
     {screen==='feed'&&<FeedScreen profile={profile}/>} 
     {screen==='add-training'&&<AddTraining dateKey={draftDateKey} setDateKey={setDraftDateKey} onProposal={sendProposal} onBack={()=>goBack('home')} onChoose={chooseType}/>}
-    {screen==='gym'&&<GymTraining userId={authSession.user.id} onTrainerWorkout={()=>setTrainerWorkoutOpen(true)} dateKey={draftDateKey} setDateKey={setDraftDateKey} sessions={numberedSessions} gymTemplates={gymTemplates} onSaveTemplate={saveTemplate} onBack={()=>goBack('add-training')} onHistory={()=>navigate('gym-history')} onSave={saveSession} onTrainerRequest={requestTrainer}/>}
+    {screen==='gym'&&<GymTraining userId={authSession.user.id} onTrainerWorkout={()=>navigate('coach-workout')} dateKey={draftDateKey} setDateKey={setDraftDateKey} sessions={numberedSessions} gymTemplates={gymTemplates} onSaveTemplate={saveTemplate} onBack={()=>goBack('add-training')} onHistory={()=>navigate('gym-history')} onSave={saveSession} onTrainerRequest={requestTrainer}/>}
     {screen==='gym-history'&&<GymHistory sessions={numberedSessions.filter(s=>s.type==='gym'&&isHistorySession(s))} onBack={()=>goBack('gym')}/>}
     {screen==='outdoor'&&<OutdoorTraining dateKey={draftDateKey} setDateKey={setDraftDateKey} sessions={numberedSessions} onBack={()=>goBack('add-training')} onSave={saveSession} onSaveExpedition={saveExpedition}/>} 
     {screen==='crossfit'&&<CrossFitTraining dateKey={draftDateKey} setDateKey={setDraftDateKey} onBack={()=>goBack('add-training')} onSave={saveSession}/>} 
@@ -1126,11 +1125,11 @@ export default function App(){
     {screen==='hike'&&<HikeTraining dateKey={draftDateKey} setDateKey={setDraftDateKey} sessions={numberedSessions} onBack={()=>goBack('add-training')} onHistory={()=>navigate('hike-history')} onSave={saveSession}/>}
     {screen==='hike-history'&&<HikeHistory sessions={numberedSessions.filter(s=>s.type==='hike'&&isHistorySession(s))} onBack={()=>goBack('hike')}/>}
     {screen==='about'&&<AboutScreen isBoss={isBoss}/>}
-    {trainerOpen&&<TrainerModal onClose={()=>setTrainerOpen(false)} onWorkout={()=>{setTrainerOpen(false);setTrainerWorkoutOpen(true);}}/>}
-    {trainerWorkoutOpen&&<TrainerWorkout userId={authSession.user.id} onClose={()=>setTrainerWorkoutOpen(false)} onSave={saveSession}/>}
+    {trainerOpen&&<TrainerModal onClose={()=>setTrainerOpen(false)} onWorkout={()=>{setTrainerOpen(false);navigate('coach-workout');}}/>}
+    {screen==='coach-workout'&&<TrainerWorkout userId={authSession.user.id} onClose={()=>goBack('gym')} onSave={saveSession}/>}
     {screen==='why'&&<WhyScreen onBack={()=>goBack('home')}/>} 
     <FeedNotificationBridge userId={profile?.id} onOpenFeed={()=>navigate('feed')}/>
-    <BottomNav screen={screen} onNavigate={navigate}/>
+    {screen!=='coach-workout'&&<BottomNav screen={screen} onNavigate={navigate}/>}
   </div>;
 }
 

@@ -30,9 +30,9 @@ export default function GymTraining({userId,dateKey,setDateKey,sessions,gymTempl
   {group!=='custom'&&<ExerciseBlock title="Доп" rows={data.extraRows} group="accessory" kind="extraRows" onChange={update} extraNames={extraNames}/>}
   <div className="tonnage-summary"><span>Тоннаж тренировки</span><strong>{total} кг</strong></div>
   {error&&<p className="error-line" role="alert">{error}</p>}
-  <button className="gradient-button save-training" onClick={save} disabled={saving}>{saving?'Сохраняем…':dateKey>todayMoscow()?'Запланировать тренировку':'Сохранить тренировку'}<b>›</b></button>
-  <div className="gym-bottom-actions"><button className="previous-button" onClick={onHistory}>Предыдущие тренировки<b>›</b></button><button className="trainer-button" onClick={onTrainerRequest}>Заказать тренера</button></div>
-  <button className="gradient-button coach-workout-entry" onClick={onTrainerWorkout}>Тренировка от тренера<b>›</b></button>
+  <button className="gradient-button save-training gym-save-primary" onClick={save} disabled={saving}>{saving?'Сохраняем…':dateKey>todayMoscow()?'Запланировать тренировку':'Сохранить тренировку'}<b>›</b></button>
+  <div className="gym-coach-actions"><button className="gym-coach-link" onClick={onTrainerWorkout}>Тренировка от тренера<span>›</span></button><button className="gym-quiet-link" onClick={onTrainerRequest}>Доступ к тренеру</button></div>
+  <button className="gym-history-link" onClick={onHistory}>Предыдущие тренировки<span>›</span></button>
  </main>;
 }
 function ExerciseBlock({title,rows,group,kind,onChange,extraNames}){
