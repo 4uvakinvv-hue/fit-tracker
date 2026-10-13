@@ -3,6 +3,7 @@ import { supabase } from './supabase.js';
 import TrainerModal from './TrainerModal.jsx';
 import GymTraining from './GymTraining.jsx';
 import TrainerWorkout from './TrainerWorkout.jsx';
+import ProfileName from './ProfileName.jsx';
 import { stepsReadStart, normalizeStepSamples, stepsFreshness, stepsStatusText } from './steps-sync.js';
 import { App as NativeApp } from '@capacitor/app';
 import { Capacitor } from '@capacitor/core';
@@ -1117,7 +1118,7 @@ export default function App(){
     {screen==='combat-history'&&<CombatHistory sessions={numberedSessions.filter(s=>s.type==='combat'&&isHistorySession(s))} onBack={()=>goBack('combat')}/>}
     {screen==='hike'&&<HikeTraining dateKey={draftDateKey} setDateKey={setDraftDateKey} sessions={numberedSessions} onBack={()=>goBack('add-training')} onHistory={()=>navigate('hike-history')} onSave={saveSession}/>}
     {screen==='hike-history'&&<HikeHistory sessions={numberedSessions.filter(s=>s.type==='hike'&&isHistorySession(s))} onBack={()=>goBack('hike')}/>}
-    {screen==='about'&&<AboutScreen isBoss={isBoss}/>}
+    {screen==='about'&&<AboutScreen isBoss={isBoss} profile={profile} onNameChanged={data=>{setProfile(p=>({...p,name:data.name,name_changed_at:data.name_changed_at}));setMembers(rows=>rows.map(m=>m.id===authSession.user.id?{...m,name:data.name}:m));}}/>}
     {trainerOpen&&<TrainerModal onClose={()=>setTrainerOpen(false)} onWorkout={()=>{setTrainerOpen(false);navigate('coach-workout');}}/>}
     {screen==='coach-workout'&&<TrainerWorkout userId={authSession.user.id} onClose={()=>goBack('gym')} onSave={saveSession}/>}
     {screen==='why'&&<WhyScreen onBack={()=>goBack('home')}/>} 
@@ -1323,7 +1324,7 @@ function WhyScreen({onBack}){
   </main>;
 }
 
-function AboutScreen({isBoss=false}){
+function AboutScreen({isBoss=false,profile,onNameChanged}){
   const [iosHelp,setIosHelp]=useState(false);
 
   function openAndroid(){
@@ -1338,6 +1339,7 @@ function AboutScreen({isBoss=false}){
   return <main className="tab-screen about-screen about-tab-screen">
     <p className="eyebrow-dark">Форма</p>
     <h1>О приложении</h1>
+    {profile&&<ProfileName profile={profile} onChanged={onNameChanged}/>}
 
     <section className="why-intro glass-card about-concept-hero">
       <h2>Не про идеальные тренировки.<br/>Про то, чтобы чаще двигаться.</h2>

@@ -3776,3 +3776,9 @@
 .steps-sync-panel button{font-size:12px;padding:10px 12px}
 .steps-sync-panel summary{font-size:11px;cursor:pointer}
 .steps-sync-panel details p{margin-top:8px}
+.profile-name-card{padding:18px;margin-bottom:18px}
+.profile-name-card h2{font-size:18px;margin:0 0 12px}
+.profile-name-card .dark-field{margin:0 0 8px}
+.profile-name-card small{display:block;color:#aab7c7;font-size:11px;line-height:1.5;margin-bottom:12px}
+.profile-name-card button{padding:10px 16px}
+.profile-name-card p{font-size:12px;line-height:1.5;margin:10px 0 0}
