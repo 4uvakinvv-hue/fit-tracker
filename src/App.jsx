@@ -1192,7 +1192,7 @@ function Home({schedule,sessions,profile,dailySteps,expeditionDays,saveNotice,is
       </div>
     </header>
 
-    {false&&<button className="trainer-button home-trainer-button" onClick={onTrainer}>Заказать тренера</button>}
+    
     <div className="home-quick-row">
       {isBoss&&<section className="hookah-quick-card">
         <div className="hookah-money"><small>Сегодня можно заработать</small><strong>{todayMoney.toLocaleString('ru-RU')} ₽</strong><em>{todayPlan.label} · доступно {todayPlan.slots}</em></div>
@@ -1892,6 +1892,7 @@ function OutdoorTraining({dateKey,setDateKey,sessions,onBack,onSave,onSaveExpedi
 }
 
 function CrossFitTraining({dateKey,setDateKey,onBack,onSave}){
+  const [coachNotice,setCoachNotice]=useState(false);
   const [title,setTitle]=useState(''),[exercises,setExercises]=useState(''),[saving,setSaving]=useState(false);
   const [watchRunning,setWatchRunning]=useState(false),[watchAccum,setWatchAccum]=useState(0),watchStarted=useRef(null);
   const [workSec,setWorkSec]=useState(20),[restSec,setRestSec]=useState(10),[tabataRunning,setTabataRunning]=useState(false),[tabataPhase,setTabataPhase]=useState('work'),[tabataRemain,setTabataRemain]=useState(20),[tabataRound,setTabataRound]=useState(1);
@@ -1911,7 +1912,7 @@ function CrossFitTraining({dateKey,setDateKey,onBack,onSave}){
   function startTabata(){ensureAudioContext();const w=Math.max(1,Number(workSec)||20);setWorkSec(w);phaseRef.current='work';setTabataPhase('work');setTabataRound(1);setTabataRemain(w);phaseEndRef.current=Date.now()+w*1000;beepRef.current=null;setTabataRunning(true);playRoundGong();}
   function stopTabata(){if(tabataRunning)playFinalGong();setTabataRunning(false);beepRef.current=null;}
   async function save(){setSaving(true);try{if(watchRunning)pauseWatch();await onSave({type:'crossfit',date:dateKey,title:title.trim()||'CrossFit',workoutText:exercises.trim(),duration:Math.round(watchMs/1000)});}finally{setSaving(false);}}
-  return <main className="sub-screen crossfit-screen"><ScreenBack onBack={onBack} title="CrossFit"/><p className="eyebrow-dark">Тренировка</p><h1>CrossFit</h1>
+  return <main className="sub-screen crossfit-screen"><ScreenBack onBack={onBack} title="CrossFit"/><button type="button" className="gradient-button" style={{width:"100%",minHeight:50,margin:"14px 0 8px",fontWeight:800}} onClick={()=>setCoachNotice(true)}>Тренировка от тренера · CrossFit</button>{coachNotice&&<p className="soft-text" role="status">Пока эта функция в разработке.</p>}<p className="eyebrow-dark">Тренировка</p><h1>CrossFit</h1>
     <label className="date-control add-date-compact"><span>Дата</span><input type="date" value={dateKey} onChange={e=>setDateKey(e.target.value)}/></label>
     <section className="glass-card crossfit-exercises"><label><span>Упражнения / комплекс</span><textarea value={exercises} onChange={e=>setExercises(e.target.value)} placeholder="Например: 5 раундов · 10 подтягиваний · 20 махов · 15 бурпи"/></label><label className="dark-field"><span>Название — необязательно</span><input value={title} onChange={e=>setTitle(e.target.value)} placeholder="CrossFit"/></label></section>
     <section className="glass-card crossfit-timer"><header><strong>Секундомер</strong><b>{formatDuration(watchMs/1000)}</b></header><div>{!watchRunning?<button className="gradient-button" onClick={startWatch}>{watchMs?'Продолжить':'Старт'}</button>:<button className="secondary-dark" onClick={pauseWatch}>Пауза</button>}<button className="secondary-dark" onClick={resetWatch}>Сброс</button></div></section>
