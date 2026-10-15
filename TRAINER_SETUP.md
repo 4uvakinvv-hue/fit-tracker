@@ -18,6 +18,22 @@ Verify live scheduler through `net._http_response` using only status and sanitiz
 ## Payments later
 Add provider checkout and signature-verified, idempotent webhook events with merchant, currency, amount and order/user matching. A redirect or client flag is never proof of payment. Verified payment events extend a server-side entitlement transactionally. Until a provider and tariffs are approved, only manual free trials exist; no card form or dummy “paid” state.
 
+## Coach subscription pilot and first-time onboarding (15 October 2026)
+
+- Current pilot remains **free**. Trial entitlements use `coach_memberships`; the server-side `trainer-access` endpoint checks `status='active'` and `access_until`, and the client rechecks on focus. Paying through Telegram, Stripe, YooKassa, any link, or a bot is **not** implemented. Never show a successful payment or grant an entitlement from an unverified redirect, chat message, or client-side flag.
+- Display planned pricing, **not checkout**: 1 month = 1,000 RUB; 6 months = 5,000 RUB (saving 1,000); 12 months = 10,000 RUB (saving 2,000). Store prices on the server and validate provider-signed webhook payment data before activating any paid subscriptions. Define whether a calendar month or 30-day period is the product rule before billing.
+- Remove ordering from Home. In Gym, show a prominent first-screen «Тренировка от тренера» control and a bottom «Заказать тренера» control. A nonmember sees the subscribe/ordering explanation; manual Gym remains free and accessible even after coaching expires. CrossFit has a **disabled-in-function**, clickable preview that says «Пока эта функция в разработке».
+- Existing authorized members with published `coach_workout_plans` continue immediately without re-enrollment. An authorized new member with no plan sees a short one-time intake in `src/TrainerWorkout.jsx`. Collected fields: age, optional sex, experience, goal, weekly training frequency, limitations (yes/no) and free wishes. Input goes to `coach_intakes` under per-user RLS.
+- The `private.forma_coach_intake_initial_plan` trigger generates a conservative first plan, with **unknown rather than fabricated** starting weights, from the selected goal. If limitations are reported, intake status becomes `review` and no plan is generated until suitable review. A returned member with an existing plan is never overwritten by intake.
+- Subsequent completed coaching sessions keep their history and trigger a fresh server-authored plan; do not assume the server is calling a paid LLM. It applies conservative rules for load/rep progression. Free-form wishes are carried into the next plan but **not semantically interpreted** as a full AI-coach decision. Human/ChatGPT coaching remains the route for complex changes during pilot testing.
+- Supabase migration applied: `coach_intake_secure_first_workout`. Check per-user authorization and entitlement in both HTTP functions and DB RLS, never trust a client-supplied account ID alone. Access to `coach_intakes` is own-record SELECT and active-own INSERT only. No payment credentials or patient data may be logged.
+- Database checks on 15 October used rolled-back transactions: valid intake creates exactly one first plan with null working weights, intake with limitations sends to review, another user's intake insert is rejected, and inactive members cannot create an intake. These do **not** replace a real browser/Android test or `npm run build`.
+- Future product: CrossFit coach training, using a separate workout/program ontology and individual load/volume history; **no generation or paid access is active** for CrossFit yet.
+
+## Payment activation design (not implemented yet)
+
+When a provider is selected: create a server-side purchase order bound to an authenticated `user_id`, immutable tariff price/currency/duration and provider order ID. Only a cryptographically verified provider notification can set an idempotent `paid` event and extend `coach_memberships.access_until`; optionally connect a Telegram bot with one-time deep link identifying an order rather than trusting the user's Telegram display name. Expiry checks must be server-side on every coach-plan read/write. Trial access remains an explicit administrative action while testing.
+
 ## Multiple chats
 Always start from current main and respect AGENTS.md. Main commit history is shared; database settings live in Supabase and do not vanish with ordinary web updates. Deploying stale files or changing schema/functions can break integration, so never replace these with an old snapshot.
 
