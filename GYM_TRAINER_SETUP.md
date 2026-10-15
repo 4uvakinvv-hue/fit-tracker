@@ -56,6 +56,20 @@ Cycling weekly target50km is a flexible orientation; usual after-work ride15–2
 - DB migrations applied on the live Forma Supabase project: `coach_feedback_autopublish`, `coach_autopublish_exact_pain_signals`, and `coach_wishes_capture_from_session_results`. Verify deployed triggers before moving between projects; don't assume GitHub alone deploys DB changes.
 - Verification: the database rollback transaction tested next-plan creation, wish propagation and pain blocking with no test sessions left behind. The React test covering wish draft restoration is committed but CI/physical Android verification has not been run from this chat.
 
+
+## Individual progression rules (15 October 2026)
+
+For user accounts «Василий» and «Василия женщина» (Ксюша), the active server-side settings are stored in `private.coach_load_preferences`: `target_sets=3`, `use_rir=false`, `auto_progress=true`. Do not undo these on plan refreshes. Their personal settings are not defaults for all Forma members.
+
+- Three working sets for **each** currently prescribed exercise. After a long break, stop earlier if technique, symptoms or recovery require it; do not grind through 24 sets at any cost.
+- Do not require user-entered RIR; remove `targetRir` from these users' **new** plans. All sets are non-failure by default.
+- Show a conspicuous `ДО ОТКАЗА` warning directly beside an exercise only when the plan deliberately contains `trainToFailure: true`. Automatic follow-up never assigns failure.
+- After every completed coach workout, make measurable progress when performance was clean and no excessive heaviness/pain/technique issue was reported: if at the top of the prescribed rep range, suggest a small (about 2.5%) load increase; otherwise set the next target to one more repetition at the same weight. These are adjustable coaching heuristics, not universal science-based thresholds. The next load always remains a recommendation, not confirmation of achievement.
+- For unknown/mismatched actuals, do not invent values. For comments indicating excessive heaviness, lost technique or too few repetitions, maintain/recalibrate loads without forced progression. Pain flags suppress automatic plan publication pending review.
+- The current plan data for both people is published as new immutable records, not updated over an unfinished local draft. Current plan title contains «3 подхода». An already-started local draft intentionally keeps its original plan until the user completes it.
+- The previous note that absence of RIR blocks weight increase is superseded **only for these two profiles**. Plans for other people must follow their own settings and consent.
+- Backend SQL migrations applied: `coach_load_preferences_for_vasiliy_and_ksyusha`, `coach_auto_progress_without_rir_for_selected_users`; confirmed test transactions rolled back after checking weight progression, rep progression, high-exertion hold, and pain blocking. Frontend visible failure flag was added in `src/TrainerWorkout.jsx`; no Android APK was built or verified by this chat.
+
 ## Verification
 `npm run build`
 `node --test tests/gym-drafts.test.mjs tests/gym-ui.test.mjs tests/fatsecret.test.mjs tests/trainer-access.test.mjs`
