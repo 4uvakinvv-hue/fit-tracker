@@ -46,4 +46,40 @@ test('coach screen prefills suggestions, collapses notes and preserves edited re
  const field=()=>document.querySelector('input[aria-label="Тяга с упором: Вес, кг"]');assert.ok(field(),document.body.textContent);assert.equal(field().value,'25');assert.equal(document.querySelector('input[aria-label="Тяга с упором: Подходы"]').value,'2');assert.equal(document.querySelector('input[aria-label="Тяга с упором: Повторения, ср."]').value,'10');assert.ok(document.querySelector('main.coach-workout-screen'));assert.equal(document.querySelector('.modal-backdrop'),null);assert.equal(document.querySelector('#coach-general-notes'),null);assert.ok(document.querySelector('textarea.coach-wishes-input'));assert.equal(document.querySelector('.coach-comment-editor'),null);assert.equal(document.querySelector('.coach-rir-fields'),null);await click(button('Общие рекомендации'));assert.ok(document.querySelector('#coach-general-notes').textContent.includes('Разминка'));await click(document.querySelector('button[aria-label="Тяга с упором: комментарий"]'));assert.ok(document.querySelector('textarea'));await input(field(),'23,5');await input(document.querySelector('textarea.coach-wishes-input'),'Больше внимания ягодицам');await unmount();
  root=createRoot(document.getElementById('root'));await React.act(async()=>{root.render(React.createElement(Coach,{userId:'test-user',onClose(){},onSave:async()=>{}}));await new Promise(r=>setTimeout(r,100));});assert.equal(field().value,'23,5');assert.equal(document.querySelector('textarea.coach-wishes-input').value,'Больше внимания ягодицам');await unmount();globalThis.fetch=original;
 });
+test('coach training control is prominent and rejects inactive access',async()=>{
+ localStorage.clear();
+ let opened=0;
+ const original=globalThis.fetch;
+ globalThis.fetch=async(url)=>String(url).includes('/functions/v1/trainer-access')?Response.json({active:false}):Response.json({});
+ await mount({...props,onTrainerWorkout(){opened++}});
+ await React.act(async()=>new Promise(r=>setTimeout(r,90)));
+ const control=button('Тренировка от тренера');
+ assert.ok(control);
+ assert.ok(document.querySelector('.gym-coach-top')?.contains(control));
+ await click(control);
+ assert.equal(opened,0);
+ assert.ok(document.querySelector('[role="status"]')?.textContent||document.body.textContent.includes('Заказать тренера'));
+ assert.ok(button('Заказать тренера'));
+ await unmount();
+ globalThis.fetch=original;
+});
+test('new authorized members see one-time intake before first plan',async()=>{
+ localStorage.clear();
+ const old=globalThis.fetch;
+ globalThis.fetch=async(url)=>{
+  const u=String(url);
+  if(u.includes('/functions/v1/trainer-access'))return Response.json({active:true});
+  if(u.includes('coach_workout_plans'))return Response.json(null);
+  if(u.includes('coach_intakes'))return Response.json(null);
+  return Response.json([]);
+ };
+ root=createRoot(document.getElementById('root'));
+ await React.act(async()=>{root.render(React.createElement(Coach,{userId:'intake-user',onClose(){},onSave:async()=>{}}));await new Promise(r=>setTimeout(r,110));});
+ assert.ok(document.querySelector('.coach-intake-form'),document.body.textContent);
+ assert.ok(document.querySelector('input[type="number"][min="18"]'));
+ assert.ok(document.body.textContent.includes('Главная цель'));
+ assert.ok(document.body.textContent.includes('Отправить и подготовить тренировку'));
+ await unmount();
+ globalThis.fetch=old;
+});
 test.after(async()=>{supabase.auth.stopAutoRefresh();supabase.auth.broadcastChannel?.close();await rm('.gym-test-build',{recursive:true,force:true});dom.window.close();});
