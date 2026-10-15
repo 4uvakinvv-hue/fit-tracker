@@ -18,7 +18,14 @@ export default function TrainerModal({onClose,onWorkout}){
    {error&&<p className="error-line" role="alert">{error}</p>}
    {!state&&!error&&<p>Загружаем доступ…</p>}
    {state&&<>
-    <p className="soft-text">Тестовый режим: без оплаты. Доступ открывает Василий после заявки.</p>
+    <p className="soft-text">Тестовый режим Forma: доступ к тренеру пока выдаётся бесплатно по заявке. Платёжный бот и автоматическая оплата ещё не подключены.</p>
+    <section className="trainer-tariffs" aria-label="Тарифы тренера" style={{display:"grid",gap:8,marginBottom:16}}>
+      <h3 style={{margin:"6px 0"}}>Тарифы после запуска</h3>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(3,minmax(0,1fr))",gap:7}}>
+        {[{term:"1 месяц",price:"1 000 ₽",saving:""},{term:"6 месяцев",price:"5 000 ₽",saving:"−1 000 ₽"},{term:"12 месяцев",price:"10 000 ₽",saving:"−2 000 ₽"}].map(t=><article key={t.term} style={{padding:9,border:"1px solid #74818b",borderRadius:12,display:"grid",gap:5}}><strong>{t.term}</strong><b>{t.price}</b><small>{t.saving||"Без скидки"}</small></article>)}
+      </div>
+      <small>Оплата недоступна в тестовой версии. Суммы показаны для ознакомления; списаний нет.</small>
+    </section>
     {state.active?<>
      <p><b>Доступ открыт</b>{state.access_until?' до '+date(state.access_until):''}.</p>
      <p className="soft-text">Сейчас рекомендации и разбор тренировок ведём в чате с главным тренером. Чат внутри Forma появится после подключения сервиса тренера.</p>
