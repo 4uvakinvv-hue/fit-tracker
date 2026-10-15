@@ -45,6 +45,17 @@ Old-school exercise variants are a preference, not a reason for random changes. 
 
 Cycling weekly target50km is a flexible orientation; usual after-work ride15–20km, mostly level with a final climb. Tomorrow13October is a user-declared day without gym; suggest a comfortable ride if recovered. Do not treat kilometres as a debt or prescribe a hard compensatory ride. Before reminders, read actual completed bike sessions for Moscow Monday–Sunday; exclude plans/future/unconfirmed rows. Evening reminders and the midnight coach-plan preparation are created in the main trainer conversation. An app build does not create scheduled ChatGPT tasks.
 
+## Coach wishes and automatic follow-up (15 October 2026)
+
+- Every authorized coach-screen draft has one optional free-text «Пожелания к следующей тренировке» textarea at the end. It persists in the same on-device coach draft and is submitted only when the user confirms Save.
+- The wishlist is stored in the first gym-result JSON row as `userWishes`, and an authorized BEFORE INSERT trigger copies it into `sessions.coach_feedback`. This avoids changing unrelated legacy manual gym saves.
+- A server-side AFTER INSERT trigger on confirmed coach-linked gym sessions builds a new immutable `coach_workout_plans` row with `source_session_id` pointing at the saved session. A unique index prevents multiple plans from one source. Old history, uncompleted drafts and the completed plan remain intact.
+- On reopening «Тренировка от тренера», the existing client fetch selects the latest published plan. There is no paid LLM API on the server. Automatic generation is deliberately conservative: preserve exercises, use actual saved weights only as tentative next starts, do not increase load without measured RIR, recalibrate after low reps/heavy notes. Raw wishes are included in the next plan notes for coach review. **Arbitrary free text is not automatically interpreted as an AI instruction or a safe exercise replacement.**
+- If the saved wishlist or exercise comments report injury/pain red flags, no automatic workout is published. The completed session still saves; human/qualified review is required.
+- Existing tester profiles must have an active `coach_memberships` row to see plans. Account ownership and RLS stay enforced.
+- DB migrations applied on the live Forma Supabase project: `coach_feedback_autopublish`, `coach_autopublish_exact_pain_signals`, and `coach_wishes_capture_from_session_results`. Verify deployed triggers before moving between projects; don't assume GitHub alone deploys DB changes.
+- Verification: the database rollback transaction tested next-plan creation, wish propagation and pain blocking with no test sessions left behind. The React test covering wish draft restoration is committed but CI/physical Android verification has not been run from this chat.
+
 ## Verification
 `npm run build`
 `node --test tests/gym-drafts.test.mjs tests/gym-ui.test.mjs tests/fatsecret.test.mjs tests/trainer-access.test.mjs`
