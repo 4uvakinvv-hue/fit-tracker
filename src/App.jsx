@@ -1192,7 +1192,7 @@ function Home({schedule,sessions,profile,dailySteps,expeditionDays,saveNotice,is
       </div>
     </header>
 
-    <button className="trainer-button home-trainer-button" onClick={onTrainer}>Заказать тренера</button>
+    {false&&<button className="trainer-button home-trainer-button" onClick={onTrainer}>Заказать тренера</button>}
     <div className="home-quick-row">
       {isBoss&&<section className="hookah-quick-card">
         <div className="hookah-money"><small>Сегодня можно заработать</small><strong>{todayMoney.toLocaleString('ru-RU')} ₽</strong><em>{todayPlan.label} · доступно {todayPlan.slots}</em></div>
