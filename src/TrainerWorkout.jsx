@@ -33,6 +33,7 @@ export default function TrainerWorkout({userId,onClose,onSave,onSaved}){
    {data.baseRows.map((r,i)=><article className="coach-exercise-card coach-exercise-compact" key={i}>
     <header><span>{i+1}</span><h3>{r.exercise}</h3></header>
     <p className="coach-target">{r.targetSets} × {r.targetReps} · {r.targetWeight==null?'вес подобрать':`${r.targetWeight} кг${r.weightBasis==='per_hand'?' на руку':''}`}{r.targetRir?' · запас '+r.targetRir:''}</p>
+    {r.trainToFailure===true&&<p className="coach-failure-alert" role="note" style={{padding:"12px 14px",borderRadius:10,background:"#fee2e2",color:"#991b1b",fontSize:"1.15rem",fontWeight:900,letterSpacing:".02em"}}>ДО ОТКАЗА — только этот подход/упражнение по указанию тренера!</p>}
     <p className="coach-short-technique">{coachCue(r)}</p>
     <div className="coach-card-info">{restCue(r)&&<small>{restCue(r)}</small>}{r.coachNote&&<details className="coach-technique-details"><summary>Подробнее о технике и нагрузке</summary><p>{r.coachNote}</p></details>}</div>
     {!completed&&<>
