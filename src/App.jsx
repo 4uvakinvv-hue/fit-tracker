@@ -636,6 +636,8 @@ function PasswordRecoveryScreen({session,onComplete,onExpired}){
 
 export default function App(){
   const [authSession,setAuthSession]=useState(null);
+  const [passwordRecovery,setPasswordRecovery]=useState(()=>isPasswordRecoveryUrl());
+  const [authNotice,setAuthNotice]=useState('');
   const [profile,setProfile]=useState(null);
   const [members,setMembers]=useState([]);
   const [previousTop5,setPreviousTop5]=useState([]);
@@ -685,13 +687,21 @@ export default function App(){
       setBootProgress(next?28:100);
       setBootStage(next?'Загружаем профиль':'Готово');
       setAuthSession(next);
-      if(!next)finishAfterMinimum();
+      if(passwordRecovery){
+        setBootProgress(100);setBootStage('Восстановление доступа');finishAfterMinimum();
+      }else if(!next)finishAfterMinimum();
     });
 
-    const {data:{subscription}}=supabase.auth.onAuthStateChange((_event,next)=>{
+    const {data:{subscription}}=supabase.auth.onAuthStateChange((event,next)=>{
       if(!active)return;
+      if(event==='PASSWORD_RECOVERY'){
+        setPasswordRecovery(true);
+        setAuthNotice('');
+        setBootProgress(100);setBootStage('Восстановление доступа');
+        finishAfterMinimum();
+      }
       setAuthSession(next);
-      if(!next&&initialized){
+      if(!next&&initialized&&event!=='PASSWORD_RECOVERY'){
         setBootProgress(100);setBootStage('Готово');
         const wait=Math.max(0,2000-(Date.now()-bootStartedAt.current));
         setTimeout(()=>{if(active)setBooting(false);},wait);
@@ -756,6 +766,10 @@ export default function App(){
 
   useEffect(()=>{
     let active=true;
+    if(passwordRecovery){
+      setLoading(false);
+      return ()=>{active=false;};
+    }
     if(authSession?.user){
       setBooting(true);setBootProgress(34);setBootStage('Загружаем данные');
       (async()=>{
@@ -780,7 +794,7 @@ export default function App(){
       setStepsStatus('loading');setStepsDiagnostics(null);
     }
     return ()=>{active=false;};
-  },[authSession?.user?.id]);
+  },[authSession?.user?.id,passwordRecovery]);
 
   useEffect(()=>{
     if(!isBoss||!authSession?.user)return;
@@ -1191,8 +1205,9 @@ export default function App(){
 
   function requestTrainer(){setTrainerOpen(true);}
 
-  if(booting||(authSession&&loading))return <SplashScreen progress={bootProgress} stage={bootStage}/>;
-  if(!authSession)return <AuthScreen/>;
+  if(booting||(authSession&&loading&&!passwordRecovery))return <SplashScreen progress={bootProgress} stage={bootStage}/>;
+  if(passwordRecovery)return <PasswordRecoveryScreen session={authSession} onComplete={message=>{setPasswordRecovery(false);setAuthNotice(message);}} onExpired={()=>{setPasswordRecovery(false);setAuthNotice('Введите e-mail и запросите новую ссылку для восстановления.');}}/>;
+  if(!authSession)return <AuthScreen initialNotice={authNotice}/>;
   if(loadError)return <main className="onboarding dark-screen"><Brand/><h1>Связь с базой</h1><p className="soft-text">{loadError}</p><div className="glass-card onboarding-form"><button className="gradient-button" onClick={loadData}>Повторить</button></div></main>;
 
   return <div className={`app-shell-dark season-${seasonKey()} screen-${screen}`}>
