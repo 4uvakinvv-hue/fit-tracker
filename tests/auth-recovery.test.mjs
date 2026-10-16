@@ -21,3 +21,15 @@ test('recovery link is detected and can update password',()=>{
 test('Supabase client parses auth callback URLs',()=>{
   assert.match(supabase,/detectSessionInUrl:\s*true/);
 });
+
+
+test('registration gives explicit email-confirmation state and resend action',()=>{
+  assert.match(app,/Проверьте почту/);
+  assert.match(app,/supabase\.auth\.resend\(/);
+  assert.match(app,/Отправить письмо ещё раз/);
+  assert.match(app,/После регистрации нужно подтвердить почту/);
+});
+
+test('login explains persisted session behavior',()=>{
+  assert.match(app,/Forma запоминает вход на этом устройстве/);
+});

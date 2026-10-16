@@ -12,3 +12,5 @@
 - Release versions use `major.minor` only. The next planned Forma release is `2.1`; do not publish it as `2.1.0`. Keep the same two-part version in app UI, Git tags, release names, APK/AAB filenames, and web package filenames.
 
 - For gym/trainer UI changes also read GYM_TRAINER_SETUP.md. Preserve unfinished local drafts, never mix targets with actual results, and run gym-drafts/gym-ui lifecycle tests. Coach plans are server-published into coach_workout_plans, not completed sessions.
+
+- For registration, login, password recovery, session persistence, or user-admin changes, read `AUTH_SETUP.md`. Production Supabase Auth Site URL/Redirect URLs are part of the auth integration; do not assume client code alone fixes email links.

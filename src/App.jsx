@@ -490,6 +490,8 @@ function AuthScreen({initialNotice=''}) {
   const [registerOpen,setRegisterOpen]=useState(false);
   const [forgotOpen,setForgotOpen]=useState(false);
   const [recoveryEmail,setRecoveryEmail]=useState('');
+  const [recoverySent,setRecoverySent]=useState(false);
+  const [pendingEmail,setPendingEmail]=useState('');
   const [name,setName]=useState('');
   const [registerEmail,setRegisterEmail]=useState('');
   const [registerPassword,setRegisterPassword]=useState('');
@@ -498,26 +500,50 @@ function AuthScreen({initialNotice=''}) {
 
   async function login(e){
     e.preventDefault();
+    const email=loginEmail.trim();
     setBusy('login');setMessage('');
     try{
-      const {error}=await supabase.auth.signInWithPassword({email:loginEmail.trim(),password:loginPassword});
-      if(error)throw error;
-    }catch(err){setMessage(err.message||'Не получилось войти.');}
+      const {error}=await supabase.auth.signInWithPassword({email,password:loginPassword});
+      if(error){
+        const text=String(error.message||'');
+        if(/email.*confirm|confirm.*email/i.test(text)){
+          setPendingEmail(email);
+          setRegisterOpen(false);
+          throw new Error('Почта ещё не подтверждена. Откройте письмо от Forma или отправьте его повторно.');
+        }
+        throw error;
+      }
+    }catch(err){setMessage(err.message||'Не получилось войти. Проверьте e-mail и пароль.');}
     finally{setBusy('');}
   }
 
   async function requestPasswordReset(e){
-    e.preventDefault();
+    e?.preventDefault?.();
     const email=recoveryEmail.trim();
     if(!email){setMessage('Укажите e-mail, с которым регистрировались в Forma.');return;}
     setBusy('recovery');setMessage('');
     try{
       const {error}=await supabase.auth.resetPasswordForEmail(email,{redirectTo:AUTH_RECOVERY_REDIRECT_URL});
       if(error)throw error;
-      setMessage('Письмо отправлено. Откройте ссылку из письма и задайте новый пароль. Если письма нет — проверьте «Спам».');
+      setRecoverySent(true);
+      setMessage('');
     }catch(err){
       console.warn('Forma password reset request failed',err);
       setMessage('Не получилось отправить письмо для восстановления. Проверьте e-mail и попробуйте ещё раз.');
+    }finally{setBusy('');}
+  }
+
+  async function resendSignup(){
+    const email=(pendingEmail||registerEmail).trim();
+    if(!email)return;
+    setBusy('resend');setMessage('');
+    try{
+      const {error}=await supabase.auth.resend({type:'signup',email,options:{emailRedirectTo:AUTH_RECOVERY_REDIRECT_URL}});
+      if(error)throw error;
+      setMessage('Новое письмо отправлено. Откройте самое свежее письмо от Forma; старые ссылки могут уже не работать.');
+    }catch(err){
+      console.warn('Forma signup resend failed',err);
+      setMessage('Не получилось отправить письмо повторно. Подождите минуту и попробуйте ещё раз.');
     }finally{setBusy('');}
   }
 
@@ -525,33 +551,84 @@ function AuthScreen({initialNotice=''}) {
     e.preventDefault();
     setBusy('register');setMessage('');
     try{
-      if(!name.trim())throw new Error('Укажи имя.');
+      if(!name.trim())throw new Error('Укажите имя.');
+      const email=registerEmail.trim();
       const {data,error}=await supabase.auth.signUp({
-        email:registerEmail.trim(),
+        email,
         password:registerPassword,
-        options:{
-          data:{name:name.trim(),app_name:'Форма'},
-          emailRedirectTo:AUTH_RECOVERY_REDIRECT_URL
-        }
+        options:{data:{name:name.trim(),app_name:'Форма'},emailRedirectTo:AUTH_RECOVERY_REDIRECT_URL}
       });
       if(error)throw error;
-      if(!data.session)setMessage('Аккаунт создан. На почту отправлено письмо подтверждения для приложения «Форма».');
+      if(!data.session){
+        setPendingEmail(email);
+        setRegisterOpen(false);
+        setMessage('');
+      }
     }catch(err){setMessage(err.message||'Не получилось зарегистрироваться.');}
     finally{setBusy('');}
   }
 
   function openRecovery(){
-    setRegisterOpen(false);
-    setForgotOpen(true);
+    setRegisterOpen(false);setPendingEmail('');
+    setForgotOpen(true);setRecoverySent(false);
     setRecoveryEmail(loginEmail.trim());
     setMessage('');
+  }
+
+  function backToLogin(){
+    setForgotOpen(false);setRecoverySent(false);setPendingEmail('');
+    setMessage('');
+  }
+
+  if(pendingEmail){
+    return <main className={`onboarding dark-screen auth-screen season-${seasonKey()}`}>
+      <Brand/>
+      <p className="brand-subtitle season-brand-label">Регистрация</p>
+      <section className="glass-card auth-state-card auth-email-state">
+        <span className="auth-state-icon">✉</span>
+        <h1>Проверьте почту</h1>
+        <p>Мы отправили письмо подтверждения на <strong>{pendingEmail}</strong>.</p>
+        <ol>
+          <li>Откройте письмо от Forma.</li>
+          <li>Нажмите кнопку подтверждения.</li>
+          <li>После подтверждения вернитесь в приложение — вход сохранится на этом устройстве.</li>
+        </ol>
+        <small>Если письма нет несколько минут, проверьте «Спам» и нажмите «Отправить ещё раз».</small>
+        <button className="gradient-button" type="button" onClick={resendSignup} disabled={busy==='resend'}>{busy==='resend'?'Отправляем…':'Отправить письмо ещё раз'}</button>
+        <button className="auth-secondary-button" type="button" onClick={backToLogin}>Вернуться ко входу</button>
+      </section>
+      {message&&<p className="auth-message auth-global-message">{message}</p>}
+      <p className="build-version">Версия {APP_VERSION}</p>
+    </main>;
+  }
+
+  if(forgotOpen&&recoverySent){
+    return <main className={`onboarding dark-screen auth-screen season-${seasonKey()}`}>
+      <Brand/>
+      <p className="brand-subtitle season-brand-label">Восстановление доступа</p>
+      <section className="glass-card auth-state-card auth-email-state">
+        <span className="auth-state-icon">↗</span>
+        <h1>Письмо отправлено</h1>
+        <p>Ссылка для смены пароля отправлена на <strong>{recoveryEmail.trim()}</strong>.</p>
+        <ol>
+          <li>Откройте самое свежее письмо от Forma.</li>
+          <li>Нажмите ссылку один раз.</li>
+          <li>На открывшемся экране задайте новый пароль.</li>
+        </ol>
+        <small>Ссылка одноразовая. Если уже открывали её и видите ошибку — запросите новую.</small>
+        <button className="gradient-button" type="button" onClick={requestPasswordReset} disabled={busy==='recovery'}>{busy==='recovery'?'Отправляем…':'Отправить новую ссылку'}</button>
+        <button className="auth-secondary-button" type="button" onClick={backToLogin}>Вернуться ко входу</button>
+      </section>
+      {message&&<p className="auth-message auth-global-message">{message}</p>}
+      <p className="build-version">Версия {APP_VERSION}</p>
+    </main>;
   }
 
   return <main className={`onboarding dark-screen auth-screen season-${seasonKey()}`}>
     <Brand/>
     <p className="brand-subtitle season-brand-label">Сезон {seasonMeta().name.toUpperCase()}</p>
     <h1>{forgotOpen?'Восстановление доступа':'Вход'}</h1>
-    <p className="soft-text">{forgotOpen?'Укажите почту аккаунта. Мы отправим ссылку для установки нового пароля.':'Уже зарегистрированы — просто войдите. Новый участник может создать аккаунт ниже на этом же экране.'}</p>
+    <p className="soft-text">{forgotOpen?'Укажите почту аккаунта. Мы отправим ссылку для установки нового пароля.':'Forma запоминает вход на этом устройстве. Повторно вводить пароль нужно только после выхода, переустановки или очистки данных приложения.'}</p>
 
     {!forgotOpen&&<form className="glass-card onboarding-form login-form" onSubmit={login}>
       <label className="dark-field"><span>E-mail</span><input type="email" value={loginEmail} onChange={e=>setLoginEmail(e.target.value)} placeholder="you@example.com" autoComplete="email" required/></label>
@@ -563,7 +640,7 @@ function AuthScreen({initialNotice=''}) {
     {forgotOpen&&<form className="glass-card onboarding-form recovery-request-form" onSubmit={requestPasswordReset}>
       <label className="dark-field"><span>E-mail</span><input type="email" value={recoveryEmail} onChange={e=>setRecoveryEmail(e.target.value)} placeholder="you@example.com" autoComplete="email" required/></label>
       <button className="gradient-button" disabled={busy==='recovery'}>{busy==='recovery'?'Отправляем…':'Отправить ссылку'}</button>
-      <button type="button" className="auth-secondary-button" onClick={()=>{setForgotOpen(false);setMessage('');}}>Вернуться ко входу</button>
+      <button type="button" className="auth-secondary-button" onClick={backToLogin}>Вернуться ко входу</button>
     </form>}
 
     {!forgotOpen&&<div className="register-entry">
@@ -572,6 +649,7 @@ function AuthScreen({initialNotice=''}) {
     </div>}
 
     {!forgotOpen&&registerOpen&&<form className="glass-card onboarding-form register-form" onSubmit={register}>
+      <div className="registration-explainer"><strong>После регистрации нужно подтвердить почту.</strong><span>Мы отправим письмо и покажем на экране, что делать дальше.</span></div>
       <label className="dark-field"><span>Имя</span><input value={name} onChange={e=>setName(e.target.value)} placeholder="Имя в рейтинге" required/></label>
       <label className="dark-field"><span>E-mail</span><input type="email" value={registerEmail} onChange={e=>setRegisterEmail(e.target.value)} placeholder="you@example.com" autoComplete="email" required/></label>
       <label className="dark-field"><span>Пароль</span><input type="password" value={registerPassword} onChange={e=>setRegisterPassword(e.target.value)} placeholder="Минимум 6 символов" minLength={6} autoComplete="new-password" required/></label>
@@ -1435,6 +1513,56 @@ function WhyScreen({onBack}){
   </main>;
 }
 
+function AdminUsersPanel(){
+  const [open,setOpen]=useState(false);
+  const [users,setUsers]=useState([]);
+  const [loading,setLoading]=useState(false);
+  const [error,setError]=useState('');
+  const [deleting,setDeleting]=useState('');
+
+  async function load(){
+    setLoading(true);setError('');
+    try{
+      const {data,error:fnError}=await supabase.functions.invoke('admin-users',{body:{action:'list'}});
+      if(fnError)throw fnError;
+      if(data?.error)throw new Error(data.error);
+      setUsers(data?.users||[]);
+    }catch(err){setError(err.message||'Не удалось загрузить пользователей.');}
+    finally{setLoading(false);}
+  }
+
+  async function toggle(){
+    const next=!open;setOpen(next);
+    if(next&&!users.length)await load();
+  }
+
+  async function remove(user){
+    if(user.is_owner)return;
+    if(!window.confirm('Удалить аккаунт '+(user.name||user.email)+'? Это удалит пользователя и связанные с ним данные Forma. Отменить это действие нельзя.'))return;
+    setDeleting(user.id);setError('');
+    try{
+      const {data,error:fnError}=await supabase.functions.invoke('admin-users',{body:{action:'delete',user_id:user.id}});
+      if(fnError)throw fnError;
+      if(data?.error)throw new Error(data.error);
+      setUsers(rows=>rows.filter(x=>x.id!==user.id));
+    }catch(err){setError(err.message||'Не удалось удалить пользователя.');}
+    finally{setDeleting('');}
+  }
+
+  return <section className="glass-card admin-users-card">
+    <button type="button" className="admin-users-toggle" onClick={toggle}><span><small>Админка</small><strong>Пользователи и почта</strong></span><b>{open?'⌃':'⌄'}</b></button>
+    {open&&<div className="admin-users-body">
+      <header><span>{users.length} аккаунтов</span><button type="button" onClick={load} disabled={loading}>{loading?'Обновляю…':'Обновить'}</button></header>
+      {error&&<p className="error-line">{error}</p>}
+      {loading&&!users.length&&<p className="soft-text">Загружаю пользователей…</p>}
+      <div className="admin-users-list">{users.map(user=><article key={user.id} className={user.email_confirmed_at?'confirmed':'unconfirmed'}>
+        <div className="admin-user-main"><strong>{user.name||'Без имени'}</strong><span>{user.email||'Почта не указана'}</span><small>{user.email_confirmed_at?'Почта подтверждена':'Почта НЕ подтверждена'}{user.last_sign_in_at?' · вход '+new Intl.DateTimeFormat('ru-RU',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}).format(new Date(user.last_sign_in_at)):' · ещё не входил'}</small></div>
+        {user.is_owner?<em>Владелец</em>:<button type="button" className="admin-delete-user" disabled={deleting===user.id} onClick={()=>remove(user)}>{deleting===user.id?'Удаляю…':'Удалить'}</button>}
+      </article>)}</div>
+    </div>}
+  </section>;
+}
+
 function AboutScreen({isBoss=false,profile,onNameChanged}){
   const [iosHelp,setIosHelp]=useState(false);
 
@@ -1451,6 +1579,7 @@ function AboutScreen({isBoss=false,profile,onNameChanged}){
     <p className="eyebrow-dark">Форма</p>
     <h1>О приложении</h1>
     {profile&&<ProfileName profile={profile} onChanged={onNameChanged}/>}
+    {isBoss&&<AdminUsersPanel/>}
 
     <section className="why-intro glass-card about-concept-hero">
       <h2>Не про идеальные тренировки.<br/>Про то, чтобы чаще двигаться.</h2>
