@@ -16,6 +16,7 @@ import { Share } from '@capacitor/share';
 const APP_VERSION = '2.1';
 const ANDROID_APK_URL = 'https://github.com/4uvakinvv-hue/fit-tracker/releases/download/android-current/forma-android.apk';
 const IOS_INSTALL_URL = 'https://4uvakinvv-hue.github.io/fit-tracker/';
+const AUTH_RECOVERY_REDIRECT_URL = 'https://4uvakinvv-hue.github.io/fit-tracker/';
 
 const OUTDOOR_MODES = [
   { id: 'bike', label: 'Вело', icon: '🚴', accent: 'amber', bonusAvgLimit: 50 },
@@ -470,14 +471,29 @@ function SplashScreen({progress=8,stage='Запуск приложения'}){
   </main>;
 }
 
-function AuthScreen(){
+function isPasswordRecoveryUrl(){
+  if(typeof window==='undefined')return false;
+  const raw=(window.location.hash||'')+'&'+(window.location.search||'');
+  return /(?:^|[&#?])type=recovery(?:&|$)/.test(raw);
+}
+function clearPasswordRecoveryUrl(){
+  if(typeof window==='undefined')return;
+  const url=new URL(window.location.href);
+  url.hash='';
+  ['type','code','token_hash','access_token','refresh_token','expires_in','expires_at'].forEach(key=>url.searchParams.delete(key));
+  window.history.replaceState(window.history.state||{},'',url.pathname+(url.search||''));
+}
+
+function AuthScreen({initialNotice=''}) {
   const [loginEmail,setLoginEmail]=useState('');
   const [loginPassword,setLoginPassword]=useState('');
   const [registerOpen,setRegisterOpen]=useState(false);
+  const [forgotOpen,setForgotOpen]=useState(false);
+  const [recoveryEmail,setRecoveryEmail]=useState('');
   const [name,setName]=useState('');
   const [registerEmail,setRegisterEmail]=useState('');
   const [registerPassword,setRegisterPassword]=useState('');
-  const [message,setMessage]=useState('');
+  const [message,setMessage]=useState(initialNotice);
   const [busy,setBusy]=useState('');
 
   async function login(e){
@@ -490,6 +506,21 @@ function AuthScreen(){
     finally{setBusy('');}
   }
 
+  async function requestPasswordReset(e){
+    e.preventDefault();
+    const email=recoveryEmail.trim();
+    if(!email){setMessage('Укажите e-mail, с которым регистрировались в Forma.');return;}
+    setBusy('recovery');setMessage('');
+    try{
+      const {error}=await supabase.auth.resetPasswordForEmail(email,{redirectTo:AUTH_RECOVERY_REDIRECT_URL});
+      if(error)throw error;
+      setMessage('Письмо отправлено. Откройте ссылку из письма и задайте новый пароль. Если письма нет — проверьте «Спам».');
+    }catch(err){
+      console.warn('Forma password reset request failed',err);
+      setMessage('Не получилось отправить письмо для восстановления. Проверьте e-mail и попробуйте ещё раз.');
+    }finally{setBusy('');}
+  }
+
   async function register(e){
     e.preventDefault();
     setBusy('register');setMessage('');
@@ -500,7 +531,7 @@ function AuthScreen(){
         password:registerPassword,
         options:{
           data:{name:name.trim(),app_name:'Форма'},
-          emailRedirectTo:'https://4uvakinvv-hue.github.io/fit-tracker/'
+          emailRedirectTo:AUTH_RECOVERY_REDIRECT_URL
         }
       });
       if(error)throw error;
@@ -509,27 +540,41 @@ function AuthScreen(){
     finally{setBusy('');}
   }
 
+  function openRecovery(){
+    setRegisterOpen(false);
+    setForgotOpen(true);
+    setRecoveryEmail(loginEmail.trim());
+    setMessage('');
+  }
+
   return <main className={`onboarding dark-screen auth-screen season-${seasonKey()}`}>
     <Brand/>
     <p className="brand-subtitle season-brand-label">Сезон {seasonMeta().name.toUpperCase()}</p>
-    <h1>Вход</h1>
-    <p className="soft-text">Уже зарегистрированы — просто войдите. Новый участник может создать аккаунт ниже на этом же экране.</p>
+    <h1>{forgotOpen?'Восстановление доступа':'Вход'}</h1>
+    <p className="soft-text">{forgotOpen?'Укажите почту аккаунта. Мы отправим ссылку для установки нового пароля.':'Уже зарегистрированы — просто войдите. Новый участник может создать аккаунт ниже на этом же экране.'}</p>
 
-    <form className="glass-card onboarding-form login-form" onSubmit={login}>
-      <label className="dark-field"><span>E-mail</span><input type="email" value={loginEmail} onChange={e=>setLoginEmail(e.target.value)} placeholder="you@example.com" required/></label>
-      <label className="dark-field"><span>Пароль</span><input type="password" value={loginPassword} onChange={e=>setLoginPassword(e.target.value)} placeholder="Пароль" required/></label>
+    {!forgotOpen&&<form className="glass-card onboarding-form login-form" onSubmit={login}>
+      <label className="dark-field"><span>E-mail</span><input type="email" value={loginEmail} onChange={e=>setLoginEmail(e.target.value)} placeholder="you@example.com" autoComplete="email" required/></label>
+      <label className="dark-field"><span>Пароль</span><input type="password" value={loginPassword} onChange={e=>setLoginPassword(e.target.value)} placeholder="Пароль" autoComplete="current-password" required/></label>
       <button className="gradient-button" disabled={busy==='login'}>{busy==='login'?'Входим…':'Войти'}</button>
-    </form>
+      <button type="button" className="forgot-password-link" onClick={openRecovery}>Забыли пароль?</button>
+    </form>}
 
-    <div className="register-entry">
+    {forgotOpen&&<form className="glass-card onboarding-form recovery-request-form" onSubmit={requestPasswordReset}>
+      <label className="dark-field"><span>E-mail</span><input type="email" value={recoveryEmail} onChange={e=>setRecoveryEmail(e.target.value)} placeholder="you@example.com" autoComplete="email" required/></label>
+      <button className="gradient-button" disabled={busy==='recovery'}>{busy==='recovery'?'Отправляем…':'Отправить ссылку'}</button>
+      <button type="button" className="auth-secondary-button" onClick={()=>{setForgotOpen(false);setMessage('');}}>Вернуться ко входу</button>
+    </form>}
+
+    {!forgotOpen&&<div className="register-entry">
       <span>Впервые в «Форме»?</span>
       <button onClick={()=>{setRegisterOpen(v=>!v);setMessage('');}}>{registerOpen?'Свернуть регистрацию':'Регистрация'}</button>
-    </div>
+    </div>}
 
-    {registerOpen&&<form className="glass-card onboarding-form register-form" onSubmit={register}>
+    {!forgotOpen&&registerOpen&&<form className="glass-card onboarding-form register-form" onSubmit={register}>
       <label className="dark-field"><span>Имя</span><input value={name} onChange={e=>setName(e.target.value)} placeholder="Имя в рейтинге" required/></label>
-      <label className="dark-field"><span>E-mail</span><input type="email" value={registerEmail} onChange={e=>setRegisterEmail(e.target.value)} placeholder="you@example.com" required/></label>
-      <label className="dark-field"><span>Пароль</span><input type="password" value={registerPassword} onChange={e=>setRegisterPassword(e.target.value)} placeholder="Минимум 6 символов" minLength={6} required/></label>
+      <label className="dark-field"><span>E-mail</span><input type="email" value={registerEmail} onChange={e=>setRegisterEmail(e.target.value)} placeholder="you@example.com" autoComplete="email" required/></label>
+      <label className="dark-field"><span>Пароль</span><input type="password" value={registerPassword} onChange={e=>setRegisterPassword(e.target.value)} placeholder="Минимум 6 символов" minLength={6} autoComplete="new-password" required/></label>
       <button className="gradient-button" disabled={busy==='register'}>{busy==='register'?'Создаём аккаунт…':'Создать аккаунт'}</button>
     </form>}
 
@@ -538,6 +583,57 @@ function AuthScreen(){
     <p style={{fontSize:11}}><a href="https://platform.fatsecret.com">Powered by fatsecret Platform API</a></p>
   </main>;
 }
+
+function PasswordRecoveryScreen({session,onComplete,onExpired}){
+  const [password,setPassword]=useState('');
+  const [repeatPassword,setRepeatPassword]=useState('');
+  const [busy,setBusy]=useState(false);
+  const [message,setMessage]=useState('');
+
+  async function savePassword(e){
+    e.preventDefault();
+    if(!session?.user){setMessage('Ссылка восстановления недействительна или уже истекла. Запросите новую.');return;}
+    if(password.length<6){setMessage('Новый пароль должен содержать минимум 6 символов.');return;}
+    if(password!==repeatPassword){setMessage('Пароли не совпадают.');return;}
+    setBusy(true);setMessage('');
+    try{
+      const {error}=await supabase.auth.updateUser({password});
+      if(error)throw error;
+      clearPasswordRecoveryUrl();
+      await supabase.auth.signOut();
+      onComplete('Пароль изменён. Теперь войдите в Forma с новым паролем.');
+    }catch(err){
+      console.warn('Forma password update failed',err);
+      setMessage('Не получилось изменить пароль. Возможно, ссылка устарела — запросите новую.');
+    }finally{setBusy(false);}
+  }
+
+  if(!session?.user){
+    return <main className={`onboarding dark-screen auth-screen recovery-screen season-${seasonKey()}`}>
+      <Brand/>
+      <p className="brand-subtitle season-brand-label">Восстановление доступа</p>
+      <h1>Ссылка устарела</h1>
+      <p className="soft-text">Эта ссылка уже использована или срок её действия истёк. Запросите новое письмо на экране входа.</p>
+      <div className="glass-card onboarding-form">
+        <button className="gradient-button" onClick={()=>{clearPasswordRecoveryUrl();onExpired();}}>Запросить новую ссылку</button>
+      </div>
+    </main>;
+  }
+
+  return <main className={`onboarding dark-screen auth-screen recovery-screen season-${seasonKey()}`}>
+    <Brand/>
+    <p className="brand-subtitle season-brand-label">Восстановление доступа</p>
+    <h1>Новый пароль</h1>
+    <p className="soft-text">Придумайте новый пароль для аккаунта {session.user.email||'Forma'}.</p>
+    <form className="glass-card onboarding-form recovery-password-form" onSubmit={savePassword}>
+      <label className="dark-field"><span>Новый пароль</span><input type="password" value={password} onChange={e=>setPassword(e.target.value)} minLength={6} autoComplete="new-password" placeholder="Минимум 6 символов" required/></label>
+      <label className="dark-field"><span>Повторите пароль</span><input type="password" value={repeatPassword} onChange={e=>setRepeatPassword(e.target.value)} minLength={6} autoComplete="new-password" placeholder="Ещё раз" required/></label>
+      <button className="gradient-button" disabled={busy}>{busy?'Сохраняем…':'Сохранить новый пароль'}</button>
+    </form>
+    {message&&<p className="auth-message auth-global-message">{message}</p>}
+  </main>;
+}
+
 export default function App(){
   const [authSession,setAuthSession]=useState(null);
   const [profile,setProfile]=useState(null);
