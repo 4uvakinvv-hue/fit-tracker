@@ -1513,6 +1513,56 @@ function WhyScreen({onBack}){
   </main>;
 }
 
+function AdminUsersPanel(){
+  const [open,setOpen]=useState(false);
+  const [users,setUsers]=useState([]);
+  const [loading,setLoading]=useState(false);
+  const [error,setError]=useState('');
+  const [deleting,setDeleting]=useState('');
+
+  async function load(){
+    setLoading(true);setError('');
+    try{
+      const {data,error:fnError}=await supabase.functions.invoke('admin-users',{body:{action:'list'}});
+      if(fnError)throw fnError;
+      if(data?.error)throw new Error(data.error);
+      setUsers(data?.users||[]);
+    }catch(err){setError(err.message||'Не удалось загрузить пользователей.');}
+    finally{setLoading(false);}
+  }
+
+  async function toggle(){
+    const next=!open;setOpen(next);
+    if(next&&!users.length)await load();
+  }
+
+  async function remove(user){
+    if(user.is_owner)return;
+    if(!window.confirm('Удалить аккаунт '+(user.name||user.email)+'? Это удалит пользователя и связанные с ним данные Forma. Отменить это действие нельзя.'))return;
+    setDeleting(user.id);setError('');
+    try{
+      const {data,error:fnError}=await supabase.functions.invoke('admin-users',{body:{action:'delete',user_id:user.id}});
+      if(fnError)throw fnError;
+      if(data?.error)throw new Error(data.error);
+      setUsers(rows=>rows.filter(x=>x.id!==user.id));
+    }catch(err){setError(err.message||'Не удалось удалить пользователя.');}
+    finally{setDeleting('');}
+  }
+
+  return <section className="glass-card admin-users-card">
+    <button type="button" className="admin-users-toggle" onClick={toggle}><span><small>Админка</small><strong>Пользователи и почта</strong></span><b>{open?'⌃':'⌄'}</b></button>
+    {open&&<div className="admin-users-body">
+      <header><span>{users.length} аккаунтов</span><button type="button" onClick={load} disabled={loading}>{loading?'Обновляю…':'Обновить'}</button></header>
+      {error&&<p className="error-line">{error}</p>}
+      {loading&&!users.length&&<p className="soft-text">Загружаю пользователей…</p>}
+      <div className="admin-users-list">{users.map(user=><article key={user.id} className={user.email_confirmed_at?'confirmed':'unconfirmed'}>
+        <div className="admin-user-main"><strong>{user.name||'Без имени'}</strong><span>{user.email||'Почта не указана'}</span><small>{user.email_confirmed_at?'Почта подтверждена':'Почта НЕ подтверждена'}{user.last_sign_in_at?' · вход '+new Intl.DateTimeFormat('ru-RU',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}).format(new Date(user.last_sign_in_at)):' · ещё не входил'}</small></div>
+        {user.is_owner?<em>Владелец</em>:<button type="button" className="admin-delete-user" disabled={deleting===user.id} onClick={()=>remove(user)}>{deleting===user.id?'Удаляю…':'Удалить'}</button>}
+      </article>)}</div>
+    </div>}
+  </section>;
+}
+
 function AboutScreen({isBoss=false,profile,onNameChanged}){
   const [iosHelp,setIosHelp]=useState(false);
 
@@ -1529,6 +1579,7 @@ function AboutScreen({isBoss=false,profile,onNameChanged}){
     <p className="eyebrow-dark">Форма</p>
     <h1>О приложении</h1>
     {profile&&<ProfileName profile={profile} onChanged={onNameChanged}/>}
+    {isBoss&&<AdminUsersPanel/>}
 
     <section className="why-intro glass-card about-concept-hero">
       <h2>Не про идеальные тренировки.<br/>Про то, чтобы чаще двигаться.</h2>
