@@ -3782,3 +3782,33 @@
 .profile-name-card small{display:block;color:#aab7c7;font-size:11px;line-height:1.5;margin-bottom:12px}
 .profile-name-card button{padding:10px 16px}
 .profile-name-card p{font-size:12px;line-height:1.5;margin:10px 0 0}
+
+
+/* Forma 2.1 — password recovery */
+.forgot-password-link{
+  justify-self:center;
+  min-height:34px;
+  margin-top:-2px;
+  padding:0 10px;
+  border:0;
+  background:transparent;
+  color:var(--season-primary,#74d8b0);
+  font-size:10px;
+  font-weight:850;
+}
+.recovery-request-form,.recovery-password-form{margin-top:18px}
+.auth-secondary-button{
+  min-height:42px;
+  border-radius:13px;
+  border:1px solid rgba(130,157,192,.18);
+  background:rgba(19,32,49,.74);
+  color:#a8b6c8;
+  font-size:10px;
+  font-weight:800;
+}
+.recovery-screen .onboarding-form{
+  margin-top:20px;
+}
+.recovery-screen .auth-message{
+  margin-top:12px;
+}
