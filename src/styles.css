@@ -3812,3 +3812,131 @@
 .recovery-screen .auth-message{
   margin-top:12px;
 }
+
+
+/* Forma 2.1 — hardened auth and admin users */
+.auth-state-card{
+  margin-top:18px;
+  padding:18px!important;
+  display:grid;
+  gap:10px;
+}
+.auth-state-icon{
+  width:52px;
+  height:52px;
+  display:grid;
+  place-items:center;
+  border-radius:16px;
+  background:rgba(82,200,151,.12);
+  border:1px solid rgba(82,200,151,.24);
+  color:#8fe1bd;
+  font-size:24px;
+}
+.auth-state-card h1{
+  margin:2px 0 0;
+  font-size:26px;
+}
+.auth-state-card p{
+  margin:0;
+  color:#b4c0ce;
+  font-size:10px;
+  line-height:1.5;
+}
+.auth-state-card p strong{color:#fff}
+.auth-state-card ol{
+  margin:2px 0;
+  padding-left:19px;
+  color:#d5dde6;
+  font-size:9px;
+  line-height:1.55;
+}
+.auth-state-card>small{
+  color:#8290a0;
+  font-size:8px;
+  line-height:1.45;
+}
+.registration-explainer{
+  padding:10px 11px;
+  border-radius:13px;
+  background:rgba(73,184,137,.09);
+  border:1px solid rgba(73,184,137,.18);
+}
+.registration-explainer strong,.registration-explainer span{display:block}
+.registration-explainer strong{color:#9ae4c1;font-size:9px}
+.registration-explainer span{margin-top:3px;color:#8999a9;font-size:8px;line-height:1.4}
+
+.admin-users-card{
+  margin:12px 0;
+  padding:0!important;
+  overflow:hidden;
+}
+.admin-users-toggle{
+  width:100%;
+  min-height:68px;
+  padding:12px 14px;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+  text-align:left;
+  background:transparent;
+  color:#fff;
+}
+.admin-users-toggle small,.admin-users-toggle strong{display:block}
+.admin-users-toggle small{color:#e4a75b;font-size:7px;text-transform:uppercase;letter-spacing:.09em}
+.admin-users-toggle strong{margin-top:3px;font-size:12px}
+.admin-users-toggle>b{color:#d1a15f;font-size:16px}
+.admin-users-body{
+  padding:0 12px 12px;
+  border-top:1px solid rgba(255,255,255,.06);
+}
+.admin-users-body>header{
+  min-height:42px;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+}
+.admin-users-body>header span{color:#8f9cab;font-size:8px}
+.admin-users-body>header button{
+  min-height:30px;
+  padding:0 10px;
+  border-radius:9px;
+  background:#182638;
+  color:#b7c7d9;
+  font-size:7px;
+}
+.admin-users-list{display:grid;gap:7px}
+.admin-users-list article{
+  min-height:70px;
+  padding:10px;
+  display:grid;
+  grid-template-columns:minmax(0,1fr) auto;
+  align-items:center;
+  gap:10px;
+  border-radius:14px;
+  background:rgba(15,27,41,.88);
+  border:1px solid rgba(255,255,255,.06);
+}
+.admin-users-list article.unconfirmed{border-color:rgba(242,171,75,.35)}
+.admin-user-main strong,.admin-user-main span,.admin-user-main small{display:block}
+.admin-user-main strong{font-size:10px;color:#f3f6f8}
+.admin-user-main span{margin-top:2px;font-size:8px;color:#c3ced9;word-break:break-all}
+.admin-user-main small{margin-top:4px;font-size:7px;color:#78c89f}
+.admin-users-list article.unconfirmed .admin-user-main small{color:#e4aa62}
+.admin-users-list article>em{
+  color:#75d7aa;
+  font-size:7px;
+  font-style:normal;
+}
+.admin-delete-user{
+  min-width:60px;
+  min-height:32px;
+  padding:0 9px;
+  border-radius:10px;
+  background:rgba(197,63,63,.12);
+  border:1px solid rgba(223,87,87,.25);
+  color:#f19a9a;
+  font-size:7px;
+  font-weight:800;
+}
