@@ -4,7 +4,7 @@ import TrainerModal from './TrainerModal.jsx';
 import GymTraining from './GymTraining.jsx';
 import TrainerWorkout from './TrainerWorkout.jsx';
 import ProfileName from './ProfileName.jsx';
-import { stepsReadStart, normalizeStepSamples, stepsFreshness, stepsStatusText } from './steps-sync.js';
+import { stepsReadStart, normalizeStepSamples, stepsFreshness, stepsStatusText, sumStepSamplesByDate, mergeStepRows, nextHourly55 } from './steps-sync.js';
 import { App as NativeApp } from '@capacitor/app';
 import { Capacitor } from '@capacitor/core';
 import { BackgroundGeolocation } from '@capgo/background-geolocation';
@@ -824,7 +824,7 @@ export default function App(){
         if(nextSession){
           setAuthSession(nextSession);
           await loadData(true,nextSession);
-          await syncSteps(false,nextSession);
+          await syncSteps(false,nextSession,{reason:'resume'});
           return;
         }
 
@@ -832,7 +832,7 @@ export default function App(){
         if(data?.session){
           setAuthSession(data.session);
           await loadData(true,data.session);
-          await syncSteps(false,data.session);
+          await syncSteps(false,data.session,{reason:'resume'});
         }
       }catch(err){
         console.warn('Forma resume refresh failed',err);
@@ -841,6 +841,32 @@ export default function App(){
 
     return ()=>{handle?.remove?.();};
   },[]);
+
+  useEffect(()=>{
+    if(!authSession?.user||passwordRecovery||!Capacitor.isNativePlatform())return;
+    let cancelled=false,timer=null;
+
+    const scheduleNext=()=>{
+      if(cancelled)return;
+      const now=new Date(),next=nextHourly55(now);
+      const delay=Math.max(1000,next.getTime()-now.getTime());
+      timer=setTimeout(async()=>{
+        if(cancelled)return;
+        try{
+          const {data}=await supabase.auth.getSession();
+          const session=data?.session||authSession;
+          if(session)await syncSteps(false,session,{reason:next.getHours()===23?'final-23:55':'hourly'});
+        }catch(err){
+          console.warn('Forma hourly steps refresh failed',err);
+        }finally{
+          if(!cancelled)scheduleNext();
+        }
+      },delay);
+    };
+
+    scheduleNext();
+    return()=>{cancelled=true;if(timer)clearTimeout(timer);};
+  },[authSession?.user?.id,passwordRecovery]);
 
   useEffect(()=>{
     let active=true;
@@ -859,7 +885,7 @@ export default function App(){
           return;
         }
         setBootProgress(82);setBootStage('Синхронизируем шаги');
-        await syncSteps(false,authSession);
+        await syncSteps(false,authSession,{reason:'launch'});
         if(!active)return;
         setBootProgress(100);setBootStage('Готово');
         const wait=Math.max(0,2000-(Date.now()-bootStartedAt.current));
@@ -899,7 +925,7 @@ export default function App(){
   },[isBoss,authSession?.user?.id]);
 
 
-  async function syncSteps(requestPermission=false,sessionOverride=authSession){
+  async function syncSteps(requestPermission=false,sessionOverride=authSession,{fullHistory=false,reason='auto'}={}){
     if(!sessionOverride?.user||stepsSyncLock.current)return;
     stepsSyncLock.current=true;
     setStepsSyncing(true);
@@ -920,19 +946,21 @@ export default function App(){
     }
 
     try{
+      const storedBefore=await loadStoredSteps();
       const availability=await Health.isAvailable();
       if(!availability?.available){
-        const stored=await loadStoredSteps();
         setStepsStatus(Capacitor.isNativePlatform()?'unavailable':'web');
-        setStepsDiagnostics({native:Capacitor.isNativePlatform(),latest:stepsFreshness(stored).latest});
+        setStepsDiagnostics({native:Capacitor.isNativePlatform(),latest:stepsFreshness(storedBefore).latest});
         return;
       }
 
       const authOptions={read:['steps'],write:[],requestHistoryAccess:true};
       let authorization=await Health.checkAuthorization(authOptions);
+      const stepsAllowed=authorization?.readAuthorized?.includes('steps');
+      const historyCanPrompt=authorization?.historyAccessAvailable===true&&authorization?.historyAccessAuthorized!==true;
 
-      if(!authorization?.readAuthorized?.includes('steps')){
-        if(!requestPermission){
+      if(!stepsAllowed||((requestPermission||fullHistory)&&historyCanPrompt)){
+        if(!requestPermission&&!stepsAllowed){
           setStepsStatus('permission');
           return;
         }
@@ -945,23 +973,55 @@ export default function App(){
       }
 
       const end=new Date();
-      // Keep recent reads within the permission window; missing days stay unknown.
-      const start=stepsReadStart(end,authorization);
-      const result=await Health.queryAggregated({
-        dataType:'steps',startDate:start.toISOString(),
-        endDate:end.toISOString(),bucket:'day',aggregation:'sum'
-      });
-      const totals=normalizeStepSamples(result?.samples,end);
+      let start=stepsReadStart(end,authorization);
+      if(!fullHistory){
+        const recent=new Date(end);
+        recent.setDate(recent.getDate()-29);
+        recent.setHours(0,0,0,0);
+        if(recent>start)start=recent;
+      }
+
+      const recentHourlyStart=new Date(end);
+      recentHourlyStart.setDate(recentHourlyStart.getDate()-8);
+      recentHourlyStart.setHours(0,0,0,0);
+      if(recentHourlyStart<start)recentHourlyStart.setTime(start.getTime());
+
+      const [dailyResult,hourlyResult]=await Promise.all([
+        Health.queryAggregated({
+          dataType:'steps',startDate:start.toISOString(),
+          endDate:end.toISOString(),bucket:'day',aggregation:'sum'
+        }),
+        Health.queryAggregated({
+          dataType:'steps',startDate:recentHourlyStart.toISOString(),
+          endDate:end.toISOString(),bucket:'hour',aggregation:'sum'
+        })
+      ]);
+
+      const dailyTotals=normalizeStepSamples(dailyResult?.samples,end);
+      const hourlyTotals=sumStepSamplesByDate(hourlyResult?.samples,end);
+      const totals=mergeStepRows(dailyTotals,hourlyTotals);
       const freshness=stepsFreshness(totals,end);
       const checkedAt=new Date().toISOString();
-      setStepsDiagnostics({native:true,checkedAt,latest:freshness.latest,
-        from:localDateKey(start),days:totals.length,
-        history:authorization.historyAccessAuthorized===true});
-      const rows=totals.map(row=>({...row,user_id:sessionOverride.user.id,
-        source:'health_connect',updated_at:checkedAt}));
+      const sourceMap=new Map(storedBefore.map(x=>[x.date,Number(x.steps)||0]));
+      const mergedForSave=totals.map(row=>({
+        ...row,
+        steps:Math.max(Number(row.steps)||0,sourceMap.get(row.date)||0),
+        user_id:sessionOverride.user.id,
+        source:'health_connect',
+        updated_at:checkedAt
+      }));
 
-      if(rows.length){
-        const {error}=await supabase.from('daily_steps').upsert(rows,{onConflict:'user_id,date'});
+      setStepsDiagnostics({
+        native:true,checkedAt,latest:freshness.latest,
+        from:localDateKey(start),days:totals.length,
+        history:authorization.historyAccessAuthorized===true,
+        reason,
+        hourlyDays:hourlyTotals.length,
+        fullHistory
+      });
+
+      if(mergedForSave.length){
+        const {error}=await supabase.from('daily_steps').upsert(mergedForSave,{onConflict:'user_id,date'});
         if(error)throw error;
       }
 
@@ -1289,10 +1349,10 @@ export default function App(){
   if(loadError)return <main className="onboarding dark-screen"><Brand/><h1>Связь с базой</h1><p className="soft-text">{loadError}</p><div className="glass-card onboarding-form"><button className="gradient-button" onClick={loadData}>Повторить</button></div></main>;
 
   return <div className={`app-shell-dark season-${seasonKey()} screen-${screen}`}>
-    {screen==='home'&&<Home schedule={schedule} sessions={numberedSessions} profile={profile} dailySteps={dailySteps} expeditionDays={expeditionDays} saveNotice={saveNotice} isBoss={isBoss} adminNotifications={adminNotifications} onTrainer={requestTrainer} onMarkNotificationsRead={markNotificationsRead} hookahEvents={hookahEvents} hookahProgramStartedOn={hookahProgramStartedOn} canUndoHookah={!!undoHookahId} onHookah={addHookah} onBonusHookah={addBonusHookah} onUndoHookah={undoHookah} stepsStatus={stepsStatus} stepsSyncing={stepsSyncing} onEnableSteps={()=>syncSteps(true,authSession)} onOpenSteps={()=>navigate('steps-history')} onOpenFeed={()=>navigate('feed')} selectedDateKey={selectedDateKey} setSelectedDateKey={setSelectedDateKey} onSavePlan={savePlan} onDeletePlan={deletePlan} onProposal={sendProposal} onOpenWorkout={openAdd}/>} 
+    {screen==='home'&&<Home schedule={schedule} sessions={numberedSessions} profile={profile} dailySteps={dailySteps} expeditionDays={expeditionDays} saveNotice={saveNotice} isBoss={isBoss} adminNotifications={adminNotifications} onTrainer={requestTrainer} onMarkNotificationsRead={markNotificationsRead} hookahEvents={hookahEvents} hookahProgramStartedOn={hookahProgramStartedOn} canUndoHookah={!!undoHookahId} onHookah={addHookah} onBonusHookah={addBonusHookah} onUndoHookah={undoHookah} stepsStatus={stepsStatus} stepsSyncing={stepsSyncing} onEnableSteps={()=>syncSteps(true,authSession,{fullHistory:true,reason:'manual'})} onOpenSteps={()=>navigate('steps-history')} onOpenFeed={()=>navigate('feed')} selectedDateKey={selectedDateKey} setSelectedDateKey={setSelectedDateKey} onSavePlan={savePlan} onDeletePlan={deletePlan} onProposal={sendProposal} onOpenWorkout={openAdd}/>} 
     {screen==='history'&&<History sessions={numberedSessions} onDelete={deleteSession} onUpdate={updateSession}/>}
     {screen.startsWith('history-')&&screen!=='steps-history'&&<History sessions={numberedSessions} onDelete={deleteSession} onUpdate={updateSession} filterType={screen.slice(8)}/>} 
-    {screen==='steps-history'&&<StepsHistoryV17 dailySteps={dailySteps} stepsStatus={stepsStatus} stepsSyncing={stepsSyncing} diagnostics={stepsDiagnostics} onSync={()=>syncSteps(true,authSession)} onSettings={()=>Health.openHealthConnectSettings().catch(()=>setStepsStatus('error'))} onBack={()=>goBack('home')}/>}
+    {screen==='steps-history'&&<StepsHistoryV17 dailySteps={dailySteps} stepsStatus={stepsStatus} stepsSyncing={stepsSyncing} diagnostics={stepsDiagnostics} onSync={()=>syncSteps(true,authSession,{fullHistory:true,reason:'manual'})} onSettings={()=>Health.openHealthConnectSettings().catch(()=>setStepsStatus('error'))} onBack={()=>goBack('home')}/>}
     {screen==='stats'&&<StatisticsV17 sessions={numberedSessions} dailySteps={dailySteps} isBoss={isBoss} hookahEvents={hookahEvents} hookahStartedOn={hookahStartedOn} hookahProgramStartedOn={hookahProgramStartedOn} profile={profile} memberCount={members.length} onOpenMembers={()=>navigate('members')} onOpenHistory={type=>navigate('history-'+type)} onOpenSteps={()=>navigate('steps-history')}/>} 
     {screen==='members'&&<MembersV17 members={members} profile={profile} previousTop5={previousTop5}/>} 
     {screen==='feed'&&<FeedScreen profile={profile}/>} 
@@ -2504,7 +2564,8 @@ function StepsHistoryV17({dailySteps,stepsStatus,stepsSyncing,diagnostics,onSync
       <p>{stepsStatusText(stepsStatus,dailySteps)}</p>
       {diagnostics?.checkedAt&&<small>Проверка: {new Date(diagnostics.checkedAt).toLocaleString('ru-RU')} · получено дней: {diagnostics.days}</small>}
       {diagnostics?.latest&&<small>Последний день источника: {formatDate(diagnostics.latest,{day:'numeric',month:'long'})}</small>}
-      {stepsStatus!=='web'&&<div><button className="secondary-button" onClick={onSync} disabled={stepsSyncing}>{stepsSyncing?'Обновляем…':'Обновить шаги'}</button><button className="secondary-button" onClick={onSettings}>Health Connect</button></div>}
+      {stepsStatus!=='web'&&<small>Автообновление: каждый час в :55 · финальная проверка дня в 23:55</small>}
+      {stepsStatus!=='web'&&<div><button className="secondary-button" onClick={onSync} disabled={stepsSyncing}>{stepsSyncing?'Полностью обновляем…':'Обновить шаги'}</button><button className="secondary-button" onClick={onSettings}>Health Connect</button></div>}
       <details><summary>Если шаги есть в шагомере, но здесь их нет</summary><p>В Health Connect открой «Данные и доступ» → «Активность» → «Шаги» и проверь нужный день. Если записей нет, включи передачу шагов в приложении-источнике, если оно её поддерживает. Для Forma разреши чтение шагов. После этого вернись в Forma: синхронизация запускается при открытии приложения.</p></details>
     </section>
     {!rows.length&&<div className="empty-state">История шагов пока пуста.</div>}

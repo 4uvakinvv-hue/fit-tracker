@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {normalizeStepSamples,stepsFreshness,stepsReadStart,stepsStatusText} from '../src/steps-sync.js';
+import {normalizeStepSamples,stepsFreshness,stepsReadStart,stepsStatusText,sumStepSamplesByDate,mergeStepRows,nextHourly55} from '../src/steps-sync.js';
 const now=new Date(2026,9,13,6,30);
 const sample=(day,value)=>({startDate:new Date(2026,9,day).toISOString(),value});
 test('old provider response is stale, not a zero for today',()=>{
@@ -24,4 +24,35 @@ test('history permission controls read window and local midnight',()=>{
  assert.equal(stepsReadStart(now,{historyAccessAuthorized:true}).getFullYear(),2025);
  assert.match(stepsStatusText('web',[],now),/Браузер/);
  assert.match(stepsStatusText('permission',[],now),/Нет разрешения/);
+});
+
+
+test('hourly buckets are summed by local day and merged with daily/stored maxima',()=>{
+ const hours=[
+   {startDate:new Date(2026,9,17,8).toISOString(),value:1200},
+   {startDate:new Date(2026,9,17,9).toISOString(),value:1800},
+   {startDate:new Date(2026,9,16,22).toISOString(),value:400}
+ ];
+ const hourly=sumStepSamplesByDate(hours,new Date(2026,9,17,18));
+ assert.deepEqual(hourly,[
+   {date:'2026-10-16',steps:400},
+   {date:'2026-10-17',steps:3000}
+ ]);
+ assert.deepEqual(
+   mergeStepRows([{date:'2026-10-17',steps:580}],hourly,[{date:'2026-10-17',steps:11000}]),
+   [{date:'2026-10-16',steps:400},{date:'2026-10-17',steps:11000}]
+ );
+});
+
+test('hourly scheduler runs at minute 55 including final 23:55',()=>{
+ const evening=nextHourly55(new Date(2026,9,17,18,49,10));
+ assert.equal(evening.getHours(),18);
+ assert.equal(evening.getMinutes(),55);
+ const late=nextHourly55(new Date(2026,9,17,22,58,0));
+ assert.equal(late.getHours(),23);
+ assert.equal(late.getMinutes(),55);
+ const after=nextHourly55(new Date(2026,9,17,23,56,0));
+ assert.equal(after.getDate(),18);
+ assert.equal(after.getHours(),0);
+ assert.equal(after.getMinutes(),55);
 });
