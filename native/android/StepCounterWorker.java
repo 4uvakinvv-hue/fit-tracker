@@ -1,12 +1,17 @@
 package ru.forma.app;
 
+import android.Manifest;
 import android.content.Context;
+import android.content.pm.PackageManager;
 import android.hardware.Sensor;
 import android.hardware.SensorEvent;
 import android.hardware.SensorEventListener;
 import android.hardware.SensorManager;
 import android.os.Handler;
 import android.os.HandlerThread;
+import android.os.Build;
+
+import androidx.core.content.ContextCompat;
 
 import androidx.annotation.NonNull;
 import androidx.work.Worker;
@@ -22,6 +27,10 @@ public class StepCounterWorker extends Worker {
   @NonNull
   @Override
   public Result doWork(){
+    if(Build.VERSION.SDK_INT>=Build.VERSION_CODES.Q &&
+      ContextCompat.checkSelfPermission(getApplicationContext(),Manifest.permission.ACTIVITY_RECOGNITION)!=PackageManager.PERMISSION_GRANTED){
+      return Result.success();
+    }
     SensorManager manager=(SensorManager)getApplicationContext().getSystemService(Context.SENSOR_SERVICE);
     if(manager==null)return Result.success();
     Sensor sensor=manager.getDefaultSensor(Sensor.TYPE_STEP_COUNTER);
