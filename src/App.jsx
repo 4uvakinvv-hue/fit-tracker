@@ -9,6 +9,7 @@ import { App as NativeApp } from '@capacitor/app';
 import { Capacitor } from '@capacitor/core';
 import { BackgroundGeolocation } from '@capgo/background-geolocation';
 import { Health } from '@capgo/capacitor-health';
+import { StepCounter } from './step-counter.js';
 import { Filesystem, Directory } from '@capacitor/filesystem';
 import { LocalNotifications } from '@capacitor/local-notifications';
 import { Share } from '@capacitor/share';
@@ -935,22 +936,67 @@ export default function App(){
       start.setHours(0,0,0,0);
       const {data,error}=await supabase
         .from('daily_steps')
-        .select('date,steps')
+        .select('date,steps,source')
         .eq('user_id',sessionOverride.user.id)
         .gte('date',localDateKey(start))
         .order('date',{ascending:true});
       if(error)throw error;
-      const rows=(data||[]).map(x=>({date:x.date,steps:Number(x.steps)||0}));
+      const rows=(data||[]).map(x=>({date:x.date,steps:Number(x.steps)||0,source:x.source||''}));
       setDailySteps(rows);
       return rows;
     }
 
     try{
+      const end=new Date();
+      const todayKey=localDateKey(end);
       const storedBefore=await loadStoredSteps();
-      const availability=await Health.isAvailable();
+      const seedToday=Number(storedBefore.find(x=>x.date===todayKey)?.steps)||0;
+      let nativeRows=[];
+      let nativeSnapshot=null;
+
+      if(Capacitor.isNativePlatform()&&Capacitor.getPlatform()==='android'){
+        try{
+          let granted=true;
+          if(requestPermission||reason==='launch-backfill'||reason==='launch'){
+            const permission=await StepCounter.requestPermission();
+            granted=permission?.granted!==false;
+          }
+          if(granted){
+            nativeSnapshot=await StepCounter.readTodaySteps({seedSteps:seedToday});
+            const value=Number(nativeSnapshot?.todaySteps);
+            if(nativeSnapshot?.date&&Number.isFinite(value)&&value>=0){
+              nativeRows=[{date:nativeSnapshot.date,steps:Math.round(value),source:'android_step_counter'}];
+            }
+          }
+        }catch(err){
+          if(err?.code!=='permission_required')console.warn('Forma native step counter read failed',err);
+        }
+      }
+
+      const availability=await Health.isAvailable().catch(()=>({available:false}));
       if(!availability?.available){
-        setStepsStatus(Capacitor.isNativePlatform()?'unavailable':'web');
-        setStepsDiagnostics({native:Capacitor.isNativePlatform(),latest:stepsFreshness(storedBefore).latest});
+        const rowsToSave=mergeStepRows(storedBefore,nativeRows).map(row=>({
+          ...row,
+          user_id:sessionOverride.user.id,
+          source:row.date===todayKey&&nativeRows.length?'android_step_counter':(storedBefore.find(x=>x.date===row.date)?.source||'stored'),
+          updated_at:new Date().toISOString()
+        }));
+        if(nativeRows.length){
+          const todayOnly=rowsToSave.filter(x=>x.date===todayKey);
+          const {error}=await supabase.from('daily_steps').upsert(todayOnly,{onConflict:'user_id,date'});
+          if(error)throw error;
+        }
+        const stored=await loadStoredSteps();
+        setStepsStatus(nativeRows.length?'ready':(Capacitor.isNativePlatform()?'unavailable':'web'));
+        setStepsDiagnostics({
+          native:Capacitor.isNativePlatform(),
+          checkedAt:new Date().toISOString(),
+          latest:stepsFreshness(stored).latest,
+          directSensor:nativeRows.length>0,
+          directToday:nativeRows[0]?.steps??null,
+          reason
+        });
+        await loadData(true,sessionOverride);
         return;
       }
 
@@ -960,64 +1006,75 @@ export default function App(){
       const historyCanPrompt=authorization?.historyAccessAvailable===true&&authorization?.historyAccessAuthorized!==true;
 
       if(!stepsAllowed||(requestPermission&&historyCanPrompt)){
-        if(!requestPermission&&!stepsAllowed){
+        if(!requestPermission&&!stepsAllowed&&!nativeRows.length){
           setStepsStatus('permission');
           return;
         }
-
-        authorization=await Health.requestAuthorization(authOptions);
-        if(!authorization?.readAuthorized?.includes('steps')){
-          setStepsStatus('permission');
-          return;
+        if(requestPermission||!stepsAllowed){
+          authorization=await Health.requestAuthorization(authOptions);
         }
       }
 
-      const end=new Date();
-      let start=stepsReadStart(end,authorization);
-      if(!fullHistory){
-        const recent=new Date(end);
-        recent.setDate(recent.getDate()-29);
-        recent.setHours(0,0,0,0);
-        if(recent>start)start=recent;
+      let dailyTotals=[],hourlyTotals=[];
+      if(authorization?.readAuthorized?.includes('steps')){
+        let start=stepsReadStart(end,authorization);
+        if(!fullHistory){
+          const recent=new Date(end);
+          recent.setDate(recent.getDate()-29);
+          recent.setHours(0,0,0,0);
+          if(recent>start)start=recent;
+        }
+
+        const recentHourlyStart=new Date(end);
+        recentHourlyStart.setDate(recentHourlyStart.getDate()-8);
+        recentHourlyStart.setHours(0,0,0,0);
+        if(recentHourlyStart<start)recentHourlyStart.setTime(start.getTime());
+
+        const [dailyResult,hourlyResult]=await Promise.all([
+          Health.queryAggregated({
+            dataType:'steps',startDate:start.toISOString(),
+            endDate:end.toISOString(),bucket:'day',aggregation:'sum'
+          }),
+          Health.queryAggregated({
+            dataType:'steps',startDate:recentHourlyStart.toISOString(),
+            endDate:end.toISOString(),bucket:'hour',aggregation:'sum'
+          })
+        ]);
+
+        dailyTotals=normalizeStepSamples(dailyResult?.samples,end);
+        hourlyTotals=sumStepSamplesByDate(hourlyResult?.samples,end);
       }
 
-      const recentHourlyStart=new Date(end);
-      recentHourlyStart.setDate(recentHourlyStart.getDate()-8);
-      recentHourlyStart.setHours(0,0,0,0);
-      if(recentHourlyStart<start)recentHourlyStart.setTime(start.getTime());
-
-      const [dailyResult,hourlyResult]=await Promise.all([
-        Health.queryAggregated({
-          dataType:'steps',startDate:start.toISOString(),
-          endDate:end.toISOString(),bucket:'day',aggregation:'sum'
-        }),
-        Health.queryAggregated({
-          dataType:'steps',startDate:recentHourlyStart.toISOString(),
-          endDate:end.toISOString(),bucket:'hour',aggregation:'sum'
-        })
-      ]);
-
-      const dailyTotals=normalizeStepSamples(dailyResult?.samples,end);
-      const hourlyTotals=sumStepSamplesByDate(hourlyResult?.samples,end);
-      const totals=mergeStepRows(dailyTotals,hourlyTotals);
+      const totals=mergeStepRows(dailyTotals,hourlyTotals,nativeRows);
       const freshness=stepsFreshness(totals,end);
       const checkedAt=new Date().toISOString();
-      const sourceMap=new Map(storedBefore.map(x=>[x.date,Number(x.steps)||0]));
-      const mergedForSave=totals.map(row=>({
-        ...row,
-        steps:Math.max(Number(row.steps)||0,sourceMap.get(row.date)||0),
-        user_id:sessionOverride.user.id,
-        source:'health_connect',
-        updated_at:checkedAt
-      }));
+      const sourceMap=new Map(storedBefore.map(x=>[x.date,{steps:Number(x.steps)||0,source:x.source||''}]));
+      const directToday=nativeRows[0]?.steps??null;
+      const mergedForSave=totals.map(row=>{
+        const stored=sourceMap.get(row.date);
+        const steps=Math.max(Number(row.steps)||0,stored?.steps||0);
+        const isDirect=row.date===todayKey&&directToday!=null&&directToday>=steps;
+        return {
+          ...row,
+          steps,
+          user_id:sessionOverride.user.id,
+          source:isDirect?'android_step_counter':(stored?.steps>Number(row.steps||0)?(stored?.source||'stored'):'health_connect'),
+          updated_at:checkedAt
+        };
+      });
 
       setStepsDiagnostics({
-        native:true,checkedAt,latest:freshness.latest,
-        from:localDateKey(start),days:totals.length,
-        history:authorization.historyAccessAuthorized===true,
+        native:true,checkedAt,
+        latest:freshness.latest,
+        from:totals[0]?.date||null,
+        days:totals.length,
+        history:authorization?.historyAccessAuthorized===true,
         reason,
         hourlyDays:hourlyTotals.length,
-        fullHistory
+        fullHistory,
+        directSensor:nativeRows.length>0,
+        directToday:directToday,
+        rawCounter:nativeSnapshot?.counter??null
       });
 
       if(mergedForSave.length){
@@ -1026,7 +1083,7 @@ export default function App(){
       }
 
       await loadStoredSteps();
-      setStepsStatus(freshness.stale?'stale':'ready');
+      setStepsStatus((freshness.stale&&!nativeRows.length)?'stale':'ready');
       await loadData(true,sessionOverride);
     }catch(err){
       console.warn('Forma steps sync failed',err);
@@ -2564,7 +2621,8 @@ function StepsHistoryV17({dailySteps,stepsStatus,stepsSyncing,diagnostics,onSync
       <p>{stepsStatusText(stepsStatus,dailySteps)}</p>
       {diagnostics?.checkedAt&&<small>Проверка: {new Date(diagnostics.checkedAt).toLocaleString('ru-RU')} · получено дней: {diagnostics.days}</small>}
       {diagnostics?.latest&&<small>Последний день источника: {formatDate(diagnostics.latest,{day:'numeric',month:'long'})}</small>}
-      {stepsStatus!=='web'&&<small>Автообновление: каждый час в :55 · финальная проверка дня в 23:55</small>}
+      {diagnostics?.directSensor&&<small>Системный датчик Android: {Number(diagnostics.directToday||0).toLocaleString('ru-RU')} шагов · прямое чтение телефона</small>}
+      {stepsStatus!=='web'&&<small>Текущий день: системный датчик Android · история: Health Connect · автообновление каждый час в :55</small>}
       {stepsStatus!=='web'&&<div><button className="secondary-button" onClick={onSync} disabled={stepsSyncing}>{stepsSyncing?'Полностью обновляем…':'Обновить шаги'}</button><button className="secondary-button" onClick={onSettings}>Health Connect</button></div>}
       <details><summary>Если шаги есть в шагомере, но здесь их нет</summary><p>В Health Connect открой «Данные и доступ» → «Активность» → «Шаги» и проверь нужный день. Если записей нет, включи передачу шагов в приложении-источнике, если оно её поддерживает. Для Forma разреши чтение шагов. После этого вернись в Forma: синхронизация запускается при открытии приложения.</p></details>
     </section>
