@@ -956,9 +956,11 @@ export default function App(){
 
       const authOptions={read:['steps'],write:[],requestHistoryAccess:true};
       let authorization=await Health.checkAuthorization(authOptions);
+      const stepsAllowed=authorization?.readAuthorized?.includes('steps');
+      const historyCanPrompt=authorization?.historyAccessAvailable===true&&authorization?.historyAccessAuthorized!==true;
 
-      if(!authorization?.readAuthorized?.includes('steps')){
-        if(!requestPermission){
+      if(!stepsAllowed||((requestPermission||fullHistory)&&historyCanPrompt)){
+        if(!requestPermission&&!stepsAllowed){
           setStepsStatus('permission');
           return;
         }
@@ -1023,9 +1025,8 @@ export default function App(){
         if(error)throw error;
       }
 
-      const storedAfter=await loadStoredSteps();
-      const storedFreshness=stepsFreshness(storedAfter,end);
-      setStepsStatus(storedFreshness.stale?'stale':'ready');
+      await loadStoredSteps();
+      setStepsStatus(freshness.stale?'stale':'ready');
       await loadData(true,sessionOverride);
     }catch(err){
       console.warn('Forma steps sync failed',err);
