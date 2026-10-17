@@ -37,3 +37,40 @@ export function stepsStatusText(status,rows,now=new Date()){
   if(stale)return latest?`Свежие шаги не поступили. Последний день: ${latest}. Проверь передачу шагов из своего шагомера в Health Connect.`:'Health Connect пока не передал шаги. Проверь разрешения и передачу данных из своего шагомера.';
   return 'Шаги получены из Health Connect. Отсутствие записи за день не означает 0 шагов.';
 }
+
+
+export function sumStepSamplesByDate(samples,now=new Date()){
+  const byDate=new Map(),today=stepsDateKey(now);
+  for(const sample of samples||[]){
+    const time=new Date(sample.startDate),value=Number(sample.value);
+    if(!Number.isFinite(time.getTime())||sample.value==null||!Number.isFinite(value)||value<0)continue;
+    const date=stepsDateKey(time);
+    if(date>today)continue;
+    byDate.set(date,(byDate.get(date)||0)+Math.round(value));
+  }
+  return [...byDate].sort(([a],[b])=>a.localeCompare(b)).map(([date,steps])=>({date,steps}));
+}
+
+export function mergeStepRows(...groups){
+  const byDate=new Map();
+  for(const rows of groups){
+    for(const row of rows||[]){
+      if(!row?.date)continue;
+      const value=Number(row.steps);
+      if(!Number.isFinite(value)||value<0)continue;
+      byDate.set(row.date,Math.max(Math.round(value),byDate.get(row.date)||0));
+    }
+  }
+  return [...byDate].sort(([a],[b])=>a.localeCompare(b)).map(([date,steps])=>({date,steps}));
+}
+
+export function nextHourly55(now=new Date()){
+  const next=new Date(now);
+  next.setSeconds(0,0);
+  if(now.getMinutes()<55)next.setMinutes(55);
+  else{
+    next.setHours(next.getHours()+1);
+    next.setMinutes(55);
+  }
+  return next;
+}
