@@ -885,7 +885,7 @@ export default function App(){
           return;
         }
         setBootProgress(82);setBootStage('Синхронизируем шаги');
-        await syncSteps(false,authSession,{reason:'launch'});
+        await syncSteps(false,authSession,{fullHistory:true,reason:'launch-backfill'});
         if(!active)return;
         setBootProgress(100);setBootStage('Готово');
         const wait=Math.max(0,2000-(Date.now()-bootStartedAt.current));
@@ -959,7 +959,7 @@ export default function App(){
       const stepsAllowed=authorization?.readAuthorized?.includes('steps');
       const historyCanPrompt=authorization?.historyAccessAvailable===true&&authorization?.historyAccessAuthorized!==true;
 
-      if(!stepsAllowed||((requestPermission||fullHistory)&&historyCanPrompt)){
+      if(!stepsAllowed||(requestPermission&&historyCanPrompt)){
         if(!requestPermission&&!stepsAllowed){
           setStepsStatus('permission');
           return;
