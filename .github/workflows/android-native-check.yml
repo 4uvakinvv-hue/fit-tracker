@@ -42,7 +42,7 @@ jobs:
         run: |
           sed -i 's/minSdkVersion = 24/minSdkVersion = 26/' android/variables.gradle
           sed -i '/<application/i\    <uses-permission android:name="android.permission.ACTIVITY_RECOGNITION" />\n    <uses-permission android:name="android.permission.health.READ_HEALTH_DATA_HISTORY" />\n    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />\n    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />\n    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />\n    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />\n    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />' android/app/src/main/AndroidManifest.xml
-          sed -i '/dependencies {/a\    implementation "androidx.work:work-runtime:2.9.1"\n    implementation "com.google.guava:listenablefuture:1.0"' android/app/build.gradle
+          sed -i '/dependencies {/a\    implementation "androidx.work:work-runtime:2.9.1"\n    implementation "com.google.guava:guava:33.2.1-android"' android/app/build.gradle
           mkdir -p android/app/src/main/java/ru/forma/app
           cp native/android/MainActivity.java android/app/src/main/java/ru/forma/app/MainActivity.java
           cp native/android/StepCounterPlugin.java android/app/src/main/java/ru/forma/app/StepCounterPlugin.java
