@@ -4,7 +4,7 @@ import TrainerModal from './TrainerModal.jsx';
 import GymTraining from './GymTraining.jsx';
 import TrainerWorkout from './TrainerWorkout.jsx';
 import ProfileName from './ProfileName.jsx';
-import { stepsReadStart, normalizeStepSamples, stepsFreshness, stepsStatusText } from './steps-sync.js';
+import { stepsReadStart, normalizeStepSamples, stepsFreshness, stepsStatusText, sumStepSamplesByDate, mergeStepRows, nextHourly55 } from './steps-sync.js';
 import { App as NativeApp } from '@capacitor/app';
 import { Capacitor } from '@capacitor/core';
 import { BackgroundGeolocation } from '@capgo/background-geolocation';
@@ -899,7 +899,7 @@ export default function App(){
   },[isBoss,authSession?.user?.id]);
 
 
-  async function syncSteps(requestPermission=false,sessionOverride=authSession){
+  async function syncSteps(requestPermission=false,sessionOverride=authSession,{fullHistory=false,reason='auto'}={}){
     if(!sessionOverride?.user||stepsSyncLock.current)return;
     stepsSyncLock.current=true;
     setStepsSyncing(true);
@@ -920,11 +920,11 @@ export default function App(){
     }
 
     try{
+      const storedBefore=await loadStoredSteps();
       const availability=await Health.isAvailable();
       if(!availability?.available){
-        const stored=await loadStoredSteps();
         setStepsStatus(Capacitor.isNativePlatform()?'unavailable':'web');
-        setStepsDiagnostics({native:Capacitor.isNativePlatform(),latest:stepsFreshness(stored).latest});
+        setStepsDiagnostics({native:Capacitor.isNativePlatform(),latest:stepsFreshness(storedBefore).latest});
         return;
       }
 
@@ -945,28 +945,61 @@ export default function App(){
       }
 
       const end=new Date();
-      // Keep recent reads within the permission window; missing days stay unknown.
-      const start=stepsReadStart(end,authorization);
-      const result=await Health.queryAggregated({
-        dataType:'steps',startDate:start.toISOString(),
-        endDate:end.toISOString(),bucket:'day',aggregation:'sum'
-      });
-      const totals=normalizeStepSamples(result?.samples,end);
+      let start=stepsReadStart(end,authorization);
+      if(!fullHistory){
+        const recent=new Date(end);
+        recent.setDate(recent.getDate()-29);
+        recent.setHours(0,0,0,0);
+        if(recent>start)start=recent;
+      }
+
+      const recentHourlyStart=new Date(end);
+      recentHourlyStart.setDate(recentHourlyStart.getDate()-8);
+      recentHourlyStart.setHours(0,0,0,0);
+      if(recentHourlyStart<start)recentHourlyStart.setTime(start.getTime());
+
+      const [dailyResult,hourlyResult]=await Promise.all([
+        Health.queryAggregated({
+          dataType:'steps',startDate:start.toISOString(),
+          endDate:end.toISOString(),bucket:'day',aggregation:'sum'
+        }),
+        Health.queryAggregated({
+          dataType:'steps',startDate:recentHourlyStart.toISOString(),
+          endDate:end.toISOString(),bucket:'hour',aggregation:'sum'
+        })
+      ]);
+
+      const dailyTotals=normalizeStepSamples(dailyResult?.samples,end);
+      const hourlyTotals=sumStepSamplesByDate(hourlyResult?.samples,end);
+      const totals=mergeStepRows(dailyTotals,hourlyTotals);
       const freshness=stepsFreshness(totals,end);
       const checkedAt=new Date().toISOString();
-      setStepsDiagnostics({native:true,checkedAt,latest:freshness.latest,
-        from:localDateKey(start),days:totals.length,
-        history:authorization.historyAccessAuthorized===true});
-      const rows=totals.map(row=>({...row,user_id:sessionOverride.user.id,
-        source:'health_connect',updated_at:checkedAt}));
+      const sourceMap=new Map(storedBefore.map(x=>[x.date,Number(x.steps)||0]));
+      const mergedForSave=totals.map(row=>({
+        ...row,
+        steps:Math.max(Number(row.steps)||0,sourceMap.get(row.date)||0),
+        user_id:sessionOverride.user.id,
+        source:'health_connect',
+        updated_at:checkedAt
+      }));
 
-      if(rows.length){
-        const {error}=await supabase.from('daily_steps').upsert(rows,{onConflict:'user_id,date'});
+      setStepsDiagnostics({
+        native:true,checkedAt,latest:freshness.latest,
+        from:localDateKey(start),days:totals.length,
+        history:authorization.historyAccessAuthorized===true,
+        reason,
+        hourlyDays:hourlyTotals.length,
+        fullHistory
+      });
+
+      if(mergedForSave.length){
+        const {error}=await supabase.from('daily_steps').upsert(mergedForSave,{onConflict:'user_id,date'});
         if(error)throw error;
       }
 
-      await loadStoredSteps();
-      setStepsStatus(freshness.stale?'stale':'ready');
+      const storedAfter=await loadStoredSteps();
+      const storedFreshness=stepsFreshness(storedAfter,end);
+      setStepsStatus(storedFreshness.stale?'stale':'ready');
       await loadData(true,sessionOverride);
     }catch(err){
       console.warn('Forma steps sync failed',err);
