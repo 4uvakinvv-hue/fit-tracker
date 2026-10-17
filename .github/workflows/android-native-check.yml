@@ -1,0 +1,56 @@
+name: Android native check
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "native/android/**"
+      - "src/step-counter.js"
+      - "src/App.jsx"
+      - ".github/workflows/android.yml"
+      - ".github/workflows/android-native-check.yml"
+  workflow_dispatch:
+
+jobs:
+  android-native:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build web app
+        run: npm run build
+
+      - name: Create Android project
+        run: |
+          rm -rf android
+          npx cap add android
+          npx cap sync android
+
+      - name: Configure native step counter
+        run: |
+          sed -i 's/minSdkVersion = 24/minSdkVersion = 26/' android/variables.gradle
+          sed -i '/<application/i\    <uses-permission android:name="android.permission.ACTIVITY_RECOGNITION" />\n    <uses-permission android:name="android.permission.health.READ_HEALTH_DATA_HISTORY" />\n    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />\n    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />\n    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />\n    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />\n    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />' android/app/src/main/AndroidManifest.xml
+          sed -i '/dependencies {/a\    implementation "androidx.work:work-runtime:2.9.1"' android/app/build.gradle
+          mkdir -p android/app/src/main/java/ru/forma/app
+          cp native/android/MainActivity.java android/app/src/main/java/ru/forma/app/MainActivity.java
+          cp native/android/StepCounterPlugin.java android/app/src/main/java/ru/forma/app/StepCounterPlugin.java
+          cp native/android/StepCounterStore.java android/app/src/main/java/ru/forma/app/StepCounterStore.java
+          cp native/android/StepCounterWorker.java android/app/src/main/java/ru/forma/app/StepCounterWorker.java
+
+      - name: Compile Android
+        run: |
+          cd android
+          chmod +x gradlew
+          ./gradlew assembleDebug
