@@ -8,6 +8,8 @@ import android.hardware.SensorEvent;
 import android.hardware.SensorEventListener;
 import android.hardware.SensorManager;
 import android.os.Build;
+import android.os.Handler;
+import android.os.Looper;
 
 import androidx.core.content.ContextCompat;
 import androidx.work.ExistingPeriodicWorkPolicy;
@@ -72,7 +74,19 @@ public class StepCounterPlugin extends Plugin implements SensorEventListener {
     if(pendingCall!=null){call.reject("Step counter read already in progress","busy");return;}
     pendingCall=call;
     boolean ok=sensorManager.registerListener(this,sensor,SensorManager.SENSOR_DELAY_NORMAL);
-    if(!ok){pendingCall=null;call.reject("Could not start step counter sensor","sensor_error");}
+    if(!ok){pendingCall=null;call.reject("Could not start step counter sensor","sensor_error");return;}
+    new Handler(Looper.getMainLooper()).postDelayed(()->{
+      if(pendingCall!=call)return;
+      pendingCall=null;
+      sensorManager.unregisterListener(this);
+      StepCounterStore.Snapshot snapshot=StepCounterStore.read(getContext());
+      JSObject out=new JSObject();
+      out.put("date",snapshot.date);
+      out.put("counter",snapshot.counter);
+      out.put("todaySteps",Math.max(snapshot.todaySteps,call.getInt("seedSteps",0)));
+      out.put("source","android_step_counter_cached");
+      call.resolve(out);
+    },2500);
   }
 
   @Override
