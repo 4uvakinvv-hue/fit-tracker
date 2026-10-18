@@ -4025,3 +4025,23 @@
   .outdoor-mode-tabs button{font-size:8px;padding:0 4px}
   .outdoor-mode-tabs button span{font-size:16px}
 }
+
+
+/* Forma 2.1 — GPS spoof/jammer protection */
+.gps-protection-note{
+  margin:7px 0 2px;
+  padding:8px 9px;
+  border-radius:11px;
+  background:rgba(83,188,205,.08);
+  border:1px solid rgba(83,188,205,.16);
+  color:#9edfe5;
+  font-size:7px;
+  line-height:1.4;
+}
+.gps-protection-live{
+  display:block;
+  margin:-2px 0 7px;
+  color:#8fd7df;
+  font-size:7px;
+  line-height:1.35;
+}
