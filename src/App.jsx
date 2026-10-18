@@ -2369,7 +2369,7 @@ function OutdoorTraining({dateKey,setDateKey,sessions,onBack,onSave,onSaveExpedi
           try{
             setSaving(true);
             await onSave(payload);
-            await Flaneuring.clearCompleted();
+            await Flaneuring.clearCompleted({sessionId:completed.sessionId});
           }catch(err){
             console.warn('Forma flaneuring foreground autosave failed',err);
             setGpsMessage('Фланирование завершено и сохранено на телефоне. Синхронизируем при появлении интернета.');
