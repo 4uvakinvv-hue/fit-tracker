@@ -1338,7 +1338,7 @@ export default function App(){
         if(!completed?.sessionId||!completed?.endedAt)break;
         const payload=flaneuringPayload(completed);
         await saveSession(payload);
-        await Flaneuring.clearCompleted();
+        await Flaneuring.clearCompleted({sessionId:completed.sessionId});
         synced=true;
       }
       return synced;
@@ -2470,7 +2470,7 @@ function OutdoorTraining({dateKey,setDateKey,sessions,onBack,onSave,onSaveExpedi
       setTracking(false);watchRef.current=null;setFlaneuringState(null);setResult(payload);
       try{
         await onSave(payload);
-        await Flaneuring.clearCompleted();
+        await Flaneuring.clearCompleted({sessionId:completed.sessionId});
       }catch(err){
         console.warn('Forma flaneuring manual save failed',err);
         setGpsMessage('Фланирование сохранено на телефоне. Синхронизируем автоматически, когда появится интернет.');
@@ -2521,7 +2521,7 @@ function OutdoorTraining({dateKey,setDateKey,sessions,onBack,onSave,onSaveExpedi
     try{
       if(result.type==='flaneuring'){
         await onSave(result);
-        await Flaneuring.clearCompleted().catch(()=>{});
+        await Flaneuring.clearCompleted({sessionId:result.draftId}).catch(()=>{});
         return;
       }
       const payload={type:mode,date:localDateKey(),title:result.title,distance:result.distance,duration:result.duration,movingDuration:result.movingDuration,stopDuration:result.stopDuration,stopCount:result.stopCount,transportDistance:result.transportDistance,avgSpeed:result.avgSpeed,maxSpeed:result.maxSpeed,routePoints:result.routePoints,startedAt:result.startedAt,endedAt:result.endedAt,trackingMode:'gps',gpsVerified:true,ratingEligible:mode==='moto'?result.distance>=150:true};
