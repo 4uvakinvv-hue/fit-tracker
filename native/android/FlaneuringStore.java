@@ -54,6 +54,10 @@ public final class FlaneuringStore {
     if(!p.getBoolean(ACTIVE,false))return status(c);
     if(shouldAutoStop(c)){finish(c,true);return status(c);}
     long now=loc.getTime()>0?loc.getTime():System.currentTimeMillis();
+    if(android.os.Build.VERSION.SDK_INT>=18&&loc.isFromMockProvider()){
+      p.edit().putInt(FILTERED_POINTS,p.getInt(FILTERED_POINTS,0)+1).apply();
+      return status(c);
+    }
     if(loc.hasAccuracy()&&loc.getAccuracy()>120f){
       p.edit().putInt(FILTERED_POINTS,p.getInt(FILTERED_POINTS,0)+1).apply();
       return status(c);
