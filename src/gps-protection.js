@@ -8,12 +8,12 @@ function haversineKm(a,b){
 }
 
 export function gpsTrustPolicy(type='bike'){
-  if(type==='run')return {maxSpeedKmh:45,maxAccuracyM:80,gapSeconds:600,recoveryRadiusKm:.6};
-  if(type==='bike')return {maxSpeedKmh:95,maxAccuracyM:90,gapSeconds:600,recoveryRadiusKm:1.2};
-  if(type==='moto')return {maxSpeedKmh:280,maxAccuracyM:110,gapSeconds:900,recoveryRadiusKm:3};
-  if(type==='hike')return {maxSpeedKmh:220,maxAccuracyM:110,gapSeconds:1200,recoveryRadiusKm:2};
-  if(type==='flaneuring')return {maxSpeedKmh:320,maxAccuracyM:120,gapSeconds:1200,recoveryRadiusKm:3};
-  return {maxSpeedKmh:120,maxAccuracyM:100,gapSeconds:600,recoveryRadiusKm:1.5};
+  if(type==='run')return {maxSpeedKmh:45,maxAccuracyM:80,gapSeconds:600,recoveryRadiusKm:.6,silenceResetSeconds:180};
+  if(type==='bike')return {maxSpeedKmh:95,maxAccuracyM:90,gapSeconds:600,recoveryRadiusKm:1.2,silenceResetSeconds:180};
+  if(type==='moto')return {maxSpeedKmh:280,maxAccuracyM:110,gapSeconds:900,recoveryRadiusKm:3,silenceResetSeconds:300};
+  if(type==='hike')return {maxSpeedKmh:220,maxAccuracyM:110,gapSeconds:1200,recoveryRadiusKm:2,silenceResetSeconds:300};
+  if(type==='flaneuring')return {maxSpeedKmh:320,maxAccuracyM:120,gapSeconds:1200,recoveryRadiusKm:3,silenceResetSeconds:300};
+  return {maxSpeedKmh:120,maxAccuracyM:100,gapSeconds:600,recoveryRadiusKm:1.5,silenceResetSeconds:180};
 }
 function normalizeGpsPoint(p){
   if(!p)return null;
@@ -53,35 +53,51 @@ export function sanitizeGpsPoints(points=[],type='bike'){
     if(breakBefore)next.breakBefore=true;
     out.push(next);lastAccepted=next;
   };
+  const trimPending=()=>{
+    if(pending.length>80){filteredPoints+=pending.length-30;pending=pending.slice(-30);}
+  };
+  const basicBad=p=>p.mocked===true||(p.accuracy!=null&&p.accuracy>policy.maxAccuracyM)||
+    (p.speedKmh!=null&&p.speedKmh>policy.maxSpeedKmh*1.15);
 
   for(const p of source){
     if(!lastAccepted){
-      if(p.accuracy!=null&&p.accuracy>policy.maxAccuracyM){filteredPoints++;continue;}
-      accept(p);continue;
-    }
-    const assessment=gpsSegmentAssessment(lastAccepted,p,type);
-    if(assessment.longGap){
-      if(p.accuracy!=null&&p.accuracy>policy.maxAccuracyM){filteredPoints++;spoofDetected=true;continue;}
-      if(pending.length)filteredPoints+=pending.length;
-      pending=[];
-      accept(p,true);discontinuities++;continue;
-    }
-    if(assessment.trusted){
-      if(pending.length){
-        if(assessment.km>policy.recoveryRadiusKm){
-          pending.push(p);
-          if(pending.length>60){filteredPoints+=pending.length-20;pending=pending.slice(-20);}
-          spoofDetected=true;
-          continue;
-        }
-        filteredPoints+=pending.length;pending=[];spoofDetected=true;
-      }
+      if(basicBad(p)){filteredPoints++;spoofDetected=true;continue;}
       accept(p);continue;
     }
 
+    const assessment=gpsSegmentAssessment(lastAccepted,p,type);
+
+    if(pending.length&&!basicBad(p)&&assessment.km<=policy.recoveryRadiusKm){
+      filteredPoints+=pending.length;pending=[];spoofDetected=true;
+      const broken=assessment.longGap;
+      accept(p,broken);
+      if(broken)discontinuities++;
+      continue;
+    }
+
+    if(assessment.longGap){
+      const previousSuspicious=pending.length?pending[pending.length-1]:null;
+      const silence=previousSuspicious?Math.max(0,(p.t-previousSuspicious.t)/1000):assessment.dt;
+      if(pending.length&&silence<policy.silenceResetSeconds){
+        pending.push(p);spoofDetected=true;trimPending();continue;
+      }
+      if(basicBad(p)){
+        pending.push(p);spoofDetected=true;trimPending();continue;
+      }
+      if(pending.length){filteredPoints+=pending.length;pending=[];spoofDetected=true;}
+      accept(p,true);discontinuities++;continue;
+    }
+
+    if(assessment.trusted&&!pending.length){
+      accept(p);continue;
+    }
+
+    if(assessment.trusted&&pending.length){
+      pending.push(p);spoofDetected=true;trimPending();continue;
+    }
+
     spoofDetected=true;
-    pending.push(p);
-    if(pending.length>60){filteredPoints+=pending.length-20;pending=pending.slice(-20);}
+    pending.push(p);trimPending();
   }
   filteredPoints+=pending.length;
   return {points:out,filteredPoints,discontinuities,spoofDetected};
