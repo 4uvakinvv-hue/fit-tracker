@@ -2696,7 +2696,7 @@ function History({sessions,onDelete,onUpdate,filterType=null}){
     setEditBusy(true);setEditError('');
     try{
       const patch={title:editTitle};
-      if(['bike','run','hike'].includes(s.type))patch.distance=editDistance;
+      if(['bike','run','hike','flaneuring'].includes(s.type))patch.distance=editDistance;
       await onUpdate(s.id,patch);
       setEditingId(null);
     }catch(err){setEditError(err.message||'Не получилось сохранить изменения.');}
@@ -2735,8 +2735,8 @@ function History({sessions,onDelete,onUpdate,filterType=null}){
           {canEditSession(s)&&editingId!==s.id&&<button type="button" className="history-edit-button-v18" onClick={()=>beginEdit(s)}>Редактировать · доступно 24 часа</button>}
           {editingId===s.id&&<div className="history-edit-form-v18">
             <label><span>Название</span><input value={editTitle} onChange={e=>setEditTitle(e.target.value)} maxLength={120}/></label>
-            {['bike','run','hike'].includes(s.type)&&<label><span>Километраж, км</span><input type="number" min="0" step="0.1" inputMode="decimal" value={editDistance} onChange={e=>setEditDistance(e.target.value)}/></label>}
-            {s.gpsVerified&&['bike','run','hike'].includes(s.type)&&<small>Маршрут, время и исходные GPS-точки сохранятся. Меняется только отображаемый километраж.</small>}
+            {['bike','run','hike','flaneuring'].includes(s.type)&&<label><span>Километраж, км</span><input type="number" min="0" step="0.1" inputMode="decimal" value={editDistance} onChange={e=>setEditDistance(e.target.value)}/></label>}
+            {s.gpsVerified&&['bike','run','hike','flaneuring'].includes(s.type)&&<small>Маршрут, время и исходные GPS-точки сохранятся. Меняется только отображаемый километраж.</small>}
             {editError&&<em>{editError}</em>}
             <div><button type="button" className="secondary-dark" onClick={()=>setEditingId(null)} disabled={editBusy}>Отмена</button><button type="button" className="gradient-button" onClick={()=>saveEdit(s)} disabled={editBusy}>{editBusy?'Сохраняю…':'Сохранить'}</button></div>
           </div>}
@@ -3047,6 +3047,10 @@ function StatisticsV17({sessions,dailySteps,isBoss,hookahEvents,hookahStartedOn,
   const motoSessions=filtered.filter(x=>x.type==='moto');
   const motoDistance=motoSessions.reduce((n,x)=>n+(Number(x.distance)||0),0);
   const avgMoto=motoSessions.length?motoDistance/motoSessions.length:0;
+  const flaneuringSessions=filtered.filter(x=>x.type==='flaneuring');
+  const flaneuringDistance=flaneuringSessions.reduce((n,x)=>n+(Number(x.distance)||0),0);
+  const flaneuringWalking=flaneuringSessions.reduce((n,x)=>n+(Number(x.walkingDistance)||0),0);
+  const flaneuringHours=flaneuringSessions.reduce((n,x)=>n+(Number(x.duration)||0),0)/3600;
   const hikes=filtered.filter(x=>x.type==='hike');
   const hikeCount=hikes.length;
   const hikeDays=hikes.reduce((n,x)=>n+Math.max(Number(x.hikeDays)||1,1),0);
@@ -3089,6 +3093,7 @@ function StatisticsV17({sessions,dailySteps,isBoss,hookahEvents,hookahStartedOn,
   if(runDistance>0)compact.push({key:'run',type:'run',accent:'run',title:'Бег',value:runDistance.toLocaleString('ru-RU'),unit:'км',secondary:runSessions.length?'Среднее '+avgRun.toFixed(1)+' км / пробежку':'',open:()=>onOpenHistory('run')});
   if(hikeCount>0)compact.push({key:'hike',type:'hike',accent:'hike',title:'ПВД / Поход',value:(hikeDistance||hikeCount).toLocaleString('ru-RU'),unit:hikeDistance?'км':'походов',secondary:hikeCount+' походов · '+hikeDays+' дн.',open:()=>onOpenHistory('hike')});
   if(motoDistance>0)compact.push({key:'moto',type:'moto',accent:'moto',title:'Мото',value:motoDistance.toLocaleString('ru-RU'),unit:'км',secondary:motoSessions.length?'Среднее '+avgMoto.toFixed(1)+' км / поездку':'',open:()=>onOpenHistory('moto')});
+  if(flaneuringSessions.length>0)compact.push({key:'flaneuring',type:'flaneuring',accent:'flaneuring',title:'Фланирование',value:flaneuringWalking.toFixed(1),unit:'км пешком',secondary:flaneuringDistance.toFixed(1)+' км всего · '+flaneuringHours.toFixed(1)+' ч',open:()=>onOpenHistory('flaneuring')});
   if(stepTotal>0)compact.push({key:'steps',type:'steps',accent:'green',title:'Шаги',value:stepTotal.toLocaleString('ru-RU'),unit:'шагов',secondary:stepRows.length?'Среднее '+Math.round(avgSteps).toLocaleString('ru-RU')+' / день':'',open:onOpenSteps});
   if(workoutCount>0)compact.push({key:'workout',type:'workout',accent:'coral',title:'Воркаут',value:workoutCount.toLocaleString('ru-RU'),unit:'тренировок',secondary:'',open:()=>onOpenHistory('workout')});
   if(combatCount>0)compact.push({key:'combat',type:'combat',accent:'combat',title:'Единоборства',value:combatCount.toLocaleString('ru-RU'),unit:'тренировок',secondary:'',open:()=>onOpenHistory('combat')});
