@@ -24,8 +24,16 @@ test('native tracker auto-finishes after two hours at last real movement',()=>{
 });
 
 test('flaneuring result is persisted offline and Android service is packaged',()=>{
-  assert.match(store,/putString\(COMPLETED,result\.toString\(\)\)/);
+  assert.match(store,/queue\.put\(result\)/);
+  assert.match(store,/putString\(COMPLETED,queue\.toString\(\)\)/);
   assert.match(app,/syncPendingFlaneuring/);
   assert.match(workflow,/FlaneuringService\.java/);
   assert.match(workflow,/foregroundServiceType="location"/);
+});
+
+
+test('offline flaneuring results stay queued and can be cleared by exact session',()=>{
+  assert.match(store,/completedQueue/);
+  assert.match(store,/sessionId\.equals\(item\.optString\("sessionId",""\)\)/);
+  assert.match(app,/clearCompleted\(\{sessionId:completed\.sessionId\}\)/);
 });
