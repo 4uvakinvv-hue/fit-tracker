@@ -49,6 +49,10 @@ jobs:
           cp native/android/StepCounterPlugin.java android/app/src/main/java/ru/forma/app/StepCounterPlugin.java
           cp native/android/StepCounterStore.java android/app/src/main/java/ru/forma/app/StepCounterStore.java
           cp native/android/StepCounterWorker.java android/app/src/main/java/ru/forma/app/StepCounterWorker.java
+          cp native/android/FlaneuringStore.java android/app/src/main/java/ru/forma/app/FlaneuringStore.java
+          cp native/android/FlaneuringService.java android/app/src/main/java/ru/forma/app/FlaneuringService.java
+          cp native/android/FlaneuringPlugin.java android/app/src/main/java/ru/forma/app/FlaneuringPlugin.java
+          sed -i '/<\/application>/i\        <service android:name=".FlaneuringService" android:foregroundServiceType="location" android:exported="false" />' android/app/src/main/AndroidManifest.xml
           sed -i 's/versionCode 1/versionCode 2104/' android/app/build.gradle
           sed -i 's/versionName "1.0"/versionName "2.1"/' android/app/build.gradle
 
