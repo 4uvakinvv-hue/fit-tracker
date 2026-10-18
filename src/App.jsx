@@ -11,6 +11,7 @@ import { BackgroundGeolocation } from '@capgo/background-geolocation';
 import { Health } from '@capgo/capacitor-health';
 import { StepCounter } from './step-counter.js';
 import { Flaneuring } from './flaneuring.js';
+import { sanitizeGpsPoints } from './gps-protection.js';
 import { Filesystem, Directory } from '@capacitor/filesystem';
 import { LocalNotifications } from '@capacitor/local-notifications';
 import { Share } from '@capacitor/share';
@@ -123,6 +124,9 @@ function mapSession(row){
     elevationMin:row.elevation_min==null?null:Number(row.elevation_min),
     elevationMax:row.elevation_max==null?null:Number(row.elevation_max),
     autoEnded:row.auto_ended===true,
+    gpsFilteredPoints:Number(row.gps_filtered_points)||0,
+    gpsDiscontinuities:Number(row.gps_discontinuities)||0,
+    gpsSpoofDetected:row.gps_spoof_detected===true,
     confirmed:row.confirmed!==false,
   };
 }
@@ -190,7 +194,7 @@ function classifyHikeRoute(points=[]){
   const markCandidate=()=>{candidate.forEach(i=>{if(out[i])out[i].segment='transport';});};
   for(let i=1;i<out.length;i++){
     const a=out[i-1],b=out[i],dt=Math.max(0,(Number(b.t)-Number(a.t))/1000);
-    if(dt<=0||dt>180){candidate=[];candidateSeconds=0;inTransport=false;continue;}
+    if(dt<=0||dt>180||b.breakBefore){candidate=[];candidateSeconds=0;inTransport=false;continue;}
     const km=haversineKm(a,b),derived=km/(dt/3600);
     const device=Number.isFinite(Number(b.speedKmh))?Math.max(0,Number(b.speedKmh)):null;
     const speed=device==null?derived:device;
@@ -212,13 +216,14 @@ function median(values=[]){
 function summarizeFlaneuringRoute(points=[],startedAt=null,endedAt=null){
   if(!Array.isArray(points)||!points.length){
     const startMs=Number(startedAt)||0,endMs=Number(endedAt)||startMs;
-    return {points:[],distance:0,walkingDistance:0,transportDistance:0,totalSeconds:Math.max(0,(endMs-startMs)/1000),avgSpeed:0,maxSpeed:0,elevationGain:0,elevationMin:null,elevationMax:null};
+    return {points:[],distance:0,walkingDistance:0,transportDistance:0,totalSeconds:Math.max(0,(endMs-startMs)/1000),avgSpeed:0,maxSpeed:0,elevationGain:0,elevationMin:null,elevationMax:null,filteredPoints:0,discontinuities:0,spoofDetected:false};
   }
-  const prepared=points.map(p=>({...p,segment:'walk'}));
+  const sanitized=sanitizeGpsPoints(points,'flaneuring');
+  const prepared=sanitized.points.map(p=>({...p,segment:'walk'}));
   let distance=0,walkingDistance=0,transportDistance=0,maxSpeed=0;
   for(let i=1;i<prepared.length;i++){
     const a=prepared[i-1],b=prepared[i],dt=Math.max(0,(Number(b.t)-Number(a.t))/1000);
-    if(dt<=0)continue;
+    if(dt<=0||b.breakBefore)continue;
     const km=haversineKm(a,b);
     const derived=km/(dt/3600);
     const device=Number.isFinite(Number(b.speedKmh))?Math.max(0,Number(b.speedKmh)):null;
@@ -234,21 +239,26 @@ function summarizeFlaneuringRoute(points=[],startedAt=null,endedAt=null){
   }
 
   const altitudeRows=prepared
-    .map((p,i)=>({i,alt:Number(p.altitude),acc:p.altitudeAccuracy==null?null:Number(p.altitudeAccuracy)}))
+    .map((p,i)=>({i,alt:Number(p.altitude),acc:p.altitudeAccuracy==null?null:Number(p.altitudeAccuracy),breakBefore:p.breakBefore===true}))
     .filter(x=>Number.isFinite(x.alt)&&(x.acc==null||!Number.isFinite(x.acc)||x.acc<=35));
   const smoothed=[];
   for(let j=0;j<altitudeRows.length;j++){
     const vals=[];
-    for(let k=Math.max(0,j-1);k<=Math.min(altitudeRows.length-1,j+1);k++)vals.push(altitudeRows[k].alt);
+    for(let k=Math.max(0,j-1);k<=Math.min(altitudeRows.length-1,j+1);k++){
+      if(k!==j&&altitudeRows[k].breakBefore)continue;
+      vals.push(altitudeRows[k].alt);
+    }
     const value=median(vals);
-    if(value!=null)smoothed.push(value);
+    if(value!=null)smoothed.push({value,breakBefore:altitudeRows[j].breakBefore});
   }
   let elevationGain=0,elevationMin=null,elevationMax=null;
   if(smoothed.length){
-    elevationMin=Math.min(...smoothed);
-    elevationMax=Math.max(...smoothed);
+    const altitudeValues=smoothed.map(x=>x.value);
+    elevationMin=Math.min(...altitudeValues);
+    elevationMax=Math.max(...altitudeValues);
     for(let i=1;i<smoothed.length;i++){
-      const delta=smoothed[i]-smoothed[i-1];
+      if(smoothed[i].breakBefore)continue;
+      const delta=smoothed[i].value-smoothed[i-1].value;
       if(delta>=2.5)elevationGain+=delta;
     }
   }
@@ -260,7 +270,10 @@ function summarizeFlaneuringRoute(points=[],startedAt=null,endedAt=null){
     points:prepared,distance,walkingDistance,transportDistance,totalSeconds,
     avgSpeed,maxSpeed,elevationGain,
     elevationMin:elevationMin==null?null:elevationMin,
-    elevationMax:elevationMax==null?null:elevationMax
+    elevationMax:elevationMax==null?null:elevationMax,
+    filteredPoints:sanitized.filteredPoints,
+    discontinuities:sanitized.discontinuities,
+    spoofDetected:sanitized.spoofDetected
   };
 }
 function flaneuringPayload(nativeResult={}){
@@ -288,19 +301,23 @@ function flaneuringPayload(nativeResult={}){
     trackingMode:'flaneuring_native',
     gpsVerified:true,
     autoEnded:nativeResult.autoEnded===true,
+    gpsFilteredPoints:Math.max(Number(nativeResult.filteredPoints)||0,Number(summary.filteredPoints)||0),
+    gpsDiscontinuities:Number(summary.discontinuities)||0,
+    gpsSpoofDetected:nativeResult.filteredPoints>0||summary.spoofDetected===true,
     ratingEligible:true,
   };
 }
 function summarizeRoute(points=[],type='bike'){
-  if(points.length<2)return {points:[...points],distance:0,totalSeconds:0,movingSeconds:0,stopSeconds:0,stopCount:0,transportDistance:0,avgSpeed:0,maxSpeed:0};
-  const prepared=type==='hike'?classifyHikeRoute(points):points.map(p=>({...p}));
+  const sanitized=sanitizeGpsPoints(points,type);
+  if(sanitized.points.length<2)return {points:[...sanitized.points],distance:0,totalSeconds:0,movingSeconds:0,stopSeconds:0,stopCount:0,transportDistance:0,avgSpeed:0,maxSpeed:0,filteredPoints:sanitized.filteredPoints,discontinuities:sanitized.discontinuities,spoofDetected:sanitized.spoofDetected};
+  const prepared=type==='hike'?classifyHikeRoute(sanitized.points):sanitized.points.map(p=>({...p}));
   let distance=0,movingSeconds=0,stopSeconds=0,stopCount=0,transportDistance=0,maxSpeed=0,candidateStop=0,candidateDistance=0;
   const stopLogic=type==='bike'||type==='run'||type==='moto';
   const threshold=type==='bike'?1.8:type==='run'?1.0:3.0;
   const minStopSeconds=type==='moto'?120:10;
   const flushCandidate=()=>{if(candidateStop>=minStopSeconds){stopSeconds+=candidateStop;stopCount+=1;}else{movingSeconds+=candidateStop;distance+=candidateDistance;}candidateStop=0;candidateDistance=0;};
   for(let i=1;i<prepared.length;i++){
-    const a=prepared[i-1],b=prepared[i],dt=Math.max(0,(Number(b.t)-Number(a.t))/1000);if(dt<=0)continue;
+    const a=prepared[i-1],b=prepared[i],dt=Math.max(0,(Number(b.t)-Number(a.t))/1000);if(dt<=0||b.breakBefore)continue;
     const km=haversineKm(a,b),derived=km/(dt/3600),device=Number.isFinite(Number(b.speedKmh))?Math.max(0,Number(b.speedKmh)):null,observed=device==null?derived:device;
     maxSpeed=Math.max(maxSpeed,observed);
     if(type==='hike'){
@@ -318,12 +335,36 @@ function summarizeRoute(points=[],type='bike'){
   const totalSeconds=Math.max(0,(Number(prepared[prepared.length-1].t)-Number(prepared[0].t))/1000);
   movingSeconds=Math.max(0,Math.min(totalSeconds,movingSeconds));
   const avgSpeed=movingSeconds>0?distance/(movingSeconds/3600):0;
-  return {points:prepared,distance,totalSeconds,movingSeconds,stopSeconds,stopCount,transportDistance,avgSpeed,maxSpeed};
+  return {points:prepared,distance,totalSeconds,movingSeconds,stopSeconds,stopCount,transportDistance,avgSpeed,maxSpeed,filteredPoints:sanitized.filteredPoints,discontinuities:sanitized.discontinuities,spoofDetected:sanitized.spoofDetected};
 }
 function compactRoutePoints(points=[],max=1200){
   if(points.length<=max)return points;
   const stride=Math.ceil(points.length/max),out=points.filter((_,i)=>i%stride===0);
   if(out[out.length-1]!==points[points.length-1])out.push(points[points.length-1]);return out;
+}
+const GPS_PENDING_STORAGE_KEY='forma-gps-pending-v21';
+function loadPendingGpsSessions(){
+  try{
+    const raw=localStorage.getItem(GPS_PENDING_STORAGE_KEY);
+    const list=raw?JSON.parse(raw):[];
+    return Array.isArray(list)?list:[];
+  }catch{return [];}
+}
+function persistPendingGpsSessions(list=[]){
+  try{
+    if(list.length)localStorage.setItem(GPS_PENDING_STORAGE_KEY,JSON.stringify(list));
+    else localStorage.removeItem(GPS_PENDING_STORAGE_KEY);
+  }catch{}
+}
+function queuePendingGpsSession(payload){
+  const list=loadPendingGpsSessions();
+  const id=payload?.draftId||payload?.id;
+  const filtered=id?list.filter(x=>(x?.draftId||x?.id)!==id):list;
+  persistPendingGpsSessions([...filtered,payload].slice(-8));
+}
+function removePendingGpsSession(id){
+  if(!id)return;
+  persistPendingGpsSessions(loadPendingGpsSessions().filter(x=>(x?.draftId||x?.id)!==id));
 }
 function routePlot(points=[],width=100,height=60,pad=5){
   if(!points.length)return [];
@@ -331,7 +372,7 @@ function routePlot(points=[],width=100,height=60,pad=5){
   const raw=points.map(p=>({x:Number(p.lng||0)*cos,y:Number(p.lat||0)})),xs=raw.map(p=>p.x),ys=raw.map(p=>p.y);
   const minX=Math.min(...xs),maxX=Math.max(...xs),minY=Math.min(...ys),maxY=Math.max(...ys),dx=Math.max(maxX-minX,1e-7),dy=Math.max(maxY-minY,1e-7);
   const scale=Math.min((width-pad*2)/dx,(height-pad*2)/dy),usedW=dx*scale,usedH=dy*scale,ox=(width-usedW)/2,oy=(height-usedH)/2;
-  return raw.map((p,i)=>({x:ox+(p.x-minX)*scale,y:height-(oy+(p.y-minY)*scale),segment:points[i]?.segment||'walk'}));
+  return raw.map((p,i)=>({x:ox+(p.x-minX)*scale,y:height-(oy+(p.y-minY)*scale),segment:points[i]?.segment||'walk',breakBefore:points[i]?.breakBefore===true}));
 }
 function formatDuration(seconds){
   const total=Math.max(0,Math.round(Number(seconds)||0)),h=Math.floor(total/3600),m=Math.floor((total%3600)/60),s=total%60;
@@ -415,7 +456,7 @@ function routeMetrics(data,type){
 function drawRoutePoster(data,type,dateKey,transparent=false){
   const points=data.routePoints||data.points||[];if(points.length<2)return null;const canvas=document.createElement('canvas');canvas.width=1080;canvas.height=1920;const ctx=canvas.getContext('2d'),meta=activityMeta(type)||{label:'Маршрут'},themes={bike:['#111a26','#f2aa45','#ffd68a'],run:['#21171e','#ec7566','#ffc0aa'],hike:['#102019','#63d3a1','#bcebcf'],moto:['#17181c','#f0b34e','#f8dc9a'],flaneuring:['#101d26','#62c9d9','#b9eff3']},theme=themes[type]||themes.bike,bg=theme[0],line=theme[1],accent=theme[2];
   if(!transparent){ctx.fillStyle=bg;ctx.fillRect(0,0,1080,1920);const g=ctx.createRadialGradient(820,180,20,820,180,760);g.addColorStop(0,line+'55');g.addColorStop(1,'#00000000');ctx.fillStyle=g;ctx.fillRect(0,0,1080,1920);}ctx.textBaseline='alphabetic';ctx.shadowColor=transparent?'rgba(0,0,0,.8)':'transparent';ctx.shadowBlur=transparent?14:0;ctx.fillStyle='#fff';ctx.font='800 58px system-ui,sans-serif';ctx.fillText('Форма · '+meta.label,70,105);ctx.fillStyle=transparent?'#fff':'#aab5c0';ctx.font='32px system-ui,sans-serif';ctx.fillText(formatDate(dateKey,{day:'numeric',month:'long',year:'numeric'}),70,155);
-  const plot=routePlot(points,930,920,55);if(plot.length){ctx.save();ctx.translate(75,230);ctx.lineWidth=14;ctx.lineJoin='round';ctx.lineCap='round';ctx.strokeStyle=line;for(let i=1;i<plot.length;i++){ctx.setLineDash(plot[i].segment==='transport'?[28,20]:[]);ctx.beginPath();ctx.moveTo(plot[i-1].x,plot[i-1].y);ctx.lineTo(plot[i].x,plot[i].y);ctx.stroke();}ctx.setLineDash([]);ctx.fillStyle='#65e6a8';ctx.beginPath();ctx.arc(plot[0].x,plot[0].y,17,0,Math.PI*2);ctx.fill();const last=plot[plot.length-1];ctx.fillStyle=accent;ctx.beginPath();ctx.arc(last.x,last.y,17,0,Math.PI*2);ctx.fill();ctx.restore();}
+  const plot=routePlot(points,930,920,55);if(plot.length){ctx.save();ctx.translate(75,230);ctx.lineWidth=14;ctx.lineJoin='round';ctx.lineCap='round';ctx.strokeStyle=line;for(let i=1;i<plot.length;i++){if(plot[i].breakBefore)continue;ctx.setLineDash(plot[i].segment==='transport'?[28,20]:[]);ctx.beginPath();ctx.moveTo(plot[i-1].x,plot[i-1].y);ctx.lineTo(plot[i].x,plot[i].y);ctx.stroke();}ctx.setLineDash([]);ctx.fillStyle='#65e6a8';ctx.beginPath();ctx.arc(plot[0].x,plot[0].y,17,0,Math.PI*2);ctx.fill();const last=plot[plot.length-1];ctx.fillStyle=accent;ctx.beginPath();ctx.arc(last.x,last.y,17,0,Math.PI*2);ctx.fill();ctx.restore();}
   const metrics=routeMetrics(data,type),cellH=160,startY=1235;metrics.forEach(([label,value],i)=>{const col=i%2,row=Math.floor(i/2),x=70+col*500,y=startY+row*cellH;if(!transparent){ctx.fillStyle='rgba(255,255,255,.055)';ctx.beginPath();ctx.roundRect(x,y,440,130,24);ctx.fill();}ctx.fillStyle=transparent?'rgba(255,255,255,.9)':'#95a4b2';ctx.font='28px system-ui,sans-serif';ctx.fillText(label,x+22,y+40);ctx.fillStyle='#fff';ctx.font='800 40px system-ui,sans-serif';ctx.fillText(value,x+22,y+92);});return canvas;
 }
 function blobToBase64(blob){return new Promise((resolve,reject)=>{const r=new FileReader();r.onload=()=>resolve(String(r.result).split(',')[1]);r.onerror=reject;r.readAsDataURL(blob);});}
@@ -839,6 +880,7 @@ export default function App(){
   const [stepsSyncing,setStepsSyncing]=useState(false);
   const stepsSyncLock=useRef(false);
   const flaneuringSyncLock=useRef(false);
+  const gpsPendingSyncLock=useRef(false);
   const [stepsDiagnostics,setStepsDiagnostics]=useState(null);
   const [screen,setScreen]=useState('home');
   const [selectedDateKey,setSelectedDateKey]=useState(localDateKey());
@@ -930,6 +972,7 @@ export default function App(){
           await loadData(true,nextSession);
           await syncSteps(false,nextSession,{reason:'resume'});
           await syncPendingFlaneuring(nextSession);
+          await syncPendingGpsSessions(nextSession);
           return;
         }
 
@@ -939,6 +982,7 @@ export default function App(){
           await loadData(true,data.session);
           await syncSteps(false,data.session,{reason:'resume'});
           await syncPendingFlaneuring(data.session);
+          await syncPendingGpsSessions(data.session);
         }
       }catch(err){
         console.warn('Forma resume refresh failed',err);
@@ -977,7 +1021,11 @@ export default function App(){
   useEffect(()=>{
     if(!authSession?.user||passwordRecovery||!Capacitor.isNativePlatform()||Capacitor.getPlatform()!=='android')return;
     let cancelled=false;
-    const check=async()=>{if(!cancelled)await syncPendingFlaneuring(authSession);};
+    const check=async()=>{
+      if(cancelled)return;
+      await syncPendingFlaneuring(authSession);
+      await syncPendingGpsSessions(authSession);
+    };
     const timer=setInterval(check,5*60*1000);
     return()=>{cancelled=true;clearInterval(timer);};
   },[authSession?.user?.id,passwordRecovery]);
@@ -1002,6 +1050,8 @@ export default function App(){
         await syncSteps(false,authSession,{fullHistory:true,reason:'launch-backfill'});
         if(!active)return;
         await syncPendingFlaneuring(authSession);
+        if(!active)return;
+        await syncPendingGpsSessions(authSession);
         if(!active)return;
         setBootProgress(100);setBootStage('Готово');
         const wait=Math.max(0,2000-(Date.now()-bootStartedAt.current));
@@ -1352,6 +1402,29 @@ export default function App(){
     }
   }
 
+  async function syncPendingGpsSessions(sessionOverride=authSession){
+    if(!sessionOverride?.user||gpsPendingSyncLock.current)return false;
+    const queue=loadPendingGpsSessions();
+    if(!queue.length)return false;
+    gpsPendingSyncLock.current=true;
+    let synced=false;
+    try{
+      for(const payload of queue){
+        try{
+          await saveSession(payload);
+          removePendingGpsSession(payload?.draftId||payload?.id);
+          synced=true;
+        }catch(err){
+          console.warn('Forma pending GPS session sync failed',err);
+          break;
+        }
+      }
+      return synced;
+    }finally{
+      gpsPendingSyncLock.current=false;
+    }
+  }
+
   async function saveSession(payload){
     if(isFuture(payload.date)){
       await savePlan(payload.date,payload.type,payload.title||'','planned');
@@ -1391,6 +1464,9 @@ export default function App(){
       elevation_min:payload.elevationMin??null,
       elevation_max:payload.elevationMax??null,
       auto_ended:payload.autoEnded===true,
+      gps_filtered_points:payload.gpsFilteredPoints??payload.filteredPoints??0,
+      gps_discontinuities:payload.gpsDiscontinuities??payload.discontinuities??0,
+      gps_spoof_detected:payload.gpsSpoofDetected===true||payload.spoofDetected===true,
       avg_speed:payload.avgSpeed??null,
       max_speed:payload.maxSpeed??null,
       route_points:payload.routePoints||null,
@@ -2280,7 +2356,7 @@ function HikeStats({count,days,distance}){
 function RouteSketch({points=[]}){
   const plot=routePlot(points,100,60,5);
   return <div className="route-sketch"><svg viewBox="0 0 100 60" role="img" aria-label="Схема маршрута">
-    {plot.slice(1).map((p,i)=><line key={i} className={p.segment==='transport'?'transport':''} x1={plot[i].x} y1={plot[i].y} x2={p.x} y2={p.y} vectorEffect="non-scaling-stroke"/>)}
+    {plot.slice(1).map((p,i)=>p.breakBefore?null:<line key={i} className={p.segment==='transport'?'transport':''} x1={plot[i].x} y1={plot[i].y} x2={p.x} y2={p.y} vectorEffect="non-scaling-stroke"/>)}
     {plot.length>0&&<circle className="route-start" cx={plot[0].x} cy={plot[0].y} r="2.4"/>}
     {plot.length>1&&<circle className="route-finish" cx={plot[plot.length-1].x} cy={plot[plot.length-1].y} r="2.4"/>}
   </svg></div>;
@@ -2294,9 +2370,11 @@ function RouteFullscreen({session,onClose}){
 function RouteResultCard({session,compact=false}){
   const [fullscreen,setFullscreen]=useState(false),[exportMsg,setExportMsg]=useState('');
   const type=session.type||session.mode||'bike',points=session.routePoints||session.points||[],meta=activityMeta(type)||OUTDOOR_MODES[0];
+  const anomalyCount=Number(session.gpsFilteredPoints??session.filteredPoints)||0;
+  const gapCount=Number(session.gpsDiscontinuities??session.discontinuities)||0;
   const gpsLabel=session.gpsVerified===false?'Ручная запись':session.trackingMode==='expedition'?'GPS · многодневный офлайн':session.trackingMode==='flaneuring_native'?(session.autoEnded?'GPS · завершено автоматически':'GPS · фланирование'):session.distanceCorrected?'GPS · километраж скорректирован':'GPS · подтверждено';
   async function exp(transparent){try{setExportMsg(await exportRoutePng(session,type,session.date||localDateKey(),transparent));}catch(err){setExportMsg(err.message||'Не получилось сохранить PNG');}}
-  return <><section className={'route-result-card '+type+(compact?' compact':'')}><header><span>{meta.icon}</span><div><small>{gpsLabel}</small><strong>{session.title||meta.label}</strong></div></header>{points.length>1&&<button type="button" className="route-sketch-open" onClick={()=>setFullscreen(true)}><RouteSketch points={points}/><small>Нажмите, чтобы открыть маршрут на весь экран</small></button>}{(type==='hike'||type==='flaneuring')&&Number((session.transportDistance??session.transport_distance)||0)>0&&<p className="route-legend compact"><i/> пешком <i className="transport"/> транспорт</p>}<div className="route-metrics">{routeMetrics(session,type).map(([label,value])=><span key={label}><small>{label}</small><strong>{value}</strong></span>)}</div>{points.length>1&&<div className="route-export-actions compact-actions"><button type="button" onClick={()=>exp(false)}>PNG</button><button type="button" onClick={()=>exp(true)}>PNG без фона</button></div>}{exportMsg&&<em className="route-export-message">{exportMsg}</em>}</section>{fullscreen&&<RouteFullscreen session={session} onClose={()=>setFullscreen(false)}/>}</>;
+  return <><section className={'route-result-card '+type+(compact?' compact':'')}><header><span>{meta.icon}</span><div><small>{gpsLabel}</small><strong>{session.title||meta.label}</strong></div></header>{points.length>1&&<button type="button" className="route-sketch-open" onClick={()=>setFullscreen(true)}><RouteSketch points={points}/><small>Нажмите, чтобы открыть маршрут на весь экран</small></button>}{(type==='hike'||type==='flaneuring')&&Number((session.transportDistance??session.transport_distance)||0)>0&&<p className="route-legend compact"><i/> пешком <i className="transport"/> транспорт</p>}{anomalyCount>0&&<p className="gps-protection-note">GPS-защита исключила {anomalyCount} аномальных GPS-точек{gapCount?' · разрывов '+gapCount:''}. Они не входят в дистанцию и среднюю скорость.</p>}<div className="route-metrics">{routeMetrics(session,type).map(([label,value])=><span key={label}><small>{label}</small><strong>{value}</strong></span>)}</div>{points.length>1&&<div className="route-export-actions compact-actions"><button type="button" onClick={()=>exp(false)}>PNG</button><button type="button" onClick={()=>exp(true)}>PNG без фона</button></div>}{exportMsg&&<em className="route-export-message">{exportMsg}</em>}</section>{fullscreen&&<RouteFullscreen session={session} onClose={()=>setFullscreen(false)}/>}</>;
 }
 
 const EXPEDITION_STORAGE_KEY='forma-expedition-v110';
@@ -2307,7 +2385,7 @@ function persistExpeditionDraft(draft){
   try{if(draft)localStorage.setItem(EXPEDITION_STORAGE_KEY,JSON.stringify(draft));else localStorage.removeItem(EXPEDITION_STORAGE_KEY);}catch{}
 }
 function expeditionDays(points=[]){
-  const prepared=classifyHikeRoute(points),map=new Map();
+  const prepared=classifyHikeRoute(sanitizeGpsPoints(points,'hike').points),map=new Map();
   prepared.forEach(p=>{const key=localDateKey(new Date(Number(p.t)||Date.now()));if(!map.has(key))map.set(key,{date:key,pointCount:0,distance:0});map.get(key).pointCount+=1;});
   for(let i=1;i<prepared.length;i++){
     const b=prepared[i],key=localDateKey(new Date(Number(b.t)||Date.now()));if(b.segment==='transport')continue;
@@ -2397,6 +2475,7 @@ function OutdoorTraining({dateKey,setDateKey,sessions,onBack,onSave,onSaveExpedi
       t:Number(position.time)||Date.now(),
       accuracy:Number(position.accuracy)||null,
       speedKmh:Number(position.speed)>=0?Number(position.speed)*3.6:null,
+      mocked:position.mocked===true||position.mock===true,
       altitude:Number.isFinite(Number(position.altitude))?Number(position.altitude):null,
       altitudeAccuracy:Number.isFinite(Number(position.altitudeAccuracy))?Number(position.altitudeAccuracy):null
     };
@@ -2413,10 +2492,11 @@ function OutdoorTraining({dateKey,setDateKey,sessions,onBack,onSave,onSaveExpedi
     const summary=summarizeRoute(pointsRef.current,mode);
     if(summary.points.length<2||summary.distance<=0){setGpsMessage('Маршрут не записался. Внесите тренировку вручную.');setManualOpen(true);return;}
     const finishedAt=new Date().toISOString();
-    const resultData={...summary,type:mode,mode,title:title.trim()||meta.label,date:localDateKey(),routePoints:compactRoutePoints(summary.points),movingDuration:Math.round(summary.movingSeconds),stopDuration:Math.round(summary.stopSeconds),stopCount:summary.stopCount,transportDistance:summary.transportDistance,duration:Math.round(summary.totalSeconds),avgSpeed:summary.avgSpeed,maxSpeed:summary.maxSpeed,gpsVerified:true,startedAt:startedRef.current,endedAt:finishedAt};
+    const resultData={draftId:crypto.randomUUID(),...summary,type:mode,mode,title:title.trim()||meta.label,date:localDateKey(),routePoints:compactRoutePoints(summary.points),movingDuration:Math.round(summary.movingSeconds),stopDuration:Math.round(summary.stopSeconds),stopCount:summary.stopCount,transportDistance:summary.transportDistance,duration:Math.round(summary.totalSeconds),avgSpeed:summary.avgSpeed,maxSpeed:summary.maxSpeed,gpsVerified:true,trackingMode:'gps',gpsFilteredPoints:summary.filteredPoints||0,gpsDiscontinuities:summary.discontinuities||0,gpsSpoofDetected:summary.spoofDetected===true,ratingEligible:mode==='moto'?summary.distance>=150:true,hikeDays:mode==='hike'?1:null,hikeDistance:mode==='hike'?summary.distance:null,startedAt:startedRef.current,endedAt:finishedAt};
+    queuePendingGpsSession(resultData);
     setResult(resultData);
     try{
-      const user=(await supabase.auth.getUser())?.data?.user;
+      const user=(await supabase.auth.getSession())?.data?.session?.user;
       if(user)await supabase.from('feed_events').insert({actor_id:user.id,event_type:'gps_finished',activity_type:mode,title:resultData.title,payload:{distance:resultData.distance,duration:resultData.duration,moving_duration:resultData.movingDuration,stop_duration:resultData.stopDuration,stop_count:resultData.stopCount,transport_distance:resultData.transportDistance,avg_speed:resultData.avgSpeed,max_speed:resultData.maxSpeed}});
     }catch(err){console.warn('Forma GPS finish feed failed',err);}
   }
@@ -2432,8 +2512,12 @@ function OutdoorTraining({dateKey,setDateKey,sessions,onBack,onSave,onSaveExpedi
         appendPoint(position,false);
       });
       watchRef.current='gps';setTracking(true);
-      const user=(await supabase.auth.getUser())?.data?.user;
-      if(user)await supabase.from('feed_events').insert({actor_id:user.id,event_type:'gps_started',activity_type:mode,title:title.trim()||meta.label,payload:{started_at:startedRef.current}});
+      try{
+        const user=(await supabase.auth.getSession())?.data?.session?.user;
+        if(user)await supabase.from('feed_events').insert({actor_id:user.id,event_type:'gps_started',activity_type:mode,title:title.trim()||meta.label,payload:{started_at:startedRef.current}});
+      }catch(feedErr){
+        console.warn('Forma GPS feed start skipped offline',feedErr);
+      }
     }catch(err){
       console.warn('Forma GPS start failed',err);setTracking(false);
       setGpsMessage('Не удалось запустить GPS. Проверьте разрешение геолокации или внесите тренировку вручную.');setManualOpen(true);
@@ -2453,7 +2537,7 @@ function OutdoorTraining({dateKey,setDateKey,sessions,onBack,onSave,onSaveExpedi
       setTrackPoints(pointsRef.current);
       watchRef.current='flaneuring-native';setTracking(true);
       try{
-        const user=(await supabase.auth.getUser())?.data?.user;
+        const user=(await supabase.auth.getSession())?.data?.session?.user;
         if(user)await supabase.from('feed_events').insert({actor_id:user.id,event_type:'gps_started',activity_type:'flaneuring',title:'Фланирование',payload:{started_at:new Date(startedRef.current).toISOString()}});
       }catch(feedErr){console.warn('Forma flaneuring feed start failed offline',feedErr);}
     }catch(err){
@@ -2519,16 +2603,21 @@ function OutdoorTraining({dateKey,setDateKey,sessions,onBack,onSave,onSaveExpedi
 
   async function saveGpsResult(){
     if(!result)return;
-    setSaving(true);
+    setSaving(true);setGpsMessage('');
     try{
       if(result.type==='flaneuring'){
         await onSave(result);
         await Flaneuring.clearCompleted({sessionId:result.draftId}).catch(()=>{});
         return;
       }
-      const payload={type:mode,date:localDateKey(),title:result.title,distance:result.distance,duration:result.duration,movingDuration:result.movingDuration,stopDuration:result.stopDuration,stopCount:result.stopCount,transportDistance:result.transportDistance,avgSpeed:result.avgSpeed,maxSpeed:result.maxSpeed,routePoints:result.routePoints,startedAt:result.startedAt,endedAt:result.endedAt,trackingMode:'gps',gpsVerified:true,ratingEligible:mode==='moto'?result.distance>=150:true};
-      if(mode==='hike'){payload.hikeDays=1;payload.hikeDistance=result.distance;}
+      const payload={draftId:result.draftId,type:result.type||mode,date:result.date||localDateKey(),title:result.title,distance:result.distance,duration:result.duration,movingDuration:result.movingDuration,stopDuration:result.stopDuration,stopCount:result.stopCount,transportDistance:result.transportDistance,avgSpeed:result.avgSpeed,maxSpeed:result.maxSpeed,routePoints:result.routePoints,startedAt:result.startedAt,endedAt:result.endedAt,trackingMode:'gps',gpsVerified:true,gpsFilteredPoints:result.filteredPoints??0,gpsDiscontinuities:result.discontinuities??0,gpsSpoofDetected:result.spoofDetected===true,ratingEligible:(result.type||mode)==='moto'?result.distance>=150:true};
+      if((result.type||mode)==='hike'){payload.hikeDays=1;payload.hikeDistance=result.distance;}
       await onSave(payload);
+      removePendingGpsSession(result.draftId);
+    }catch(err){
+      console.warn('Forma GPS save deferred offline',err);
+      if(result.type!=='flaneuring')queuePendingGpsSession(result);
+      setGpsMessage('Тренировка сохранена на телефоне. Интернет не нужен — Forma синхронизирует её автоматически, когда сеть появится.');
     }finally{setSaving(false);}
   }
 
@@ -2569,7 +2658,8 @@ function OutdoorTraining({dateKey,setDateKey,sessions,onBack,onSave,onSaveExpedi
 
     {tracking&&mode!=='flaneuring'&&<section className={'gps-live-card '+(watchRef.current==='expedition'?'expedition-live':'')}>
       <div className="gps-live-pulse"><i/>{watchRef.current==='expedition'?'Офлайн-поход · контрольные точки':'GPS записывает'}</div>
-      <RouteSketch points={trackPoints}/>
+      <RouteSketch points={live.points||trackPoints}/>
+      {Number(live.filteredPoints||0)>0&&<small className="gps-protection-live">GPS-защита отфильтровала {live.filteredPoints} аномальных GPS-точек</small>}
       <div className="gps-live-metrics"><span><small>{mode==='hike'?'Пешком':'Дистанция'}</small><strong>{live.distance.toFixed(2)} км</strong></span><span><small>{mode==='hike'?'Всего':'В движении'}</small><strong>{formatDuration(mode==='hike'?live.totalSeconds:live.movingSeconds)}</strong></span><span><small>{mode==='hike'?'Транспорт':'Средняя'}</small><strong>{mode==='hike'?live.transportDistance.toFixed(1)+' км':live.avgSpeed.toFixed(1)+' км/ч'}</strong></span></div>
       {(mode==='bike'||mode==='run'||mode==='moto')&&<small className="gps-stop-live">{mode==='moto'?'Отдых ≥2 мин':'Остановки ≥10 сек'}: {live.stopCount} · {formatDuration(live.stopSeconds)}</small>}
       {watchRef.current==='expedition'?<button className="stop-gps-button" onClick={finishExpedition}>Завершить многодневный поход</button>:<button className="stop-gps-button" onClick={stopGps}>Завершить тренировку</button>}
