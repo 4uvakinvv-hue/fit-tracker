@@ -23,6 +23,8 @@ public final class FlaneuringStore {
   private static final String TRUST_LNG="trust_lng";
   private static final String TRUST_TIME="trust_time";
   private static final String FILTERED_POINTS="filtered_points";
+  private static final String SUSPECT_ACTIVE="suspect_active";
+  private static final String SUSPECT_LAST_TIME="suspect_last_time";
   public static final long AUTO_STOP_MS=2L*60L*60L*1000L;
 
   private FlaneuringStore(){}
@@ -43,6 +45,8 @@ public final class FlaneuringStore {
       .putLong(LAST_MOVE_AT,now)
       .remove(LAST_MOVE_LAT).remove(LAST_MOVE_LNG)
       .remove(TRUST_LAT).remove(TRUST_LNG).remove(TRUST_TIME)
+      .putBoolean(SUSPECT_ACTIVE,false)
+      .remove(SUSPECT_LAST_TIME)
       .putInt(FILTERED_POINTS,0)
       .putString(POINTS,"[]")
       .apply();
@@ -65,6 +69,7 @@ public final class FlaneuringStore {
 
     double lat=loc.getLatitude(),lng=loc.getLongitude();
     boolean breakBefore=false;
+    boolean suspectActive=p.getBoolean(SUSPECT_ACTIVE,false);
     if(p.contains(TRUST_LAT)&&p.contains(TRUST_LNG)&&p.contains(TRUST_TIME)){
       long trustTime=p.getLong(TRUST_TIME,now);
       double dt=Math.max(0.001,(now-trustTime)/1000.0);
@@ -75,12 +80,37 @@ public final class FlaneuringStore {
       double device=loc.hasSpeed()?Math.max(0,loc.getSpeed()*3.6):-1;
       boolean mismatch=device>=0&&derived>80&&device<Math.max(25,derived*.35);
       boolean impossible=derived>320||(device>=0&&device>368);
+      boolean suspicious=mismatch||impossible;
 
-      if(dt<=1200&&(mismatch||impossible)){
-        p.edit().putInt(FILTERED_POINTS,p.getInt(FILTERED_POINTS,0)+1).apply();
+      if(suspectActive){
+        long suspectLast=p.getLong(SUSPECT_LAST_TIME,now);
+        double silence=Math.max(0,(now-suspectLast)/1000.0);
+        boolean returnedToTrack=km<=3.0&&!suspicious;
+        boolean genuineSilence=dt>1200&&silence>=300&&!suspicious;
+        if(returnedToTrack){
+          breakBefore=dt>1200;
+          suspectActive=false;
+        }else if(genuineSilence){
+          breakBefore=true;
+          suspectActive=false;
+        }else{
+          p.edit()
+            .putBoolean(SUSPECT_ACTIVE,true)
+            .putLong(SUSPECT_LAST_TIME,now)
+            .putInt(FILTERED_POINTS,p.getInt(FILTERED_POINTS,0)+1)
+            .apply();
+          return status(c);
+        }
+      }else if(suspicious){
+        p.edit()
+          .putBoolean(SUSPECT_ACTIVE,true)
+          .putLong(SUSPECT_LAST_TIME,now)
+          .putInt(FILTERED_POINTS,p.getInt(FILTERED_POINTS,0)+1)
+          .apply();
         return status(c);
+      }else if(dt>1200){
+        breakBefore=true;
       }
-      if(dt>1200)breakBefore=true;
     }
 
     JSONArray points;
@@ -116,7 +146,9 @@ public final class FlaneuringStore {
       .putString(POINTS,points.toString())
       .putFloat(TRUST_LAT,(float)lat)
       .putFloat(TRUST_LNG,(float)lng)
-      .putLong(TRUST_TIME,now);
+      .putLong(TRUST_TIME,now)
+      .putBoolean(SUSPECT_ACTIVE,false)
+      .remove(SUSPECT_LAST_TIME);
     if(moved){
       e.putLong(LAST_MOVE_AT,now)
        .putFloat(LAST_MOVE_LAT,(float)lat)
