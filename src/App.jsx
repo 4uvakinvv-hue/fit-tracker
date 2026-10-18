@@ -10,6 +10,7 @@ import { Capacitor } from '@capacitor/core';
 import { BackgroundGeolocation } from '@capgo/background-geolocation';
 import { Health } from '@capgo/capacitor-health';
 import { StepCounter } from './step-counter.js';
+import { Flaneuring } from './flaneuring.js';
 import { Filesystem, Directory } from '@capacitor/filesystem';
 import { LocalNotifications } from '@capacitor/local-notifications';
 import { Share } from '@capacitor/share';
@@ -24,11 +25,12 @@ const OUTDOOR_MODES = [
   { id: 'run', label: 'Бег', icon: '🏃', accent: 'run', bonusAvgLimit: 30 },
   { id: 'hike', label: 'ПВД / Поход', icon: '△', accent: 'hike' },
   { id: 'moto', label: 'Мото', icon: '🏍️', accent: 'moto' },
+  { id: 'flaneuring', label: 'Фланирование', icon: '🧭', accent: 'flaneuring' },
 ];
 
 const ACTIVITIES = [
   { id: 'gym', label: 'Тренажёрка', icon: '🏋︎', accent: 'violet' },
-  { id: 'outdoor', label: 'Вело / Бег / ПВД / Мото', icon: '⌁', accent: 'amber' },
+  { id: 'outdoor', label: 'GPS / улица', icon: '⌁', accent: 'amber' },
   { id: 'workout', label: 'Воркаут', icon: '┬', accent: 'coral' },
   { id: 'combat', label: 'Единоборства', icon: '🥊', accent: 'combat' },
   { id: 'crossfit', label: 'CrossFit', icon: '⚡', accent: 'crossfit' },
@@ -116,12 +118,17 @@ function mapSession(row){
     editedAt:row.edited_at||null,distanceCorrected:row.distance_corrected===true,
     stopDuration:Number(row.stop_duration)||0,stopCount:Number(row.stop_count)||0,
     transportDistance:Number(row.transport_distance)||0,
+    walkingDistance:Number(row.walking_distance)||0,
+    elevationGain:Number(row.elevation_gain)||0,
+    elevationMin:row.elevation_min==null?null:Number(row.elevation_min),
+    elevationMax:row.elevation_max==null?null:Number(row.elevation_max),
+    autoEnded:row.auto_ended===true,
     confirmed:row.confirmed!==false,
   };
 }
 function isFuture(key){return key>localDateKey();}
 function isQualifyingSession(s){return s.confirmed!==false&&s.date<=localDateKey()&&(s.type!=='walk'||Number(s.steps||0)>=10000);}
-function isRatingSession(s){return s.confirmed!==false&&s.ratingEligible===true&&s.date<=localDateKey()&&['gym','bike','run','workout','hike','combat','crossfit','moto'].includes(s.type);}
+function isRatingSession(s){return s.confirmed!==false&&s.ratingEligible===true&&s.date<=localDateKey()&&['gym','bike','run','workout','hike','combat','crossfit','moto','flaneuring'].includes(s.type);}
 function isStatsSession(s){return s.confirmed!==false&&s.date<=localDateKey();}
 function isHistorySession(s){return s.confirmed!==false&&s.date<=localDateKey();}
 function ratingActiveDates(sessions,dailySteps=[],expeditionDays=[]){
@@ -430,7 +437,7 @@ function scoreHint(sessions,dailySteps=[],expeditionDays=[]){
 }
 
 function sessionValue(s){
-  if(s.type==='bike'||s.type==='run'||s.type==='moto')return s.distance?`${Number(s.distance).toLocaleString('ru-RU')} км`:'Без километража';
+  if(s.type==='bike'||s.type==='run'||s.type==='moto'||s.type==='flaneuring')return s.distance?`${Number(s.distance).toLocaleString('ru-RU')} км`:'Без километража';
   if(s.type==='walk')return s.steps?`${Number(s.steps).toLocaleString('ru-RU')} шагов`:'Без шагов';
   if(s.type==='workout')return s.workoutText?'Описание':'Воркаут';
   if(s.type==='combat')return s.combatType||'Единоборства';
@@ -448,6 +455,7 @@ function ActivityGlyph({type,className=''}) {
   if(type==='steps') return <span className={className}>👣</span>;
   if(type==='hike') return <svg className={`activity-svg ${className}`} viewBox="0 0 64 64" aria-hidden="true"><path d="M5 51 23 23l9 14 8-12 19 26H5Z"/><path d="m18 31 5-8 5 8m8 2 4-8 5 7"/><path d="M12 51h40"/></svg>;
   if(type==='moto') return <span className={className}>🏍️</span>;
+  if(type==='flaneuring') return <span className={className}>🧭</span>;
   if(type==='crossfit') return <span className={className}>⚡</span>;
   const meta=activityMeta(type);
   return <span className={className}>{meta?.icon||'•'}</span>;
