@@ -288,7 +288,7 @@ function classifyHikeRoute(points=[]){
   const markCandidate=()=>{candidate.forEach(i=>{if(out[i])out[i].segment='transport';});};
   for(let i=1;i<out.length;i++){
     const a=out[i-1],b=out[i],dt=Math.max(0,(Number(b.t)-Number(a.t))/1000);
-    if(dt<=0||dt>180){candidate=[];candidateSeconds=0;inTransport=false;continue;}
+    if(dt<=0||dt>180||b.breakBefore){candidate=[];candidateSeconds=0;inTransport=false;continue;}
     const km=haversineKm(a,b),derived=km/(dt/3600);
     const device=Number.isFinite(Number(b.speedKmh))?Math.max(0,Number(b.speedKmh)):null;
     const speed=device==null?derived:device;
@@ -317,7 +317,7 @@ function summarizeFlaneuringRoute(points=[],startedAt=null,endedAt=null){
   let distance=0,walkingDistance=0,transportDistance=0,maxSpeed=0;
   for(let i=1;i<prepared.length;i++){
     const a=prepared[i-1],b=prepared[i],dt=Math.max(0,(Number(b.t)-Number(a.t))/1000);
-    if(dt<=0)continue;
+    if(dt<=0||b.breakBefore)continue;
     const km=haversineKm(a,b);
     const derived=km/(dt/3600);
     const device=Number.isFinite(Number(b.speedKmh))?Math.max(0,Number(b.speedKmh)):null;
@@ -403,7 +403,7 @@ function summarizeRoute(points=[],type='bike'){
   const minStopSeconds=type==='moto'?120:10;
   const flushCandidate=()=>{if(candidateStop>=minStopSeconds){stopSeconds+=candidateStop;stopCount+=1;}else{movingSeconds+=candidateStop;distance+=candidateDistance;}candidateStop=0;candidateDistance=0;};
   for(let i=1;i<prepared.length;i++){
-    const a=prepared[i-1],b=prepared[i],dt=Math.max(0,(Number(b.t)-Number(a.t))/1000);if(dt<=0)continue;
+    const a=prepared[i-1],b=prepared[i],dt=Math.max(0,(Number(b.t)-Number(a.t))/1000);if(dt<=0||b.breakBefore)continue;
     const km=haversineKm(a,b),derived=km/(dt/3600),device=Number.isFinite(Number(b.speedKmh))?Math.max(0,Number(b.speedKmh)):null,observed=device==null?derived:device;
     maxSpeed=Math.max(maxSpeed,observed);
     if(type==='hike'){
