@@ -227,6 +227,8 @@ function summarizeFlaneuringRoute(points=[],startedAt=null,endedAt=null){
     const transport=observed>6;
     b.segment=transport?'transport':'walk';
     if(!Number.isFinite(km)||km<0||observed>350)continue;
+    const stationaryJitter=observed<0.8&&km<0.05;
+    if(stationaryJitter)continue;
     distance+=km;
     if(transport)transportDistance+=km;else walkingDistance+=km;
   }
