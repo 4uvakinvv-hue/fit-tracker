@@ -57,7 +57,8 @@ test('native flaneuring rejects bad/spoofed fixes and completed GPS sessions que
   const app=await readFile('src/App.jsx','utf8');
   assert.match(store,/getAccuracy\(\)>120f/);
   assert.match(store,/derived>320/);
-  assert.match(store,/dt<=1200/);
+  assert.match(store,/SUSPECT_ACTIVE/);
+  assert.match(store,/genuineSilence=dt>1200&&silence>=300/);
   assert.match(store,/derived>80&&device<Math\.max\(25,derived\*\.35\)/);
   assert.match(app,/GPS_PENDING_STORAGE_KEY/);
   assert.match(app,/queuePendingGpsSession\(resultData\)/);
@@ -78,4 +79,19 @@ test('a persistent spoof cluster is not trusted just because its local points lo
   const clean=sanitizeGpsPoints(points,'bike');
   assert.equal(clean.points.some(x=>x.lat<43),false);
   assert.ok(clean.filteredPoints>=4);
+});
+
+
+test('continuous spoof stream remains quarantined even after the bike reset horizon',()=>{
+  const t=1_700_000_000_000;
+  const points=[
+    p(43.6000,39.7000,t,0),
+    p(43.6000,39.7040,t+60_000,18),
+  ];
+  for(let minute=2;minute<=14;minute++){
+    points.push(p(42.0000+minute*.00005,40.3000+minute*.00005,t+minute*60_000,4,8));
+  }
+  const clean=sanitizeGpsPoints(points,'bike');
+  assert.equal(clean.points.some(x=>x.lat<43),false);
+  assert.ok(clean.filteredPoints>=13);
 });
