@@ -27,7 +27,10 @@ public final class FlaneuringStore {
 
   public static synchronized JSONObject start(Context c){
     SharedPreferences p=prefs(c);
-    if(p.getBoolean(ACTIVE,false))return status(c);
+    if(p.getBoolean(ACTIVE,false)){
+      autoFinalizeIfStale(c);
+      if(p.getBoolean(ACTIVE,false))return status(c);
+    }
     long now=System.currentTimeMillis();
     p.edit()
       .putBoolean(ACTIVE,true)
@@ -36,7 +39,6 @@ public final class FlaneuringStore {
       .putLong(LAST_MOVE_AT,now)
       .remove(LAST_MOVE_LAT).remove(LAST_MOVE_LNG)
       .putString(POINTS,"[]")
-      .remove(COMPLETED)
       .apply();
     return status(c);
   }
@@ -93,11 +95,7 @@ public final class FlaneuringStore {
 
   public static synchronized JSONObject finish(Context c,boolean autoEnded){
     SharedPreferences p=prefs(c);
-    if(!p.getBoolean(ACTIVE,false)){
-      String completed=p.getString(COMPLETED,null);
-      if(completed!=null)try{return new JSONObject(completed);}catch(Exception ignored){}
-      return new JSONObject();
-    }
+    if(!p.getBoolean(ACTIVE,false))return completed(c);
     long started=p.getLong(STARTED_AT,System.currentTimeMillis());
     long lastMove=p.getLong(LAST_MOVE_AT,System.currentTimeMillis());
     long ended=autoEnded?lastMove:System.currentTimeMillis();
@@ -117,9 +115,11 @@ public final class FlaneuringStore {
       result.put("autoEnded",autoEnded);
       result.put("points",trimmed);
     }catch(Exception ignored){}
+    JSONArray queue=completedQueue(p);
+    queue.put(result);
     p.edit()
       .putBoolean(ACTIVE,false)
-      .putString(COMPLETED,result.toString())
+      .putString(COMPLETED,queue.toString())
       .apply();
     return result;
   }
@@ -146,12 +146,33 @@ public final class FlaneuringStore {
     return out;
   }
 
-  public static synchronized JSONObject completed(Context c){
-    autoFinalizeIfStale(c);
-    String raw=prefs(c).getString(COMPLETED,null);
-    if(raw==null)return new JSONObject();
-    try{return new JSONObject(raw);}catch(Exception e){return new JSONObject();}
+  private static JSONArray completedQueue(SharedPreferences p){
+    String raw=p.getString(COMPLETED,null);
+    if(raw==null||raw.isEmpty())return new JSONArray();
+    try{
+      if(raw.trim().startsWith("["))return new JSONArray(raw);
+      JSONArray migrated=new JSONArray();
+      migrated.put(new JSONObject(raw));
+      return migrated;
+    }catch(Exception e){return new JSONArray();}
   }
 
-  public static synchronized void clearCompleted(Context c){prefs(c).edit().remove(COMPLETED).apply();}
+  public static synchronized JSONObject completed(Context c){
+    autoFinalizeIfStale(c);
+    JSONArray queue=completedQueue(prefs(c));
+    JSONObject first=queue.optJSONObject(0);
+    return first==null?new JSONObject():first;
+  }
+
+  public static synchronized void clearCompleted(Context c){
+    SharedPreferences p=prefs(c);
+    JSONArray queue=completedQueue(p);
+    JSONArray rest=new JSONArray();
+    for(int i=1;i<queue.length();i++){
+      JSONObject item=queue.optJSONObject(i);
+      if(item!=null)rest.put(item);
+    }
+    if(rest.length()==0)p.edit().remove(COMPLETED).apply();
+    else p.edit().putString(COMPLETED,rest.toString()).apply();
+  }
 }
