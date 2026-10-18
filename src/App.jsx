@@ -2475,6 +2475,7 @@ function OutdoorTraining({dateKey,setDateKey,sessions,onBack,onSave,onSaveExpedi
       t:Number(position.time)||Date.now(),
       accuracy:Number(position.accuracy)||null,
       speedKmh:Number(position.speed)>=0?Number(position.speed)*3.6:null,
+      mocked:position.mocked===true||position.mock===true,
       altitude:Number.isFinite(Number(position.altitude))?Number(position.altitude):null,
       altitudeAccuracy:Number.isFinite(Number(position.altitudeAccuracy))?Number(position.altitudeAccuracy):null
     };
@@ -2495,7 +2496,7 @@ function OutdoorTraining({dateKey,setDateKey,sessions,onBack,onSave,onSaveExpedi
     queuePendingGpsSession(resultData);
     setResult(resultData);
     try{
-      const user=(await supabase.auth.getUser())?.data?.user;
+      const user=(await supabase.auth.getSession())?.data?.session?.user;
       if(user)await supabase.from('feed_events').insert({actor_id:user.id,event_type:'gps_finished',activity_type:mode,title:resultData.title,payload:{distance:resultData.distance,duration:resultData.duration,moving_duration:resultData.movingDuration,stop_duration:resultData.stopDuration,stop_count:resultData.stopCount,transport_distance:resultData.transportDistance,avg_speed:resultData.avgSpeed,max_speed:resultData.maxSpeed}});
     }catch(err){console.warn('Forma GPS finish feed failed',err);}
   }
@@ -2512,7 +2513,7 @@ function OutdoorTraining({dateKey,setDateKey,sessions,onBack,onSave,onSaveExpedi
       });
       watchRef.current='gps';setTracking(true);
       try{
-        const user=(await supabase.auth.getUser())?.data?.user;
+        const user=(await supabase.auth.getSession())?.data?.session?.user;
         if(user)await supabase.from('feed_events').insert({actor_id:user.id,event_type:'gps_started',activity_type:mode,title:title.trim()||meta.label,payload:{started_at:startedRef.current}});
       }catch(feedErr){
         console.warn('Forma GPS feed start skipped offline',feedErr);
@@ -2536,7 +2537,7 @@ function OutdoorTraining({dateKey,setDateKey,sessions,onBack,onSave,onSaveExpedi
       setTrackPoints(pointsRef.current);
       watchRef.current='flaneuring-native';setTracking(true);
       try{
-        const user=(await supabase.auth.getUser())?.data?.user;
+        const user=(await supabase.auth.getSession())?.data?.session?.user;
         if(user)await supabase.from('feed_events').insert({actor_id:user.id,event_type:'gps_started',activity_type:'flaneuring',title:'Фланирование',payload:{started_at:new Date(startedRef.current).toISOString()}});
       }catch(feedErr){console.warn('Forma flaneuring feed start failed offline',feedErr);}
     }catch(err){
