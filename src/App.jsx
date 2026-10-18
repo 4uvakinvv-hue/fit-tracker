@@ -239,21 +239,26 @@ function summarizeFlaneuringRoute(points=[],startedAt=null,endedAt=null){
   }
 
   const altitudeRows=prepared
-    .map((p,i)=>({i,alt:Number(p.altitude),acc:p.altitudeAccuracy==null?null:Number(p.altitudeAccuracy)}))
+    .map((p,i)=>({i,alt:Number(p.altitude),acc:p.altitudeAccuracy==null?null:Number(p.altitudeAccuracy),breakBefore:p.breakBefore===true}))
     .filter(x=>Number.isFinite(x.alt)&&(x.acc==null||!Number.isFinite(x.acc)||x.acc<=35));
   const smoothed=[];
   for(let j=0;j<altitudeRows.length;j++){
     const vals=[];
-    for(let k=Math.max(0,j-1);k<=Math.min(altitudeRows.length-1,j+1);k++)vals.push(altitudeRows[k].alt);
+    for(let k=Math.max(0,j-1);k<=Math.min(altitudeRows.length-1,j+1);k++){
+      if(k!==j&&altitudeRows[k].breakBefore)continue;
+      vals.push(altitudeRows[k].alt);
+    }
     const value=median(vals);
-    if(value!=null)smoothed.push(value);
+    if(value!=null)smoothed.push({value,breakBefore:altitudeRows[j].breakBefore});
   }
   let elevationGain=0,elevationMin=null,elevationMax=null;
   if(smoothed.length){
-    elevationMin=Math.min(...smoothed);
-    elevationMax=Math.max(...smoothed);
+    const altitudeValues=smoothed.map(x=>x.value);
+    elevationMin=Math.min(...altitudeValues);
+    elevationMax=Math.max(...altitudeValues);
     for(let i=1;i<smoothed.length;i++){
-      const delta=smoothed[i]-smoothed[i-1];
+      if(smoothed[i].breakBefore)continue;
+      const delta=smoothed[i].value-smoothed[i-1].value;
       if(delta>=2.5)elevationGain+=delta;
     }
   }
