@@ -2446,8 +2446,10 @@ function OutdoorTraining({dateKey,setDateKey,sessions,onBack,onSave,onSaveExpedi
       pointsRef.current=Array.isArray(state.points)?state.points:[];
       setTrackPoints(pointsRef.current);
       watchRef.current='flaneuring-native';setTracking(true);
-      const user=(await supabase.auth.getUser())?.data?.user;
-      if(user)await supabase.from('feed_events').insert({actor_id:user.id,event_type:'gps_started',activity_type:'flaneuring',title:'Фланирование',payload:{started_at:new Date(startedRef.current).toISOString()}});
+      try{
+        const user=(await supabase.auth.getUser())?.data?.user;
+        if(user)await supabase.from('feed_events').insert({actor_id:user.id,event_type:'gps_started',activity_type:'flaneuring',title:'Фланирование',payload:{started_at:new Date(startedRef.current).toISOString()}});
+      }catch(feedErr){console.warn('Forma flaneuring feed start failed offline',feedErr);}
     }catch(err){
       console.warn('Forma flaneuring start failed',err);
       setTracking(false);watchRef.current=null;
