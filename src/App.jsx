@@ -2385,7 +2385,7 @@ function persistExpeditionDraft(draft){
   try{if(draft)localStorage.setItem(EXPEDITION_STORAGE_KEY,JSON.stringify(draft));else localStorage.removeItem(EXPEDITION_STORAGE_KEY);}catch{}
 }
 function expeditionDays(points=[]){
-  const prepared=classifyHikeRoute(points),map=new Map();
+  const prepared=classifyHikeRoute(sanitizeGpsPoints(points,'hike').points),map=new Map();
   prepared.forEach(p=>{const key=localDateKey(new Date(Number(p.t)||Date.now()));if(!map.has(key))map.set(key,{date:key,pointCount:0,distance:0});map.get(key).pointCount+=1;});
   for(let i=1;i<prepared.length;i++){
     const b=prepared[i],key=localDateKey(new Date(Number(b.t)||Date.now()));if(b.segment==='transport')continue;
