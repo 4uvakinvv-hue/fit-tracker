@@ -434,7 +434,7 @@ function routePlot(points=[],width=100,height=60,pad=5){
   const raw=points.map(p=>({x:Number(p.lng||0)*cos,y:Number(p.lat||0)})),xs=raw.map(p=>p.x),ys=raw.map(p=>p.y);
   const minX=Math.min(...xs),maxX=Math.max(...xs),minY=Math.min(...ys),maxY=Math.max(...ys),dx=Math.max(maxX-minX,1e-7),dy=Math.max(maxY-minY,1e-7);
   const scale=Math.min((width-pad*2)/dx,(height-pad*2)/dy),usedW=dx*scale,usedH=dy*scale,ox=(width-usedW)/2,oy=(height-usedH)/2;
-  return raw.map((p,i)=>({x:ox+(p.x-minX)*scale,y:height-(oy+(p.y-minY)*scale),segment:points[i]?.segment||'walk'}));
+  return raw.map((p,i)=>({x:ox+(p.x-minX)*scale,y:height-(oy+(p.y-minY)*scale),segment:points[i]?.segment||'walk',breakBefore:points[i]?.breakBefore===true}));
 }
 function formatDuration(seconds){
   const total=Math.max(0,Math.round(Number(seconds)||0)),h=Math.floor(total/3600),m=Math.floor((total%3600)/60),s=total%60;
@@ -518,7 +518,7 @@ function routeMetrics(data,type){
 function drawRoutePoster(data,type,dateKey,transparent=false){
   const points=data.routePoints||data.points||[];if(points.length<2)return null;const canvas=document.createElement('canvas');canvas.width=1080;canvas.height=1920;const ctx=canvas.getContext('2d'),meta=activityMeta(type)||{label:'Маршрут'},themes={bike:['#111a26','#f2aa45','#ffd68a'],run:['#21171e','#ec7566','#ffc0aa'],hike:['#102019','#63d3a1','#bcebcf'],moto:['#17181c','#f0b34e','#f8dc9a'],flaneuring:['#101d26','#62c9d9','#b9eff3']},theme=themes[type]||themes.bike,bg=theme[0],line=theme[1],accent=theme[2];
   if(!transparent){ctx.fillStyle=bg;ctx.fillRect(0,0,1080,1920);const g=ctx.createRadialGradient(820,180,20,820,180,760);g.addColorStop(0,line+'55');g.addColorStop(1,'#00000000');ctx.fillStyle=g;ctx.fillRect(0,0,1080,1920);}ctx.textBaseline='alphabetic';ctx.shadowColor=transparent?'rgba(0,0,0,.8)':'transparent';ctx.shadowBlur=transparent?14:0;ctx.fillStyle='#fff';ctx.font='800 58px system-ui,sans-serif';ctx.fillText('Форма · '+meta.label,70,105);ctx.fillStyle=transparent?'#fff':'#aab5c0';ctx.font='32px system-ui,sans-serif';ctx.fillText(formatDate(dateKey,{day:'numeric',month:'long',year:'numeric'}),70,155);
-  const plot=routePlot(points,930,920,55);if(plot.length){ctx.save();ctx.translate(75,230);ctx.lineWidth=14;ctx.lineJoin='round';ctx.lineCap='round';ctx.strokeStyle=line;for(let i=1;i<plot.length;i++){ctx.setLineDash(plot[i].segment==='transport'?[28,20]:[]);ctx.beginPath();ctx.moveTo(plot[i-1].x,plot[i-1].y);ctx.lineTo(plot[i].x,plot[i].y);ctx.stroke();}ctx.setLineDash([]);ctx.fillStyle='#65e6a8';ctx.beginPath();ctx.arc(plot[0].x,plot[0].y,17,0,Math.PI*2);ctx.fill();const last=plot[plot.length-1];ctx.fillStyle=accent;ctx.beginPath();ctx.arc(last.x,last.y,17,0,Math.PI*2);ctx.fill();ctx.restore();}
+  const plot=routePlot(points,930,920,55);if(plot.length){ctx.save();ctx.translate(75,230);ctx.lineWidth=14;ctx.lineJoin='round';ctx.lineCap='round';ctx.strokeStyle=line;for(let i=1;i<plot.length;i++){if(plot[i].breakBefore)continue;ctx.setLineDash(plot[i].segment==='transport'?[28,20]:[]);ctx.beginPath();ctx.moveTo(plot[i-1].x,plot[i-1].y);ctx.lineTo(plot[i].x,plot[i].y);ctx.stroke();}ctx.setLineDash([]);ctx.fillStyle='#65e6a8';ctx.beginPath();ctx.arc(plot[0].x,plot[0].y,17,0,Math.PI*2);ctx.fill();const last=plot[plot.length-1];ctx.fillStyle=accent;ctx.beginPath();ctx.arc(last.x,last.y,17,0,Math.PI*2);ctx.fill();ctx.restore();}
   const metrics=routeMetrics(data,type),cellH=160,startY=1235;metrics.forEach(([label,value],i)=>{const col=i%2,row=Math.floor(i/2),x=70+col*500,y=startY+row*cellH;if(!transparent){ctx.fillStyle='rgba(255,255,255,.055)';ctx.beginPath();ctx.roundRect(x,y,440,130,24);ctx.fill();}ctx.fillStyle=transparent?'rgba(255,255,255,.9)':'#95a4b2';ctx.font='28px system-ui,sans-serif';ctx.fillText(label,x+22,y+40);ctx.fillStyle='#fff';ctx.font='800 40px system-ui,sans-serif';ctx.fillText(value,x+22,y+92);});return canvas;
 }
 function blobToBase64(blob){return new Promise((resolve,reject)=>{const r=new FileReader();r.onload=()=>resolve(String(r.result).split(',')[1]);r.onerror=reject;r.readAsDataURL(blob);});}
@@ -2383,7 +2383,7 @@ function HikeStats({count,days,distance}){
 function RouteSketch({points=[]}){
   const plot=routePlot(points,100,60,5);
   return <div className="route-sketch"><svg viewBox="0 0 100 60" role="img" aria-label="Схема маршрута">
-    {plot.slice(1).map((p,i)=><line key={i} className={p.segment==='transport'?'transport':''} x1={plot[i].x} y1={plot[i].y} x2={p.x} y2={p.y} vectorEffect="non-scaling-stroke"/>)}
+    {plot.slice(1).map((p,i)=>p.breakBefore?null:<line key={i} className={p.segment==='transport'?'transport':''} x1={plot[i].x} y1={plot[i].y} x2={p.x} y2={p.y} vectorEffect="non-scaling-stroke"/>)}
     {plot.length>0&&<circle className="route-start" cx={plot[0].x} cy={plot[0].y} r="2.4"/>}
     {plot.length>1&&<circle className="route-finish" cx={plot[plot.length-1].x} cy={plot[plot.length-1].y} r="2.4"/>}
   </svg></div>;
