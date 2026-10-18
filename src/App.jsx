@@ -123,6 +123,9 @@ function mapSession(row){
     elevationMin:row.elevation_min==null?null:Number(row.elevation_min),
     elevationMax:row.elevation_max==null?null:Number(row.elevation_max),
     autoEnded:row.auto_ended===true,
+    gpsFilteredPoints:Number(row.gps_filtered_points)||0,
+    gpsDiscontinuities:Number(row.gps_discontinuities)||0,
+    gpsSpoofDetected:row.gps_spoof_detected===true,
     confirmed:row.confirmed!==false,
   };
 }
@@ -390,6 +393,9 @@ function flaneuringPayload(nativeResult={}){
     trackingMode:'flaneuring_native',
     gpsVerified:true,
     autoEnded:nativeResult.autoEnded===true,
+    gpsFilteredPoints:Math.max(Number(nativeResult.filteredPoints)||0,Number(summary.filteredPoints)||0),
+    gpsDiscontinuities:Number(summary.discontinuities)||0,
+    gpsSpoofDetected:nativeResult.filteredPoints>0||summary.spoofDetected===true,
     ratingEligible:true,
   };
 }
@@ -427,6 +433,30 @@ function compactRoutePoints(points=[],max=1200){
   if(points.length<=max)return points;
   const stride=Math.ceil(points.length/max),out=points.filter((_,i)=>i%stride===0);
   if(out[out.length-1]!==points[points.length-1])out.push(points[points.length-1]);return out;
+}
+const GPS_PENDING_STORAGE_KEY='forma-gps-pending-v21';
+function loadPendingGpsSessions(){
+  try{
+    const raw=localStorage.getItem(GPS_PENDING_STORAGE_KEY);
+    const list=raw?JSON.parse(raw):[];
+    return Array.isArray(list)?list:[];
+  }catch{return [];}
+}
+function persistPendingGpsSessions(list=[]){
+  try{
+    if(list.length)localStorage.setItem(GPS_PENDING_STORAGE_KEY,JSON.stringify(list));
+    else localStorage.removeItem(GPS_PENDING_STORAGE_KEY);
+  }catch{}
+}
+function queuePendingGpsSession(payload){
+  const list=loadPendingGpsSessions();
+  const id=payload?.draftId||payload?.id;
+  const filtered=id?list.filter(x=>(x?.draftId||x?.id)!==id):list;
+  persistPendingGpsSessions([...filtered,payload].slice(-30));
+}
+function removePendingGpsSession(id){
+  if(!id)return;
+  persistPendingGpsSessions(loadPendingGpsSessions().filter(x=>(x?.draftId||x?.id)!==id));
 }
 function routePlot(points=[],width=100,height=60,pad=5){
   if(!points.length)return [];
@@ -1494,6 +1524,9 @@ export default function App(){
       elevation_min:payload.elevationMin??null,
       elevation_max:payload.elevationMax??null,
       auto_ended:payload.autoEnded===true,
+      gps_filtered_points:payload.gpsFilteredPoints??payload.filteredPoints??0,
+      gps_discontinuities:payload.gpsDiscontinuities??payload.discontinuities??0,
+      gps_spoof_detected:payload.gpsSpoofDetected===true||payload.spoofDetected===true,
       avg_speed:payload.avgSpeed??null,
       max_speed:payload.maxSpeed??null,
       route_points:payload.routePoints||null,
