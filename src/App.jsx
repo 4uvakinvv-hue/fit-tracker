@@ -972,6 +972,7 @@ export default function App(){
   const [stepsSyncing,setStepsSyncing]=useState(false);
   const stepsSyncLock=useRef(false);
   const flaneuringSyncLock=useRef(false);
+  const gpsPendingSyncLock=useRef(false);
   const [stepsDiagnostics,setStepsDiagnostics]=useState(null);
   const [screen,setScreen]=useState('home');
   const [selectedDateKey,setSelectedDateKey]=useState(localDateKey());
@@ -1063,6 +1064,7 @@ export default function App(){
           await loadData(true,nextSession);
           await syncSteps(false,nextSession,{reason:'resume'});
           await syncPendingFlaneuring(nextSession);
+          await syncPendingGpsSessions(nextSession);
           return;
         }
 
@@ -1072,6 +1074,7 @@ export default function App(){
           await loadData(true,data.session);
           await syncSteps(false,data.session,{reason:'resume'});
           await syncPendingFlaneuring(data.session);
+          await syncPendingGpsSessions(data.session);
         }
       }catch(err){
         console.warn('Forma resume refresh failed',err);
@@ -1110,7 +1113,11 @@ export default function App(){
   useEffect(()=>{
     if(!authSession?.user||passwordRecovery||!Capacitor.isNativePlatform()||Capacitor.getPlatform()!=='android')return;
     let cancelled=false;
-    const check=async()=>{if(!cancelled)await syncPendingFlaneuring(authSession);};
+    const check=async()=>{
+      if(cancelled)return;
+      await syncPendingFlaneuring(authSession);
+      await syncPendingGpsSessions(authSession);
+    };
     const timer=setInterval(check,5*60*1000);
     return()=>{cancelled=true;clearInterval(timer);};
   },[authSession?.user?.id,passwordRecovery]);
@@ -1135,6 +1142,8 @@ export default function App(){
         await syncSteps(false,authSession,{fullHistory:true,reason:'launch-backfill'});
         if(!active)return;
         await syncPendingFlaneuring(authSession);
+        if(!active)return;
+        await syncPendingGpsSessions(authSession);
         if(!active)return;
         setBootProgress(100);setBootStage('Готово');
         const wait=Math.max(0,2000-(Date.now()-bootStartedAt.current));
@@ -1482,6 +1491,29 @@ export default function App(){
       return synced;
     }finally{
       flaneuringSyncLock.current=false;
+    }
+  }
+
+  async function syncPendingGpsSessions(sessionOverride=authSession){
+    if(!sessionOverride?.user||gpsPendingSyncLock.current)return false;
+    const queue=loadPendingGpsSessions();
+    if(!queue.length)return false;
+    gpsPendingSyncLock.current=true;
+    let synced=false;
+    try{
+      for(const payload of queue){
+        try{
+          await saveSession(payload);
+          removePendingGpsSession(payload?.draftId||payload?.id);
+          synced=true;
+        }catch(err){
+          console.warn('Forma pending GPS session sync failed',err);
+          break;
+        }
+      }
+      return synced;
+    }finally{
+      gpsPendingSyncLock.current=false;
     }
   }
 
