@@ -973,6 +973,14 @@ export default function App(){
   },[authSession?.user?.id,passwordRecovery]);
 
   useEffect(()=>{
+    if(!authSession?.user||passwordRecovery||!Capacitor.isNativePlatform()||Capacitor.getPlatform()!=='android')return;
+    let cancelled=false;
+    const check=async()=>{if(!cancelled)await syncPendingFlaneuring(authSession);};
+    const timer=setInterval(check,5*60*1000);
+    return()=>{cancelled=true;clearInterval(timer);};
+  },[authSession?.user?.id,passwordRecovery]);
+
+  useEffect(()=>{
     let active=true;
     if(passwordRecovery){
       setLoading(false);
