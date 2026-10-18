@@ -66,5 +66,8 @@ public class FlaneuringPlugin extends Plugin {
 
   @PluginMethod public void status(PluginCall call){call.resolve(js(FlaneuringStore.status(getContext())));}
   @PluginMethod public void getCompleted(PluginCall call){call.resolve(js(FlaneuringStore.completed(getContext())));}
-  @PluginMethod public void clearCompleted(PluginCall call){FlaneuringStore.clearCompleted(getContext());call.resolve();}
+  @PluginMethod public void clearCompleted(PluginCall call){
+    FlaneuringStore.clearCompleted(getContext(),call.getString("sessionId"));
+    call.resolve();
+  }
 }
