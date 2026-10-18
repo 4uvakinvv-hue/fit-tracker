@@ -72,11 +72,11 @@ public final class FlaneuringStore {
       boolean mismatch=device>=0&&derived>80&&device<Math.max(25,derived*.35);
       boolean impossible=derived>320||(device>=0&&device>368);
 
-      if(dt<=600&&(mismatch||impossible)){
+      if(dt<=1200&&(mismatch||impossible)){
         p.edit().putInt(FILTERED_POINTS,p.getInt(FILTERED_POINTS,0)+1).apply();
         return status(c);
       }
-      if(dt>600)breakBefore=true;
+      if(dt>1200)breakBefore=true;
     }
 
     JSONArray points;
