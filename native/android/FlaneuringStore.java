@@ -164,13 +164,19 @@ public final class FlaneuringStore {
     return first==null?new JSONObject():first;
   }
 
-  public static synchronized void clearCompleted(Context c){
+  public static synchronized void clearCompleted(Context c){clearCompleted(c,null);}
+
+  public static synchronized void clearCompleted(Context c,String sessionId){
     SharedPreferences p=prefs(c);
     JSONArray queue=completedQueue(p);
     JSONArray rest=new JSONArray();
-    for(int i=1;i<queue.length();i++){
+    boolean removed=false;
+    for(int i=0;i<queue.length();i++){
       JSONObject item=queue.optJSONObject(i);
-      if(item!=null)rest.put(item);
+      if(item==null)continue;
+      boolean match=sessionId==null?!removed:sessionId.equals(item.optString("sessionId",""));
+      if(match&&!removed){removed=true;continue;}
+      rest.put(item);
     }
     if(rest.length()==0)p.edit().remove(COMPLETED).apply();
     else p.edit().putString(COMPLETED,rest.toString()).apply();
