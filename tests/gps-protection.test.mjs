@@ -34,8 +34,8 @@ test('GPS reacquisition after a long outage starts a disconnected segment',()=>{
   const clean=sanitizeGpsPoints([
     p(43.60,39.70,t,0),
     p(43.60,39.704,t+60_000,18),
-    p(43.65,39.75,t+10*60_000,18),
-    p(43.65,39.754,t+11*60_000,18),
+    p(43.65,39.75,t+15*60_000,18),
+    p(43.65,39.754,t+16*60_000,18),
   ],'bike');
   assert.ok(clean.discontinuities>=1);
   assert.equal(clean.points.some(x=>x.breakBefore===true),true);
@@ -57,8 +57,25 @@ test('native flaneuring rejects bad/spoofed fixes and completed GPS sessions que
   const app=await readFile('src/App.jsx','utf8');
   assert.match(store,/getAccuracy\(\)>120f/);
   assert.match(store,/derived>320/);
+  assert.match(store,/dt<=1200/);
   assert.match(store,/derived>80&&device<Math\.max\(25,derived\*\.35\)/);
   assert.match(app,/GPS_PENDING_STORAGE_KEY/);
   assert.match(app,/queuePendingGpsSession\(resultData\)/);
   assert.match(app,/syncPendingGpsSessions/);
+});
+
+
+test('a persistent spoof cluster is not trusted just because its local points look smooth',()=>{
+  const t=1_700_000_000_000;
+  const points=[
+    p(43.6000,39.7000,t,0),
+    p(43.6000,39.7040,t+60_000,18),
+    p(42.0000,40.3000,t+61_000,5,8),
+    p(42.0001,40.3001,t+70_000,5,8),
+    p(42.0002,40.3002,t+80_000,5,8),
+    p(42.0003,40.3003,t+90_000,5,8),
+  ];
+  const clean=sanitizeGpsPoints(points,'bike');
+  assert.equal(clean.points.some(x=>x.lat<43),false);
+  assert.ok(clean.filteredPoints>=4);
 });
