@@ -355,7 +355,7 @@ function queuePendingGpsSession(payload){
   const list=loadPendingGpsSessions();
   const id=payload?.draftId||payload?.id;
   const filtered=id?list.filter(x=>(x?.draftId||x?.id)!==id):list;
-  persistPendingGpsSessions([...filtered,payload].slice(-30));
+  persistPendingGpsSessions([...filtered,payload].slice(-8));
 }
 function removePendingGpsSession(id){
   if(!id)return;
@@ -2597,7 +2597,7 @@ function OutdoorTraining({dateKey,setDateKey,sessions,onBack,onSave,onSaveExpedi
 
   async function saveGpsResult(){
     if(!result)return;
-    setSaving(true);
+    setSaving(true);setGpsMessage('');
     try{
       if(result.type==='flaneuring'){
         await onSave(result);
@@ -2608,6 +2608,10 @@ function OutdoorTraining({dateKey,setDateKey,sessions,onBack,onSave,onSaveExpedi
       if((result.type||mode)==='hike'){payload.hikeDays=1;payload.hikeDistance=result.distance;}
       await onSave(payload);
       removePendingGpsSession(result.draftId);
+    }catch(err){
+      console.warn('Forma GPS save deferred offline',err);
+      if(result.type!=='flaneuring')queuePendingGpsSession(result);
+      setGpsMessage('Тренировка сохранена на телефоне. Интернет не нужен — Forma синхронизирует её автоматически, когда сеть появится.');
     }finally{setSaving(false);}
   }
 
