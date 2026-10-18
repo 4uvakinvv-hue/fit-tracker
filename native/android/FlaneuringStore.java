@@ -19,6 +19,10 @@ public final class FlaneuringStore {
   private static final String LAST_MOVE_LNG="last_move_lng";
   private static final String POINTS="points";
   private static final String COMPLETED="completed";
+  private static final String TRUST_LAT="trust_lat";
+  private static final String TRUST_LNG="trust_lng";
+  private static final String TRUST_TIME="trust_time";
+  private static final String FILTERED_POINTS="filtered_points";
   public static final long AUTO_STOP_MS=2L*60L*60L*1000L;
 
   private FlaneuringStore(){}
@@ -38,6 +42,8 @@ public final class FlaneuringStore {
       .putLong(STARTED_AT,now)
       .putLong(LAST_MOVE_AT,now)
       .remove(LAST_MOVE_LAT).remove(LAST_MOVE_LNG)
+      .remove(TRUST_LAT).remove(TRUST_LNG).remove(TRUST_TIME)
+      .putInt(FILTERED_POINTS,0)
       .putString(POINTS,"[]")
       .apply();
     return status(c);
@@ -48,17 +54,43 @@ public final class FlaneuringStore {
     if(!p.getBoolean(ACTIVE,false))return status(c);
     if(shouldAutoStop(c)){finish(c,true);return status(c);}
     long now=loc.getTime()>0?loc.getTime():System.currentTimeMillis();
+    if(loc.hasAccuracy()&&loc.getAccuracy()>120f){
+      p.edit().putInt(FILTERED_POINTS,p.getInt(FILTERED_POINTS,0)+1).apply();
+      return status(c);
+    }
+
+    double lat=loc.getLatitude(),lng=loc.getLongitude();
+    boolean breakBefore=false;
+    if(p.contains(TRUST_LAT)&&p.contains(TRUST_LNG)&&p.contains(TRUST_TIME)){
+      long trustTime=p.getLong(TRUST_TIME,now);
+      double dt=Math.max(0.001,(now-trustTime)/1000.0);
+      float[] out=new float[1];
+      Location.distanceBetween(p.getFloat(TRUST_LAT,0f),p.getFloat(TRUST_LNG,0f),lat,lng,out);
+      double km=Math.max(0,out[0]/1000.0);
+      double derived=km/(dt/3600.0);
+      double device=loc.hasSpeed()?Math.max(0,loc.getSpeed()*3.6):-1;
+      boolean mismatch=device>=0&&derived>80&&device<Math.max(25,derived*.35);
+      boolean impossible=derived>320||(device>=0&&device>368);
+
+      if(dt<=600&&(mismatch||impossible)){
+        p.edit().putInt(FILTERED_POINTS,p.getInt(FILTERED_POINTS,0)+1).apply();
+        return status(c);
+      }
+      if(dt>600)breakBefore=true;
+    }
+
     JSONArray points;
     try{points=new JSONArray(p.getString(POINTS,"[]"));}catch(Exception e){points=new JSONArray();}
 
     JSONObject point=new JSONObject();
     try{
-      point.put("lat",loc.getLatitude());
-      point.put("lng",loc.getLongitude());
+      point.put("lat",lat);
+      point.put("lng",lng);
       point.put("t",now);
       point.put("accuracy",loc.hasAccuracy()?loc.getAccuracy():JSONObject.NULL);
       point.put("speedKmh",loc.hasSpeed()?Math.max(0,loc.getSpeed()*3.6):JSONObject.NULL);
       point.put("altitude",loc.hasAltitude()?loc.getAltitude():JSONObject.NULL);
+      if(breakBefore)point.put("breakBefore",true);
       if(android.os.Build.VERSION.SDK_INT>=26){
         point.put("altitudeAccuracy",loc.hasVerticalAccuracy()?loc.getVerticalAccuracyMeters():JSONObject.NULL);
       }
@@ -67,7 +99,6 @@ public final class FlaneuringStore {
 
     long lastMoveAt=p.getLong(LAST_MOVE_AT,p.getLong(STARTED_AT,now));
     boolean hasAnchor=p.contains(LAST_MOVE_LAT)&&p.contains(LAST_MOVE_LNG);
-    double lat=loc.getLatitude(),lng=loc.getLongitude();
     boolean moved=!hasAnchor;
     if(hasAnchor){
       float[] out=new float[1];
@@ -77,7 +108,11 @@ public final class FlaneuringStore {
       moved=displacement>=40f || (displacement>=18f && speed>=0.8f);
     }
 
-    SharedPreferences.Editor e=p.edit().putString(POINTS,points.toString());
+    SharedPreferences.Editor e=p.edit()
+      .putString(POINTS,points.toString())
+      .putFloat(TRUST_LAT,(float)lat)
+      .putFloat(TRUST_LNG,(float)lng)
+      .putLong(TRUST_TIME,now);
     if(moved){
       e.putLong(LAST_MOVE_AT,now)
        .putFloat(LAST_MOVE_LAT,(float)lat)
@@ -114,6 +149,7 @@ public final class FlaneuringStore {
       result.put("endedAt",Math.max(started,ended));
       result.put("lastMoveAt",lastMove);
       result.put("autoEnded",autoEnded);
+      result.put("filteredPoints",p.getInt(FILTERED_POINTS,0));
       result.put("points",trimmed);
     }catch(Exception ignored){}
     JSONArray queue=completedQueue(p);
@@ -142,6 +178,7 @@ public final class FlaneuringStore {
       JSONArray points=new JSONArray(p.getString(POINTS,"[]"));
       out.put("points",points);
       out.put("pointCount",points.length());
+      out.put("filteredPoints",p.getInt(FILTERED_POINTS,0));
       out.put("autoStopAfterMs",AUTO_STOP_MS);
     }catch(Exception ignored){}
     return out;
