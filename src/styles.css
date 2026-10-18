@@ -3940,3 +3940,88 @@
   font-size:7px;
   font-weight:800;
 }
+
+
+/* Forma 2.1 — flaneuring */
+.outdoor-flaneuring .outdoor-mode-tabs button.active{
+  color:#07161c;
+  background:linear-gradient(120deg,#7ce3e7,#52bccd);
+  border-color:transparent;
+  box-shadow:0 0 18px rgba(82,188,205,.22);
+}
+.activity-choice.flaneuring span,.stat-card-v17.flaneuring .stat-icon{color:#69d6df!important}
+.route-fullscreen.flaneuring{
+  background:
+    radial-gradient(circle at 70% 5%,rgba(84,198,213,.18),transparent 38%),
+    linear-gradient(180deg,#0f2028,#091118 60%,#060b10);
+}
+.route-result-card.flaneuring,.flaneuring-live{
+  border-color:rgba(91,207,219,.28)!important;
+}
+.route-result-card.flaneuring>header small{color:#76d9df}
+.flaneuring-start{
+  background:linear-gradient(120deg,#67d7df,#3da9bd)!important;
+  color:#07171c!important;
+}
+.flaneuring-live .gps-live-pulse{color:#81e0e4!important}
+.flaneuring-live .route-sketch svg line{stroke:#65d2dc}
+.flaneuring-live-grid{
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:6px;
+}
+.flaneuring-live-grid>span{
+  min-height:54px;
+  padding:8px 9px;
+  border-radius:12px;
+  background:rgba(255,255,255,.035);
+}
+.flaneuring-live-grid small,.flaneuring-live-grid strong{display:block}
+.flaneuring-live-grid small{color:#7f929e;font-size:6.7px}
+.flaneuring-live-grid strong{margin-top:3px;color:#f4fbfc;font-size:12px}
+.flaneuring-autostop{
+  margin-top:7px;
+  padding:9px 10px;
+  display:grid;
+  grid-template-columns:auto 1fr;
+  align-items:center;
+  gap:2px 9px;
+  border-radius:12px;
+  background:rgba(91,207,219,.065);
+  border:1px solid rgba(91,207,219,.13);
+}
+.flaneuring-autostop small{
+  grid-column:1;
+  color:#78b9bf;
+  font-size:6.5px;
+  text-transform:uppercase;
+  letter-spacing:.07em;
+}
+.flaneuring-autostop strong{
+  grid-column:2;
+  grid-row:1/3;
+  justify-self:end;
+  color:#a7eef0;
+  font-size:11px;
+}
+.flaneuring-autostop span{
+  grid-column:1;
+  color:#738690;
+  font-size:6.5px;
+}
+.flaneuring-auto-note{
+  margin:8px 0;
+  padding:10px 11px;
+  border-radius:13px;
+  background:rgba(80,199,207,.09);
+  border:1px solid rgba(80,199,207,.18);
+}
+.flaneuring-auto-note strong,.flaneuring-auto-note span{display:block}
+.flaneuring-auto-note strong{color:#94e7e9;font-size:9px}
+.flaneuring-auto-note span{margin-top:3px;color:#879aa4;font-size:7.5px;line-height:1.4}
+.outdoor-mode-tabs button:has(span:first-child){min-width:0}
+@media(max-width:420px){
+  .outdoor-mode-tabs{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .outdoor-mode-tabs button{font-size:8px;padding:0 4px}
+  .outdoor-mode-tabs button span{font-size:16px}
+}

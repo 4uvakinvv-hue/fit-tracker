@@ -10,6 +10,7 @@ import { Capacitor } from '@capacitor/core';
 import { BackgroundGeolocation } from '@capgo/background-geolocation';
 import { Health } from '@capgo/capacitor-health';
 import { StepCounter } from './step-counter.js';
+import { Flaneuring } from './flaneuring.js';
 import { Filesystem, Directory } from '@capacitor/filesystem';
 import { LocalNotifications } from '@capacitor/local-notifications';
 import { Share } from '@capacitor/share';
@@ -24,11 +25,12 @@ const OUTDOOR_MODES = [
   { id: 'run', label: 'Бег', icon: '🏃', accent: 'run', bonusAvgLimit: 30 },
   { id: 'hike', label: 'ПВД / Поход', icon: '△', accent: 'hike' },
   { id: 'moto', label: 'Мото', icon: '🏍️', accent: 'moto' },
+  { id: 'flaneuring', label: 'Фланирование', icon: '🧭', accent: 'flaneuring' },
 ];
 
 const ACTIVITIES = [
   { id: 'gym', label: 'Тренажёрка', icon: '🏋︎', accent: 'violet' },
-  { id: 'outdoor', label: 'Вело / Бег / ПВД / Мото', icon: '⌁', accent: 'amber' },
+  { id: 'outdoor', label: 'GPS / улица', icon: '⌁', accent: 'amber' },
   { id: 'workout', label: 'Воркаут', icon: '┬', accent: 'coral' },
   { id: 'combat', label: 'Единоборства', icon: '🥊', accent: 'combat' },
   { id: 'crossfit', label: 'CrossFit', icon: '⚡', accent: 'crossfit' },
@@ -116,12 +118,17 @@ function mapSession(row){
     editedAt:row.edited_at||null,distanceCorrected:row.distance_corrected===true,
     stopDuration:Number(row.stop_duration)||0,stopCount:Number(row.stop_count)||0,
     transportDistance:Number(row.transport_distance)||0,
+    walkingDistance:Number(row.walking_distance)||0,
+    elevationGain:Number(row.elevation_gain)||0,
+    elevationMin:row.elevation_min==null?null:Number(row.elevation_min),
+    elevationMax:row.elevation_max==null?null:Number(row.elevation_max),
+    autoEnded:row.auto_ended===true,
     confirmed:row.confirmed!==false,
   };
 }
 function isFuture(key){return key>localDateKey();}
 function isQualifyingSession(s){return s.confirmed!==false&&s.date<=localDateKey()&&(s.type!=='walk'||Number(s.steps||0)>=10000);}
-function isRatingSession(s){return s.confirmed!==false&&s.ratingEligible===true&&s.date<=localDateKey()&&['gym','bike','run','workout','hike','combat','crossfit','moto'].includes(s.type);}
+function isRatingSession(s){return s.confirmed!==false&&s.ratingEligible===true&&s.date<=localDateKey()&&['gym','bike','run','workout','hike','combat','crossfit','moto','flaneuring'].includes(s.type);}
 function isStatsSession(s){return s.confirmed!==false&&s.date<=localDateKey();}
 function isHistorySession(s){return s.confirmed!==false&&s.date<=localDateKey();}
 function ratingActiveDates(sessions,dailySteps=[],expeditionDays=[]){
@@ -195,6 +202,94 @@ function classifyHikeRoute(points=[]){
     }
   }
   return out;
+}
+function median(values=[]){
+  const list=values.filter(Number.isFinite).sort((a,b)=>a-b);
+  if(!list.length)return null;
+  const mid=Math.floor(list.length/2);
+  return list.length%2?list[mid]:(list[mid-1]+list[mid])/2;
+}
+function summarizeFlaneuringRoute(points=[],startedAt=null,endedAt=null){
+  if(!Array.isArray(points)||!points.length){
+    const startMs=Number(startedAt)||0,endMs=Number(endedAt)||startMs;
+    return {points:[],distance:0,walkingDistance:0,transportDistance:0,totalSeconds:Math.max(0,(endMs-startMs)/1000),avgSpeed:0,maxSpeed:0,elevationGain:0,elevationMin:null,elevationMax:null};
+  }
+  const prepared=points.map(p=>({...p,segment:'walk'}));
+  let distance=0,walkingDistance=0,transportDistance=0,maxSpeed=0;
+  for(let i=1;i<prepared.length;i++){
+    const a=prepared[i-1],b=prepared[i],dt=Math.max(0,(Number(b.t)-Number(a.t))/1000);
+    if(dt<=0)continue;
+    const km=haversineKm(a,b);
+    const derived=km/(dt/3600);
+    const device=Number.isFinite(Number(b.speedKmh))?Math.max(0,Number(b.speedKmh)):null;
+    const observed=device==null?derived:device;
+    maxSpeed=Math.max(maxSpeed,observed);
+    const transport=observed>6;
+    b.segment=transport?'transport':'walk';
+    if(!Number.isFinite(km)||km<0||observed>350)continue;
+    const stationaryJitter=observed<0.8&&km<0.05;
+    if(stationaryJitter)continue;
+    distance+=km;
+    if(transport)transportDistance+=km;else walkingDistance+=km;
+  }
+
+  const altitudeRows=prepared
+    .map((p,i)=>({i,alt:Number(p.altitude),acc:p.altitudeAccuracy==null?null:Number(p.altitudeAccuracy)}))
+    .filter(x=>Number.isFinite(x.alt)&&(x.acc==null||!Number.isFinite(x.acc)||x.acc<=35));
+  const smoothed=[];
+  for(let j=0;j<altitudeRows.length;j++){
+    const vals=[];
+    for(let k=Math.max(0,j-1);k<=Math.min(altitudeRows.length-1,j+1);k++)vals.push(altitudeRows[k].alt);
+    const value=median(vals);
+    if(value!=null)smoothed.push(value);
+  }
+  let elevationGain=0,elevationMin=null,elevationMax=null;
+  if(smoothed.length){
+    elevationMin=Math.min(...smoothed);
+    elevationMax=Math.max(...smoothed);
+    for(let i=1;i<smoothed.length;i++){
+      const delta=smoothed[i]-smoothed[i-1];
+      if(delta>=2.5)elevationGain+=delta;
+    }
+  }
+  const firstTime=Number(prepared[0]?.t)||0,lastTime=Number(prepared[prepared.length-1]?.t)||firstTime;
+  const startMs=Number(startedAt)||firstTime,endMs=Number(endedAt)||lastTime;
+  const totalSeconds=Math.max(0,(endMs-startMs)/1000);
+  const avgSpeed=totalSeconds>0?distance/(totalSeconds/3600):0;
+  return {
+    points:prepared,distance,walkingDistance,transportDistance,totalSeconds,
+    avgSpeed,maxSpeed,elevationGain,
+    elevationMin:elevationMin==null?null:elevationMin,
+    elevationMax:elevationMax==null?null:elevationMax
+  };
+}
+function flaneuringPayload(nativeResult={}){
+  const points=Array.isArray(nativeResult.points)?nativeResult.points:[];
+  const summary=summarizeFlaneuringRoute(points,nativeResult.startedAt,nativeResult.endedAt);
+  const startMs=Number(nativeResult.startedAt)||Date.now(),endMs=Number(nativeResult.endedAt)||Date.now();
+  return {
+    draftId:nativeResult.sessionId||undefined,
+    type:'flaneuring',
+    date:localDateKey(new Date(startMs)),
+    title:'Фланирование',
+    distance:summary.distance,
+    walkingDistance:summary.walkingDistance,
+    transportDistance:summary.transportDistance,
+    duration:Math.max(0,Math.round((endMs-startMs)/1000)),
+    movingDuration:null,
+    avgSpeed:summary.avgSpeed,
+    maxSpeed:summary.maxSpeed,
+    elevationGain:summary.elevationGain,
+    elevationMin:summary.elevationMin,
+    elevationMax:summary.elevationMax,
+    routePoints:compactRoutePoints(summary.points),
+    startedAt:new Date(startMs).toISOString(),
+    endedAt:new Date(endMs).toISOString(),
+    trackingMode:'flaneuring_native',
+    gpsVerified:true,
+    autoEnded:nativeResult.autoEnded===true,
+    ratingEligible:true,
+  };
 }
 function summarizeRoute(points=[],type='bike'){
   if(points.length<2)return {points:[...points],distance:0,totalSeconds:0,movingSeconds:0,stopSeconds:0,stopCount:0,transportDistance:0,avgSpeed:0,maxSpeed:0};
@@ -297,7 +392,13 @@ function feedEventCopy(event){
   const km=Number(p.distance||0),days=Number(p.hike_days||0),extra=km?' · '+km.toFixed(1)+' км':(days?' · '+days+' дн.':'');return {title:name,body:(event.title||label)+extra};
 }
 function routeMetrics(data,type){
-  const distance=Number(data.distance)||0,total=Number(data.totalSeconds??data.duration)||0,moving=Number(data.movingSeconds??data.movingDuration??data.moving_duration)||0,stops=Number(data.stopCount??data.stop_count)||0,stopSeconds=Number(data.stopSeconds??data.stopDuration??data.stop_duration)||0,transport=Number(data.transportDistance??data.transport_distance)||0,avg=Number(data.avgSpeed??data.avg_speed)||0,max=Number(data.maxSpeed??data.max_speed)||0;
+  const distance=Number(data.distance)||0,total=Number(data.totalSeconds??data.duration)||0,moving=Number(data.movingSeconds??data.movingDuration??data.moving_duration)||0,stops=Number(data.stopCount??data.stop_count)||0,stopSeconds=Number(data.stopSeconds??data.stopDuration??data.stop_duration)||0,transport=Number(data.transportDistance??data.transport_distance)||0,walking=Number(data.walkingDistance??data.walking_distance)||0,avg=Number(data.avgSpeed??data.avg_speed)||0,max=Number(data.maxSpeed??data.max_speed)||0,elevGain=Number(data.elevationGain??data.elevation_gain)||0,elevMin=(data.elevationMin??data.elevation_min),elevMax=(data.elevationMax??data.elevation_max);
+  if(type==='flaneuring'){
+    const rows=[['Общее время',formatDuration(total)],['Весь маршрут',distance.toFixed(1)+' км'],['Пешком',walking.toFixed(1)+' км'],['Транспорт',transport.toFixed(1)+' км']];
+    if(elevMin!=null&&elevMax!=null)rows.push(['Высоты',Math.round(Number(elevMin))+'–'+Math.round(Number(elevMax))+' м']);
+    if(elevGain>0)rows.push(['Набор высоты','+'+Math.round(elevGain)+' м']);
+    return rows;
+  }
   if(type==='hike'){
     const rows=[['Пешком',distance.toFixed(1)+' км'],['Общее время',formatDuration(total)]];
     if(transport>0)rows.push(['Транспорт',transport.toFixed(1)+' км']);
@@ -312,7 +413,7 @@ function routeMetrics(data,type){
   return rows;
 }
 function drawRoutePoster(data,type,dateKey,transparent=false){
-  const points=data.routePoints||data.points||[];if(points.length<2)return null;const canvas=document.createElement('canvas');canvas.width=1080;canvas.height=1920;const ctx=canvas.getContext('2d'),meta=activityMeta(type)||{label:'Маршрут'},themes={bike:['#111a26','#f2aa45','#ffd68a'],run:['#21171e','#ec7566','#ffc0aa'],hike:['#102019','#63d3a1','#bcebcf'],moto:['#17181c','#f0b34e','#f8dc9a']},theme=themes[type]||themes.bike,bg=theme[0],line=theme[1],accent=theme[2];
+  const points=data.routePoints||data.points||[];if(points.length<2)return null;const canvas=document.createElement('canvas');canvas.width=1080;canvas.height=1920;const ctx=canvas.getContext('2d'),meta=activityMeta(type)||{label:'Маршрут'},themes={bike:['#111a26','#f2aa45','#ffd68a'],run:['#21171e','#ec7566','#ffc0aa'],hike:['#102019','#63d3a1','#bcebcf'],moto:['#17181c','#f0b34e','#f8dc9a'],flaneuring:['#101d26','#62c9d9','#b9eff3']},theme=themes[type]||themes.bike,bg=theme[0],line=theme[1],accent=theme[2];
   if(!transparent){ctx.fillStyle=bg;ctx.fillRect(0,0,1080,1920);const g=ctx.createRadialGradient(820,180,20,820,180,760);g.addColorStop(0,line+'55');g.addColorStop(1,'#00000000');ctx.fillStyle=g;ctx.fillRect(0,0,1080,1920);}ctx.textBaseline='alphabetic';ctx.shadowColor=transparent?'rgba(0,0,0,.8)':'transparent';ctx.shadowBlur=transparent?14:0;ctx.fillStyle='#fff';ctx.font='800 58px system-ui,sans-serif';ctx.fillText('Форма · '+meta.label,70,105);ctx.fillStyle=transparent?'#fff':'#aab5c0';ctx.font='32px system-ui,sans-serif';ctx.fillText(formatDate(dateKey,{day:'numeric',month:'long',year:'numeric'}),70,155);
   const plot=routePlot(points,930,920,55);if(plot.length){ctx.save();ctx.translate(75,230);ctx.lineWidth=14;ctx.lineJoin='round';ctx.lineCap='round';ctx.strokeStyle=line;for(let i=1;i<plot.length;i++){ctx.setLineDash(plot[i].segment==='transport'?[28,20]:[]);ctx.beginPath();ctx.moveTo(plot[i-1].x,plot[i-1].y);ctx.lineTo(plot[i].x,plot[i].y);ctx.stroke();}ctx.setLineDash([]);ctx.fillStyle='#65e6a8';ctx.beginPath();ctx.arc(plot[0].x,plot[0].y,17,0,Math.PI*2);ctx.fill();const last=plot[plot.length-1];ctx.fillStyle=accent;ctx.beginPath();ctx.arc(last.x,last.y,17,0,Math.PI*2);ctx.fill();ctx.restore();}
   const metrics=routeMetrics(data,type),cellH=160,startY=1235;metrics.forEach(([label,value],i)=>{const col=i%2,row=Math.floor(i/2),x=70+col*500,y=startY+row*cellH;if(!transparent){ctx.fillStyle='rgba(255,255,255,.055)';ctx.beginPath();ctx.roundRect(x,y,440,130,24);ctx.fill();}ctx.fillStyle=transparent?'rgba(255,255,255,.9)':'#95a4b2';ctx.font='28px system-ui,sans-serif';ctx.fillText(label,x+22,y+40);ctx.fillStyle='#fff';ctx.font='800 40px system-ui,sans-serif';ctx.fillText(value,x+22,y+92);});return canvas;
@@ -430,7 +531,7 @@ function scoreHint(sessions,dailySteps=[],expeditionDays=[]){
 }
 
 function sessionValue(s){
-  if(s.type==='bike'||s.type==='run'||s.type==='moto')return s.distance?`${Number(s.distance).toLocaleString('ru-RU')} км`:'Без километража';
+  if(s.type==='bike'||s.type==='run'||s.type==='moto'||s.type==='flaneuring')return s.distance?`${Number(s.distance).toLocaleString('ru-RU')} км`:'Без километража';
   if(s.type==='walk')return s.steps?`${Number(s.steps).toLocaleString('ru-RU')} шагов`:'Без шагов';
   if(s.type==='workout')return s.workoutText?'Описание':'Воркаут';
   if(s.type==='combat')return s.combatType||'Единоборства';
@@ -448,6 +549,7 @@ function ActivityGlyph({type,className=''}) {
   if(type==='steps') return <span className={className}>👣</span>;
   if(type==='hike') return <svg className={`activity-svg ${className}`} viewBox="0 0 64 64" aria-hidden="true"><path d="M5 51 23 23l9 14 8-12 19 26H5Z"/><path d="m18 31 5-8 5 8m8 2 4-8 5 7"/><path d="M12 51h40"/></svg>;
   if(type==='moto') return <span className={className}>🏍️</span>;
+  if(type==='flaneuring') return <span className={className}>🧭</span>;
   if(type==='crossfit') return <span className={className}>⚡</span>;
   const meta=activityMeta(type);
   return <span className={className}>{meta?.icon||'•'}</span>;
@@ -736,6 +838,7 @@ export default function App(){
   const [stepsStatus,setStepsStatus]=useState('loading');
   const [stepsSyncing,setStepsSyncing]=useState(false);
   const stepsSyncLock=useRef(false);
+  const flaneuringSyncLock=useRef(false);
   const [stepsDiagnostics,setStepsDiagnostics]=useState(null);
   const [screen,setScreen]=useState('home');
   const [selectedDateKey,setSelectedDateKey]=useState(localDateKey());
@@ -826,6 +929,7 @@ export default function App(){
           setAuthSession(nextSession);
           await loadData(true,nextSession);
           await syncSteps(false,nextSession,{reason:'resume'});
+          await syncPendingFlaneuring(nextSession);
           return;
         }
 
@@ -834,6 +938,7 @@ export default function App(){
           setAuthSession(data.session);
           await loadData(true,data.session);
           await syncSteps(false,data.session,{reason:'resume'});
+          await syncPendingFlaneuring(data.session);
         }
       }catch(err){
         console.warn('Forma resume refresh failed',err);
@@ -870,6 +975,14 @@ export default function App(){
   },[authSession?.user?.id,passwordRecovery]);
 
   useEffect(()=>{
+    if(!authSession?.user||passwordRecovery||!Capacitor.isNativePlatform()||Capacitor.getPlatform()!=='android')return;
+    let cancelled=false;
+    const check=async()=>{if(!cancelled)await syncPendingFlaneuring(authSession);};
+    const timer=setInterval(check,5*60*1000);
+    return()=>{cancelled=true;clearInterval(timer);};
+  },[authSession?.user?.id,passwordRecovery]);
+
+  useEffect(()=>{
     let active=true;
     if(passwordRecovery){
       setLoading(false);
@@ -887,6 +1000,8 @@ export default function App(){
         }
         setBootProgress(82);setBootStage('Синхронизируем шаги');
         await syncSteps(false,authSession,{fullHistory:true,reason:'launch-backfill'});
+        if(!active)return;
+        await syncPendingFlaneuring(authSession);
         if(!active)return;
         setBootProgress(100);setBootStage('Готово');
         const wait=Math.max(0,2000-(Date.now()-bootStartedAt.current));
@@ -1215,6 +1330,28 @@ export default function App(){
     await savePlan(draftDateKey,type,'','planned');navigate(type);
   }
 
+  async function syncPendingFlaneuring(sessionOverride=authSession){
+    if(!sessionOverride?.user||!Capacitor.isNativePlatform()||Capacitor.getPlatform()!=='android'||flaneuringSyncLock.current)return false;
+    flaneuringSyncLock.current=true;
+    let synced=false;
+    try{
+      for(let i=0;i<20;i++){
+        const completed=await Flaneuring.getCompleted();
+        if(!completed?.sessionId||!completed?.endedAt)break;
+        const payload=flaneuringPayload(completed);
+        await saveSession(payload);
+        await Flaneuring.clearCompleted({sessionId:completed.sessionId});
+        synced=true;
+      }
+      return synced;
+    }catch(err){
+      console.warn('Forma flaneuring pending sync failed',err);
+      return synced;
+    }finally{
+      flaneuringSyncLock.current=false;
+    }
+  }
+
   async function saveSession(payload){
     if(isFuture(payload.date)){
       await savePlan(payload.date,payload.type,payload.title||'','planned');
@@ -1249,6 +1386,11 @@ export default function App(){
       stop_duration:payload.stopDuration??null,
       stop_count:payload.stopCount??0,
       transport_distance:payload.transportDistance??null,
+      walking_distance:payload.walkingDistance??null,
+      elevation_gain:payload.elevationGain??null,
+      elevation_min:payload.elevationMin??null,
+      elevation_max:payload.elevationMax??null,
+      auto_ended:payload.autoEnded===true,
       avg_speed:payload.avgSpeed??null,
       max_speed:payload.maxSpeed??null,
       route_points:payload.routePoints||null,
@@ -1311,7 +1453,7 @@ export default function App(){
       title:(patch.title??target.title??activityMeta(target.type)?.label??'').trim()||null,
       edited_at:new Date().toISOString(),
     };
-    if(['bike','run','hike','moto'].includes(target.type)&&patch.distance!==undefined){
+    if(['bike','run','hike','moto','flaneuring'].includes(target.type)&&patch.distance!==undefined){
       const nextDistance=Math.max(0,Number(patch.distance)||0);
       changes.distance=nextDistance;
       changes.distance_corrected=Math.abs(nextDistance-Number(target.distance||target.hikeDistance||0))>0.0001||target.distanceCorrected;
@@ -2147,14 +2289,14 @@ function RouteFullscreen({session,onClose}){
   const type=session.type||session.mode||'bike',points=session.routePoints||session.points||[],meta=activityMeta(type)||OUTDOOR_MODES[0];
   const [msg,setMsg]=useState('');
   async function exp(transparent){try{setMsg(await exportRoutePng(session,type,session.date||localDateKey(),transparent));}catch(err){setMsg(err.message||'Не получилось сохранить PNG');}}
-  return <div className={'route-fullscreen '+type}><button className="route-fullscreen-close" onClick={onClose}>×</button><div className="route-fullscreen-inner"><header><small>Форма · {meta.label}</small><h2>{session.title||meta.label}</h2><span>{formatDate(session.date||localDateKey(),{day:'numeric',month:'long',year:'numeric'})}</span></header><RouteSketch points={points}/>{type==='hike'&&Number((session.transportDistance??session.transport_distance)||0)>0&&<p className="route-legend"><i/> пешком <i className="transport"/> транспорт</p>}<div className="route-fullscreen-metrics">{routeMetrics(session,type).map(([label,value])=><span key={label}><small>{label}</small><strong>{value}</strong></span>)}</div><div className="route-export-actions"><button onClick={()=>exp(false)}>PNG</button><button onClick={()=>exp(true)}>PNG без фона</button></div>{msg&&<em>{msg}</em>}</div></div>;
+  return <div className={'route-fullscreen '+type}><button className="route-fullscreen-close" onClick={onClose}>×</button><div className="route-fullscreen-inner"><header><small>Форма · {meta.label}</small><h2>{session.title||meta.label}</h2><span>{formatDate(session.date||localDateKey(),{day:'numeric',month:'long',year:'numeric'})}</span></header><RouteSketch points={points}/>{(type==='hike'||type==='flaneuring')&&Number((session.transportDistance??session.transport_distance)||0)>0&&<p className="route-legend"><i/> пешком <i className="transport"/> транспорт</p>}<div className="route-fullscreen-metrics">{routeMetrics(session,type).map(([label,value])=><span key={label}><small>{label}</small><strong>{value}</strong></span>)}</div><div className="route-export-actions"><button onClick={()=>exp(false)}>PNG</button><button onClick={()=>exp(true)}>PNG без фона</button></div>{msg&&<em>{msg}</em>}</div></div>;
 }
 function RouteResultCard({session,compact=false}){
   const [fullscreen,setFullscreen]=useState(false),[exportMsg,setExportMsg]=useState('');
   const type=session.type||session.mode||'bike',points=session.routePoints||session.points||[],meta=activityMeta(type)||OUTDOOR_MODES[0];
-  const gpsLabel=session.gpsVerified===false?'Ручная запись':session.trackingMode==='expedition'?'GPS · многодневный офлайн':session.distanceCorrected?'GPS · километраж скорректирован':'GPS · подтверждено';
+  const gpsLabel=session.gpsVerified===false?'Ручная запись':session.trackingMode==='expedition'?'GPS · многодневный офлайн':session.trackingMode==='flaneuring_native'?(session.autoEnded?'GPS · завершено автоматически':'GPS · фланирование'):session.distanceCorrected?'GPS · километраж скорректирован':'GPS · подтверждено';
   async function exp(transparent){try{setExportMsg(await exportRoutePng(session,type,session.date||localDateKey(),transparent));}catch(err){setExportMsg(err.message||'Не получилось сохранить PNG');}}
-  return <><section className={'route-result-card '+type+(compact?' compact':'')}><header><span>{meta.icon}</span><div><small>{gpsLabel}</small><strong>{session.title||meta.label}</strong></div></header>{points.length>1&&<button type="button" className="route-sketch-open" onClick={()=>setFullscreen(true)}><RouteSketch points={points}/><small>Нажмите, чтобы открыть маршрут на весь экран</small></button>}{type==='hike'&&Number((session.transportDistance??session.transport_distance)||0)>0&&<p className="route-legend compact"><i/> пешком <i className="transport"/> транспорт</p>}<div className="route-metrics">{routeMetrics(session,type).map(([label,value])=><span key={label}><small>{label}</small><strong>{value}</strong></span>)}</div>{points.length>1&&<div className="route-export-actions compact-actions"><button type="button" onClick={()=>exp(false)}>PNG</button><button type="button" onClick={()=>exp(true)}>PNG без фона</button></div>}{exportMsg&&<em className="route-export-message">{exportMsg}</em>}</section>{fullscreen&&<RouteFullscreen session={session} onClose={()=>setFullscreen(false)}/>}</>;
+  return <><section className={'route-result-card '+type+(compact?' compact':'')}><header><span>{meta.icon}</span><div><small>{gpsLabel}</small><strong>{session.title||meta.label}</strong></div></header>{points.length>1&&<button type="button" className="route-sketch-open" onClick={()=>setFullscreen(true)}><RouteSketch points={points}/><small>Нажмите, чтобы открыть маршрут на весь экран</small></button>}{(type==='hike'||type==='flaneuring')&&Number((session.transportDistance??session.transport_distance)||0)>0&&<p className="route-legend compact"><i/> пешком <i className="transport"/> транспорт</p>}<div className="route-metrics">{routeMetrics(session,type).map(([label,value])=><span key={label}><small>{label}</small><strong>{value}</strong></span>)}</div>{points.length>1&&<div className="route-export-actions compact-actions"><button type="button" onClick={()=>exp(false)}>PNG</button><button type="button" onClick={()=>exp(true)}>PNG без фона</button></div>}{exportMsg&&<em className="route-export-message">{exportMsg}</em>}</section>{fullscreen&&<RouteFullscreen session={session} onClose={()=>setFullscreen(false)}/>}</>;
 }
 
 const EXPEDITION_STORAGE_KEY='forma-expedition-v110';
@@ -2176,14 +2318,88 @@ function expeditionDays(points=[]){
 
 function OutdoorTraining({dateKey,setDateKey,sessions,onBack,onSave,onSaveExpedition}){
   const initialDraft=loadExpeditionDraft();
-  const [mode,setMode]=useState(initialDraft?'hike':'bike'),[manualOpen,setManualOpen]=useState(false),[title,setTitle]=useState(initialDraft?.title||''),[distance,setDistance]=useState(''),[tracking,setTracking]=useState(false),[trackPoints,setTrackPoints]=useState(initialDraft?.points||[]),[gpsMessage,setGpsMessage]=useState(''),[result,setResult]=useState(null),[saving,setSaving]=useState(false),[expedition,setExpedition]=useState(initialDraft);
+  const [mode,setMode]=useState(initialDraft?'hike':'bike');
+  const [manualOpen,setManualOpen]=useState(false);
+  const [title,setTitle]=useState(initialDraft?.title||'');
+  const [distance,setDistance]=useState('');
+  const [tracking,setTracking]=useState(false);
+  const [trackPoints,setTrackPoints]=useState(initialDraft?.points||[]);
+  const [gpsMessage,setGpsMessage]=useState('');
+  const [result,setResult]=useState(null);
+  const [saving,setSaving]=useState(false);
+  const [expedition,setExpedition]=useState(initialDraft);
+  const [flaneuringState,setFlaneuringState]=useState(null);
   const watchRef=useRef(null),pointsRef=useRef(initialDraft?.points||[]),startedRef=useRef(initialDraft?.startedAt||null);
-  const meta=OUTDOOR_MODES.find(x=>x.id===mode)||OUTDOOR_MODES[0],history=sessions.filter(s=>s.type===mode&&isHistorySession(s)),distances=history.map(s=>Number(s.distance||(mode==='hike'?s.hikeDistance:0))||0),totalDistance=distances.reduce((a,b)=>a+b,0),avgDistance=average(distances),live=useMemo(()=>summarizeRoute(trackPoints,mode),[trackPoints,mode]),native=Capacitor.isNativePlatform()&&Capacitor.getPlatform()==='android';
-  useEffect(()=>()=>{if(watchRef.current)BackgroundGeolocation.stop().catch(()=>{});},[]);
-  function selectMode(next){if(tracking)return;setMode(next);setManualOpen(false);setResult(null);setGpsMessage('');setDistance('');if(!expedition)setTitle('');}
+  const meta=OUTDOOR_MODES.find(x=>x.id===mode)||OUTDOOR_MODES[0];
+  const history=sessions.filter(s=>s.type===mode&&isHistorySession(s));
+  const distances=history.map(s=>Number(s.distance||(mode==='hike'?s.hikeDistance:0))||0);
+  const totalDistance=distances.reduce((a,b)=>a+b,0),avgDistance=average(distances);
+  const native=Capacitor.isNativePlatform()&&Capacitor.getPlatform()==='android';
+  const live=useMemo(
+    ()=>mode==='flaneuring'
+      ?summarizeFlaneuringRoute(trackPoints,flaneuringState?.startedAt||startedRef.current,Date.now())
+      :summarizeRoute(trackPoints,mode),
+    [trackPoints,mode,flaneuringState?.startedAt]
+  );
+
+  useEffect(()=>()=>{if(watchRef.current&&watchRef.current!=='flaneuring-native')BackgroundGeolocation.stop().catch(()=>{});},[]);
+
+  useEffect(()=>{
+    if(!native)return;
+    let cancelled=false,timer=null;
+    const inspect=async()=>{
+      try{
+        const state=await Flaneuring.status();
+        if(cancelled)return;
+        if(state?.active){
+          setFlaneuringState(state);
+          setMode('flaneuring');
+          setTracking(true);
+          watchRef.current='flaneuring-native';
+          startedRef.current=Number(state.startedAt)||Date.now();
+          pointsRef.current=Array.isArray(state.points)?state.points:[];
+          setTrackPoints(pointsRef.current);
+          return;
+        }
+        if(watchRef.current==='flaneuring-native'){
+          setTracking(false);watchRef.current=null;
+        }
+        const completed=await Flaneuring.getCompleted();
+        if(completed?.sessionId&&completed?.endedAt){
+          const payload=flaneuringPayload(completed);
+          setMode('flaneuring');setResult(payload);
+          try{
+            setSaving(true);
+            await onSave(payload);
+            await Flaneuring.clearCompleted({sessionId:completed.sessionId});
+          }catch(err){
+            console.warn('Forma flaneuring foreground autosave failed',err);
+            setGpsMessage('Фланирование завершено и сохранено на телефоне. Синхронизируем при появлении интернета.');
+          }finally{setSaving(false);}
+        }
+      }catch(err){console.warn('Forma flaneuring status failed',err);}
+    };
+    inspect();
+    timer=setInterval(inspect,60000);
+    return()=>{cancelled=true;if(timer)clearInterval(timer);};
+  },[native]);
+
+  function selectMode(next){
+    if(tracking)return;
+    setMode(next);setManualOpen(false);setResult(null);setGpsMessage('');setDistance('');
+    if(!expedition)setTitle('');
+  }
+
   function appendPoint(position,expeditionMode=false){
     if(!position)return;
-    const point={lat:Number(position.latitude),lng:Number(position.longitude),t:Number(position.time)||Date.now(),accuracy:Number(position.accuracy)||null,speedKmh:Number(position.speed)>=0?Number(position.speed)*3.6:null};
+    const point={
+      lat:Number(position.latitude),lng:Number(position.longitude),
+      t:Number(position.time)||Date.now(),
+      accuracy:Number(position.accuracy)||null,
+      speedKmh:Number(position.speed)>=0?Number(position.speed)*3.6:null,
+      altitude:Number.isFinite(Number(position.altitude))?Number(position.altitude):null,
+      altitudeAccuracy:Number.isFinite(Number(position.altitudeAccuracy))?Number(position.altitudeAccuracy):null
+    };
     if(!Number.isFinite(point.lat)||!Number.isFinite(point.lng)||!Number.isFinite(point.t))return;
     pointsRef.current=[...pointsRef.current,point];setTrackPoints(pointsRef.current);
     if(expeditionMode){
@@ -2191,24 +2407,79 @@ function OutdoorTraining({dateKey,setDateKey,sessions,onBack,onSave,onSaveExpedi
       setExpedition(next);persistExpeditionDraft(next);
     }
   }
+
   async function stopGps(){
     const active=watchRef.current;watchRef.current=null;if(active)await BackgroundGeolocation.stop().catch(()=>{});setTracking(false);
-    const summary=summarizeRoute(pointsRef.current,mode);if(summary.points.length<2||summary.distance<=0){setGpsMessage('Маршрут не записался. Внесите тренировку вручную.');setManualOpen(true);return;}
-    const finishedAt=new Date().toISOString(),resultData={...summary,type:mode,mode,title:title.trim()||meta.label,date:localDateKey(),routePoints:compactRoutePoints(summary.points),movingDuration:Math.round(summary.movingSeconds),stopDuration:Math.round(summary.stopSeconds),stopCount:summary.stopCount,transportDistance:summary.transportDistance,duration:Math.round(summary.totalSeconds),avgSpeed:summary.avgSpeed,maxSpeed:summary.maxSpeed,gpsVerified:true,startedAt:startedRef.current,endedAt:finishedAt};setResult(resultData);
-    try{const user=(await supabase.auth.getUser())?.data?.user;if(user)await supabase.from('feed_events').insert({actor_id:user.id,event_type:'gps_finished',activity_type:mode,title:resultData.title,payload:{distance:resultData.distance,duration:resultData.duration,moving_duration:resultData.movingDuration,stop_duration:resultData.stopDuration,stop_count:resultData.stopCount,transport_distance:resultData.transportDistance,avg_speed:resultData.avgSpeed,max_speed:resultData.maxSpeed}});}catch(err){console.warn('Forma GPS finish feed failed',err);}
+    const summary=summarizeRoute(pointsRef.current,mode);
+    if(summary.points.length<2||summary.distance<=0){setGpsMessage('Маршрут не записался. Внесите тренировку вручную.');setManualOpen(true);return;}
+    const finishedAt=new Date().toISOString();
+    const resultData={...summary,type:mode,mode,title:title.trim()||meta.label,date:localDateKey(),routePoints:compactRoutePoints(summary.points),movingDuration:Math.round(summary.movingSeconds),stopDuration:Math.round(summary.stopSeconds),stopCount:summary.stopCount,transportDistance:summary.transportDistance,duration:Math.round(summary.totalSeconds),avgSpeed:summary.avgSpeed,maxSpeed:summary.maxSpeed,gpsVerified:true,startedAt:startedRef.current,endedAt:finishedAt};
+    setResult(resultData);
+    try{
+      const user=(await supabase.auth.getUser())?.data?.user;
+      if(user)await supabase.from('feed_events').insert({actor_id:user.id,event_type:'gps_finished',activity_type:mode,title:resultData.title,payload:{distance:resultData.distance,duration:resultData.duration,moving_duration:resultData.movingDuration,stop_duration:resultData.stopDuration,stop_count:resultData.stopCount,transport_distance:resultData.transportDistance,avg_speed:resultData.avgSpeed,max_speed:resultData.maxSpeed}});
+    }catch(err){console.warn('Forma GPS finish feed failed',err);}
   }
+
   async function startGps(){
+    if(mode==='flaneuring'){await startFlaneuring();return;}
     setGpsMessage('');setResult(null);setManualOpen(false);
     if(!native){setGpsMessage('GPS-запись маршрута сейчас доступна в Android-приложении. Здесь можно внести тренировку вручную.');setManualOpen(true);return;}
     try{
       setDateKey(localDateKey());pointsRef.current=[];startedRef.current=new Date().toISOString();setTrackPoints([]);
       await BackgroundGeolocation.start({backgroundTitle:'Форма · '+meta.label,backgroundMessage:'Идёт запись маршрута. Нажмите, чтобы вернуться в «Форму».',requestPermissions:true,stale:false,distanceFilter:0,minIntervalMs:2000},(position,err)=>{
-        if(err){if(err.code==='NOT_AUTHORIZED'){setGpsMessage('Нет разрешения на геолокацию. Разрешите GPS или внесите тренировку вручную.');setManualOpen(true);}return;}appendPoint(position,false);
+        if(err){if(err.code==='NOT_AUTHORIZED'){setGpsMessage('Нет разрешения на геолокацию. Разрешите GPS или внесите тренировку вручную.');setManualOpen(true);}return;}
+        appendPoint(position,false);
       });
       watchRef.current='gps';setTracking(true);
-      const user=(await supabase.auth.getUser())?.data?.user;if(user)await supabase.from('feed_events').insert({actor_id:user.id,event_type:'gps_started',activity_type:mode,title:title.trim()||meta.label,payload:{started_at:startedRef.current}});
-    }catch(err){console.warn('Forma GPS start failed',err);setTracking(false);setGpsMessage('Не удалось запустить GPS. Проверьте разрешение геолокации или внесите тренировку вручную.');setManualOpen(true);}
+      const user=(await supabase.auth.getUser())?.data?.user;
+      if(user)await supabase.from('feed_events').insert({actor_id:user.id,event_type:'gps_started',activity_type:mode,title:title.trim()||meta.label,payload:{started_at:startedRef.current}});
+    }catch(err){
+      console.warn('Forma GPS start failed',err);setTracking(false);
+      setGpsMessage('Не удалось запустить GPS. Проверьте разрешение геолокации или внесите тренировку вручную.');setManualOpen(true);
+    }
   }
+
+  async function startFlaneuring(){
+    setGpsMessage('');setResult(null);setManualOpen(false);setMode('flaneuring');
+    if(!native){setGpsMessage('Фланирование с автозавершением доступно в Android-приложении.');return;}
+    try{
+      await requestDeviceNotificationPermission().catch(()=>false);
+      const state=await Flaneuring.start();
+      setDateKey(localDateKey());
+      setFlaneuringState(state);
+      startedRef.current=Number(state.startedAt)||Date.now();
+      pointsRef.current=Array.isArray(state.points)?state.points:[];
+      setTrackPoints(pointsRef.current);
+      watchRef.current='flaneuring-native';setTracking(true);
+      try{
+        const user=(await supabase.auth.getUser())?.data?.user;
+        if(user)await supabase.from('feed_events').insert({actor_id:user.id,event_type:'gps_started',activity_type:'flaneuring',title:'Фланирование',payload:{started_at:new Date(startedRef.current).toISOString()}});
+      }catch(feedErr){console.warn('Forma flaneuring feed start failed offline',feedErr);}
+    }catch(err){
+      console.warn('Forma flaneuring start failed',err);
+      setTracking(false);watchRef.current=null;
+      setGpsMessage('Не удалось начать фланирование. Разрешите Forma доступ к геолокации.');
+    }
+  }
+
+  async function stopFlaneuring(){
+    if(!native)return;
+    setSaving(true);setGpsMessage('');
+    try{
+      const completed=await Flaneuring.stop();
+      const payload=flaneuringPayload(completed);
+      setTracking(false);watchRef.current=null;setFlaneuringState(null);setResult(payload);
+      try{
+        await onSave(payload);
+        await Flaneuring.clearCompleted({sessionId:completed.sessionId});
+      }catch(err){
+        console.warn('Forma flaneuring manual save failed',err);
+        setGpsMessage('Фланирование сохранено на телефоне. Синхронизируем автоматически, когда появится интернет.');
+      }
+    }finally{setSaving(false);}
+  }
+
   async function startOrResumeExpedition(){
     setGpsMessage('');setResult(null);setManualOpen(false);setMode('hike');
     if(!native){setGpsMessage('Офлайн-поход с контрольными точками доступен в Android-приложении.');return;}
@@ -2221,6 +2492,7 @@ function OutdoorTraining({dateKey,setDateKey,sessions,onBack,onSave,onSaveExpedi
       watchRef.current='expedition';setTracking(true);
     }catch(err){console.warn('Forma expedition start failed',err);setGpsMessage('Не удалось запустить офлайн-запись похода. Проверьте разрешение геолокации.');}
   }
+
   async function finishExpedition(){
     const active=watchRef.current;watchRef.current=null;if(active)await BackgroundGeolocation.stop().catch(()=>{});setTracking(false);
     const draft=loadExpeditionDraft()||expedition;if(!draft)return;
@@ -2234,17 +2506,97 @@ function OutdoorTraining({dateKey,setDateKey,sessions,onBack,onSave,onSaveExpedi
       console.warn('Forma expedition sync failed',err);setGpsMessage('Поход сохранён на телефоне. Данные не потеряны — синхронизируйте, когда появится интернет.');
     }finally{setSaving(false);}
   }
-  async function saveManual(){setSaving(true);try{const km=Math.max(0,Number(distance)||0),payload={type:mode,date:dateKey,title:title.trim()||meta.label,distance:km,trackingMode:'manual',gpsVerified:false,ratingEligible:mode==='moto'?false:dateKey===localDateKey()};if(mode==='hike'){payload.hikeDays=1;payload.hikeDistance=km;}await onSave(payload);}finally{setSaving(false);}}
-  async function saveGpsResult(){if(!result)return;setSaving(true);try{const payload={type:mode,date:localDateKey(),title:result.title,distance:result.distance,duration:result.duration,movingDuration:result.movingDuration,stopDuration:result.stopDuration,stopCount:result.stopCount,transportDistance:result.transportDistance,avgSpeed:result.avgSpeed,maxSpeed:result.maxSpeed,routePoints:result.routePoints,startedAt:result.startedAt,endedAt:result.endedAt,trackingMode:'gps',gpsVerified:true,ratingEligible:mode==='moto'?result.distance>=150:true};if(mode==='hike'){payload.hikeDays=1;payload.hikeDistance=result.distance;}await onSave(payload);}finally{setSaving(false);}}
-  if(result)return <main className={'sub-screen outdoor-training-screen outdoor-'+mode}><ScreenBack onBack={()=>setResult(null)} title="Тренировка завершена"/><RouteResultCard session={result}/>{mode==='moto'&&result.distance<150&&<div className="manual-rating-note">Мото сохранится в истории и статистике, но активный день начисляется только за GPS-поездку от 150 км.</div>}<button className="gradient-button" onClick={saveGpsResult} disabled={saving}>{saving?'Сохраняю…':'Сохранить тренировку'}</button></main>;
-  const recent=[...history].sort((a,b)=>b.date.localeCompare(a.date)||String(b.created_at||'').localeCompare(String(a.created_at||''))).slice(0,3);
-  return <main className={'sub-screen outdoor-training-screen outdoor-'+mode}><ScreenBack onBack={onBack} title="Вело / Бег / ПВД / Мото"/><div className="outdoor-mode-tabs">{OUTDOOR_MODES.map(x=><button key={x.id} className={mode===x.id?'active':''} onClick={()=>selectMode(x.id)} disabled={tracking}><span>{x.icon}</span>{x.label}</button>)}</div>
-    {expedition&&!tracking&&mode==='hike'&&<section className="expedition-resume-card"><small>ОФЛАЙН-ПОХОД СОХРАНЁН НА ТЕЛЕФОНЕ</small><strong>{expedition.title||'Многодневный поход'}</strong><span>{expedition.points?.length||0} контрольных GPS-точек</span><button className="gradient-button" onClick={startOrResumeExpedition}>Продолжить запись</button><button className="secondary-dark" onClick={finishExpedition} disabled={saving}>{saving?'Синхронизирую…':'Завершить и синхронизировать'}</button></section>}
-    {tracking&&<section className={'gps-live-card '+(watchRef.current==='expedition'?'expedition-live':'')}><div className="gps-live-pulse"><i/>{watchRef.current==='expedition'?'Офлайн-поход · контрольные точки':'GPS записывает'}</div><RouteSketch points={trackPoints}/><div className="gps-live-metrics"><span><small>{mode==='hike'?'Пешком':'Дистанция'}</small><strong>{live.distance.toFixed(2)} км</strong></span><span><small>{mode==='hike'?'Всего':'В движении'}</small><strong>{formatDuration(mode==='hike'?live.totalSeconds:live.movingSeconds)}</strong></span><span><small>{mode==='hike'?'Транспорт':'Средняя'}</small><strong>{mode==='hike'?live.transportDistance.toFixed(1)+' км':live.avgSpeed.toFixed(1)+' км/ч'}</strong></span></div>{(mode==='bike'||mode==='run'||mode==='moto')&&<small className="gps-stop-live">{mode==='moto'?'Отдых ≥2 мин':'Остановки ≥10 сек'}: {live.stopCount} · {formatDuration(live.stopSeconds)}</small>}{watchRef.current==='expedition'?<button className="stop-gps-button" onClick={finishExpedition}>Завершить многодневный поход</button>:<button className="stop-gps-button" onClick={stopGps}>Завершить тренировку</button>}</section>}
-    {!tracking&&!expedition&&<section className="outdoor-actions outdoor-actions-v17"><button className="gradient-button start-gps-button" onClick={startGps}><span>⌖</span>Начать GPS-тренировку</button>{mode==='hike'&&<button className="secondary-dark expedition-button" onClick={startOrResumeExpedition}>Многодневный поход · офлайн</button>}<button className="secondary-dark manual-training-button" onClick={()=>setManualOpen(v=>!v)}>Записать вручную</button><small>{mode==='hike'?'В ПВД транспортные отрезки быстрее 10 км/ч отмечаются пунктиром и не входят в пеший километраж.':mode==='moto'?'Мото даёт активный день только при GPS-подтверждении и дистанции от 150 км.':'GPS — основной режим. Ручная запись остаётся полноценным способом добавить тренировку.'}</small></section>}
+
+  async function saveManual(){
+    if(mode==='flaneuring')return;
+    setSaving(true);
+    try{
+      const km=Math.max(0,Number(distance)||0),payload={type:mode,date:dateKey,title:title.trim()||meta.label,distance:km,trackingMode:'manual',gpsVerified:false,ratingEligible:mode==='moto'?false:dateKey===localDateKey()};
+      if(mode==='hike'){payload.hikeDays=1;payload.hikeDistance=km;}
+      await onSave(payload);
+    }finally{setSaving(false);}
+  }
+
+  async function saveGpsResult(){
+    if(!result)return;
+    setSaving(true);
+    try{
+      if(result.type==='flaneuring'){
+        await onSave(result);
+        await Flaneuring.clearCompleted({sessionId:result.draftId}).catch(()=>{});
+        return;
+      }
+      const payload={type:mode,date:localDateKey(),title:result.title,distance:result.distance,duration:result.duration,movingDuration:result.movingDuration,stopDuration:result.stopDuration,stopCount:result.stopCount,transportDistance:result.transportDistance,avgSpeed:result.avgSpeed,maxSpeed:result.maxSpeed,routePoints:result.routePoints,startedAt:result.startedAt,endedAt:result.endedAt,trackingMode:'gps',gpsVerified:true,ratingEligible:mode==='moto'?result.distance>=150:true};
+      if(mode==='hike'){payload.hikeDays=1;payload.hikeDistance=result.distance;}
+      await onSave(payload);
+    }finally{setSaving(false);}
+  }
+
+  if(result)return <main className={'sub-screen outdoor-training-screen outdoor-'+mode}>
+    <ScreenBack onBack={()=>setResult(null)} title="Тренировка завершена"/>
+    <RouteResultCard session={result}/>
+    {result.type==='flaneuring'&&result.autoEnded&&<div className="flaneuring-auto-note"><strong>Завершено автоматически</strong><span>Два часа без заметного перемещения не включены во время активности.</span></div>}
+    {mode==='moto'&&result.distance<150&&<div className="manual-rating-note">Мото сохранится в истории и статистике, но активный день начисляется только за GPS-поездку от 150 км.</div>}
     {gpsMessage&&<div className="gps-message">{gpsMessage}</div>}
-    {manualOpen&&!tracking&&<section className="glass-card simple-form outdoor-manual-form"><label className="date-control embedded"><span>Дата</span><input type="date" value={dateKey} max={localDateKey()} onChange={e=>setDateKey(e.target.value)}/></label><label className="dark-field"><span>Название — необязательно</span><input value={title} onChange={e=>setTitle(e.target.value)} placeholder={mode==='bike'?'Вечерняя поездка':mode==='run'?'Пробежка':mode==='moto'?'Мотопрогулка':'ПВД / Поход'}/></label><label className="dark-field"><span>Расстояние, км</span><input inputMode="decimal" type="number" min="0" step="0.1" value={distance} onChange={e=>setDistance(e.target.value)} placeholder="12.5"/></label>{(dateKey<localDateKey()||mode==='moto')&&<small className="manual-rating-note">{mode==='moto'?'Ручная запись Мото идёт в историю и статистику, но без рейтинговых баллов.':'Запись задним числом попадёт в историю и статистику, но не даст рейтинговых баллов.'}</small>}<button className="gradient-button" onClick={saveManual} disabled={saving}>{saving?'Сохраняю…':'Сохранить вручную'}</button></section>}
-    {!tracking&&!manualOpen&&!expedition&&<section className="outdoor-stats-v17"><h2>Твоя статистика</h2><section className="outdoor-summary glass-card"><div><small>Всего</small><strong>{totalDistance.toFixed(1)} км</strong></div><div><small>Среднее</small><strong>{avgDistance.toFixed(1)} км</strong><em>за тренировку</em></div></section>{!!recent.length&&<div className="outdoor-recent-v17"><header><strong>Последние тренировки</strong><span>{history.length} всего</span></header>{recent.map(item=><div key={item.id}><span>{formatDate(item.date,{day:'numeric',month:'short'})}</span><strong>{item.title||meta.label}</strong><b>{sessionValue(item)}</b></div>)}</div>}</section>}
+    <button className="gradient-button" onClick={saveGpsResult} disabled={saving}>{saving?'Синхронизирую…':result.type==='flaneuring'?'Синхронизировать':'Сохранить тренировку'}</button>
+  </main>;
+
+  const recent=[...history].sort((a,b)=>b.date.localeCompare(a.date)||String(b.created_at||'').localeCompare(String(a.created_at||''))).slice(0,3);
+  const flanLastMove=Number(flaneuringState?.lastMoveAt)||0;
+  const flanIdleSec=flanLastMove?Math.max(0,(Date.now()-flanLastMove)/1000):0;
+  const flanRemaining=Math.max(0,7200-flanIdleSec);
+
+  return <main className={'sub-screen outdoor-training-screen outdoor-'+mode}>
+    <ScreenBack onBack={onBack} title="GPS / улица"/>
+    <div className="outdoor-mode-tabs">{OUTDOOR_MODES.map(x=><button key={x.id} className={mode===x.id?'active':''} onClick={()=>selectMode(x.id)} disabled={tracking}><span>{x.icon}</span>{x.label}</button>)}</div>
+
+    {expedition&&!tracking&&mode==='hike'&&<section className="expedition-resume-card"><small>ОФЛАЙН-ПОХОД СОХРАНЁН НА ТЕЛЕФОНЕ</small><strong>{expedition.title||'Многодневный поход'}</strong><span>{expedition.points?.length||0} контрольных GPS-точек</span><button className="gradient-button" onClick={startOrResumeExpedition}>Продолжить запись</button><button className="secondary-dark" onClick={finishExpedition} disabled={saving}>{saving?'Синхронизирую…':'Завершить и синхронизировать'}</button></section>}
+
+    {tracking&&mode==='flaneuring'&&<section className="gps-live-card flaneuring-live">
+      <div className="gps-live-pulse"><i/>Фланирование · запись идёт</div>
+      <RouteSketch points={live.points}/>
+      <div className="flaneuring-live-grid">
+        <span><small>Прошло</small><strong>{formatDuration(live.totalSeconds)}</strong></span>
+        <span><small>Весь маршрут</small><strong>{live.distance.toFixed(1)} км</strong></span>
+        <span><small>Пешком ≤6 км/ч</small><strong>{live.walkingDistance.toFixed(1)} км</strong></span>
+        <span><small>Транспорт</small><strong>{live.transportDistance.toFixed(1)} км</strong></span>
+        <span><small>Набор</small><strong>{live.elevationGain?Math.round(live.elevationGain)+' м':'—'}</strong></span>
+        <span><small>Высоты</small><strong>{live.elevationMin!=null&&live.elevationMax!=null?Math.round(live.elevationMin)+'–'+Math.round(live.elevationMax)+' м':'—'}</strong></span>
+      </div>
+      <div className="flaneuring-autostop"><small>Автозавершение</small><strong>{flanRemaining>0?formatDuration(flanRemaining):'скоро'}</strong><span>если не будет заметного перемещения</span></div>
+      <button className="stop-gps-button" onClick={stopFlaneuring} disabled={saving}>{saving?'Завершаю…':'Завершить сейчас'}</button>
+    </section>}
+
+    {tracking&&mode!=='flaneuring'&&<section className={'gps-live-card '+(watchRef.current==='expedition'?'expedition-live':'')}>
+      <div className="gps-live-pulse"><i/>{watchRef.current==='expedition'?'Офлайн-поход · контрольные точки':'GPS записывает'}</div>
+      <RouteSketch points={trackPoints}/>
+      <div className="gps-live-metrics"><span><small>{mode==='hike'?'Пешком':'Дистанция'}</small><strong>{live.distance.toFixed(2)} км</strong></span><span><small>{mode==='hike'?'Всего':'В движении'}</small><strong>{formatDuration(mode==='hike'?live.totalSeconds:live.movingSeconds)}</strong></span><span><small>{mode==='hike'?'Транспорт':'Средняя'}</small><strong>{mode==='hike'?live.transportDistance.toFixed(1)+' км':live.avgSpeed.toFixed(1)+' км/ч'}</strong></span></div>
+      {(mode==='bike'||mode==='run'||mode==='moto')&&<small className="gps-stop-live">{mode==='moto'?'Отдых ≥2 мин':'Остановки ≥10 сек'}: {live.stopCount} · {formatDuration(live.stopSeconds)}</small>}
+      {watchRef.current==='expedition'?<button className="stop-gps-button" onClick={finishExpedition}>Завершить многодневный поход</button>:<button className="stop-gps-button" onClick={stopGps}>Завершить тренировку</button>}
+    </section>}
+
+    {!tracking&&!expedition&&<section className="outdoor-actions outdoor-actions-v17">
+      {mode==='flaneuring'
+        ?<button className="gradient-button start-gps-button flaneuring-start" onClick={startFlaneuring}><span>🧭</span>Начать фланирование</button>
+        :<button className="gradient-button start-gps-button" onClick={startGps}><span>⌖</span>Начать GPS-тренировку</button>}
+      {mode==='hike'&&<button className="secondary-dark expedition-button" onClick={startOrResumeExpedition}>Многодневный поход · офлайн</button>}
+      {mode!=='flaneuring'&&<button className="secondary-dark manual-training-button" onClick={()=>setManualOpen(v=>!v)}>Записать вручную</button>}
+      <small>{
+        mode==='flaneuring'
+          ?'Без плана: пешком, поезд, машина, мото — всё одним маршрутом. Пешком считается скорость до 6 км/ч. После 2 часов без заметного перемещения Forma завершит запись сама и вычтет эти два часа.'
+          :mode==='hike'
+            ?'В ПВД транспортные отрезки быстрее 10 км/ч отмечаются пунктиром и не входят в пеший километраж.'
+            :mode==='moto'
+              ?'Мото даёт активный день только при GPS-подтверждении и дистанции от 150 км.'
+              :'GPS — основной режим. Ручная запись остаётся полноценным способом добавить тренировку.'
+      }</small>
+    </section>}
+
+    {gpsMessage&&<div className="gps-message">{gpsMessage}</div>}
+
+    {manualOpen&&!tracking&&mode!=='flaneuring'&&<section className="glass-card simple-form outdoor-manual-form"><label className="date-control embedded"><span>Дата</span><input type="date" value={dateKey} max={localDateKey()} onChange={e=>setDateKey(e.target.value)}/></label><label className="dark-field"><span>Название — необязательно</span><input value={title} onChange={e=>setTitle(e.target.value)} placeholder={mode==='bike'?'Вечерняя поездка':mode==='run'?'Пробежка':mode==='moto'?'Мотопрогулка':'ПВД / Поход'}/></label><label className="dark-field"><span>Расстояние, км</span><input inputMode="decimal" type="number" min="0" step="0.1" value={distance} onChange={e=>setDistance(e.target.value)} placeholder="12.5"/></label>{(dateKey<localDateKey()||mode==='moto')&&<small className="manual-rating-note">{mode==='moto'?'Ручная запись Мото идёт в историю и статистику, но без рейтинговых баллов.':'Запись задним числом попадёт в историю и статистику, но не даст рейтинговых баллов.'}</small>}<button className="gradient-button" onClick={saveManual} disabled={saving}>{saving?'Сохраняю…':'Сохранить вручную'}</button></section>}
+
+    {!tracking&&!manualOpen&&!expedition&&<section className="outdoor-stats-v17"><h2>Твоя статистика</h2><section className="outdoor-summary glass-card"><div><small>Всего</small><strong>{totalDistance.toFixed(1)} км</strong></div><div><small>Среднее</small><strong>{avgDistance.toFixed(1)} км</strong><em>за активность</em></div></section>{!!recent.length&&<div className="outdoor-recent-v17"><header><strong>Последние активности</strong><span>{history.length} всего</span></header>{recent.map(item=><div key={item.id}><span>{formatDate(item.date,{day:'numeric',month:'short'})}</span><strong>{item.title||meta.label}</strong><b>{sessionValue(item)}</b></div>)}</div>}</section>}
   </main>;
 }
 
@@ -2360,7 +2712,7 @@ function History({sessions,onDelete,onUpdate,filterType=null}){
     setEditBusy(true);setEditError('');
     try{
       const patch={title:editTitle};
-      if(['bike','run','hike'].includes(s.type))patch.distance=editDistance;
+      if(['bike','run','hike','flaneuring'].includes(s.type))patch.distance=editDistance;
       await onUpdate(s.id,patch);
       setEditingId(null);
     }catch(err){setEditError(err.message||'Не получилось сохранить изменения.');}
@@ -2399,8 +2751,8 @@ function History({sessions,onDelete,onUpdate,filterType=null}){
           {canEditSession(s)&&editingId!==s.id&&<button type="button" className="history-edit-button-v18" onClick={()=>beginEdit(s)}>Редактировать · доступно 24 часа</button>}
           {editingId===s.id&&<div className="history-edit-form-v18">
             <label><span>Название</span><input value={editTitle} onChange={e=>setEditTitle(e.target.value)} maxLength={120}/></label>
-            {['bike','run','hike'].includes(s.type)&&<label><span>Километраж, км</span><input type="number" min="0" step="0.1" inputMode="decimal" value={editDistance} onChange={e=>setEditDistance(e.target.value)}/></label>}
-            {s.gpsVerified&&['bike','run','hike'].includes(s.type)&&<small>Маршрут, время и исходные GPS-точки сохранятся. Меняется только отображаемый километраж.</small>}
+            {['bike','run','hike','flaneuring'].includes(s.type)&&<label><span>Километраж, км</span><input type="number" min="0" step="0.1" inputMode="decimal" value={editDistance} onChange={e=>setEditDistance(e.target.value)}/></label>}
+            {s.gpsVerified&&['bike','run','hike','flaneuring'].includes(s.type)&&<small>Маршрут, время и исходные GPS-точки сохранятся. Меняется только отображаемый километраж.</small>}
             {editError&&<em>{editError}</em>}
             <div><button type="button" className="secondary-dark" onClick={()=>setEditingId(null)} disabled={editBusy}>Отмена</button><button type="button" className="gradient-button" onClick={()=>saveEdit(s)} disabled={editBusy}>{editBusy?'Сохраняю…':'Сохранить'}</button></div>
           </div>}
@@ -2711,6 +3063,10 @@ function StatisticsV17({sessions,dailySteps,isBoss,hookahEvents,hookahStartedOn,
   const motoSessions=filtered.filter(x=>x.type==='moto');
   const motoDistance=motoSessions.reduce((n,x)=>n+(Number(x.distance)||0),0);
   const avgMoto=motoSessions.length?motoDistance/motoSessions.length:0;
+  const flaneuringSessions=filtered.filter(x=>x.type==='flaneuring');
+  const flaneuringDistance=flaneuringSessions.reduce((n,x)=>n+(Number(x.distance)||0),0);
+  const flaneuringWalking=flaneuringSessions.reduce((n,x)=>n+(Number(x.walkingDistance)||0),0);
+  const flaneuringHours=flaneuringSessions.reduce((n,x)=>n+(Number(x.duration)||0),0)/3600;
   const hikes=filtered.filter(x=>x.type==='hike');
   const hikeCount=hikes.length;
   const hikeDays=hikes.reduce((n,x)=>n+Math.max(Number(x.hikeDays)||1,1),0);
@@ -2753,6 +3109,7 @@ function StatisticsV17({sessions,dailySteps,isBoss,hookahEvents,hookahStartedOn,
   if(runDistance>0)compact.push({key:'run',type:'run',accent:'run',title:'Бег',value:runDistance.toLocaleString('ru-RU'),unit:'км',secondary:runSessions.length?'Среднее '+avgRun.toFixed(1)+' км / пробежку':'',open:()=>onOpenHistory('run')});
   if(hikeCount>0)compact.push({key:'hike',type:'hike',accent:'hike',title:'ПВД / Поход',value:(hikeDistance||hikeCount).toLocaleString('ru-RU'),unit:hikeDistance?'км':'походов',secondary:hikeCount+' походов · '+hikeDays+' дн.',open:()=>onOpenHistory('hike')});
   if(motoDistance>0)compact.push({key:'moto',type:'moto',accent:'moto',title:'Мото',value:motoDistance.toLocaleString('ru-RU'),unit:'км',secondary:motoSessions.length?'Среднее '+avgMoto.toFixed(1)+' км / поездку':'',open:()=>onOpenHistory('moto')});
+  if(flaneuringSessions.length>0)compact.push({key:'flaneuring',type:'flaneuring',accent:'flaneuring',title:'Фланирование',value:flaneuringWalking.toFixed(1),unit:'км пешком',secondary:flaneuringDistance.toFixed(1)+' км всего · '+flaneuringHours.toFixed(1)+' ч',open:()=>onOpenHistory('flaneuring')});
   if(stepTotal>0)compact.push({key:'steps',type:'steps',accent:'green',title:'Шаги',value:stepTotal.toLocaleString('ru-RU'),unit:'шагов',secondary:stepRows.length?'Среднее '+Math.round(avgSteps).toLocaleString('ru-RU')+' / день':'',open:onOpenSteps});
   if(workoutCount>0)compact.push({key:'workout',type:'workout',accent:'coral',title:'Воркаут',value:workoutCount.toLocaleString('ru-RU'),unit:'тренировок',secondary:'',open:()=>onOpenHistory('workout')});
   if(combatCount>0)compact.push({key:'combat',type:'combat',accent:'combat',title:'Единоборства',value:combatCount.toLocaleString('ru-RU'),unit:'тренировок',secondary:'',open:()=>onOpenHistory('combat')});
