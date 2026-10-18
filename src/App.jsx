@@ -203,6 +203,92 @@ function classifyHikeRoute(points=[]){
   }
   return out;
 }
+function median(values=[]){
+  const list=values.filter(Number.isFinite).sort((a,b)=>a-b);
+  if(!list.length)return null;
+  const mid=Math.floor(list.length/2);
+  return list.length%2?list[mid]:(list[mid-1]+list[mid])/2;
+}
+function summarizeFlaneuringRoute(points=[],startedAt=null,endedAt=null){
+  if(!Array.isArray(points)||!points.length){
+    const startMs=Number(startedAt)||0,endMs=Number(endedAt)||startMs;
+    return {points:[],distance:0,walkingDistance:0,transportDistance:0,totalSeconds:Math.max(0,(endMs-startMs)/1000),avgSpeed:0,maxSpeed:0,elevationGain:0,elevationMin:null,elevationMax:null};
+  }
+  const prepared=points.map(p=>({...p,segment:'walk'}));
+  let distance=0,walkingDistance=0,transportDistance=0,maxSpeed=0;
+  for(let i=1;i<prepared.length;i++){
+    const a=prepared[i-1],b=prepared[i],dt=Math.max(0,(Number(b.t)-Number(a.t))/1000);
+    if(dt<=0)continue;
+    const km=haversineKm(a,b);
+    const derived=km/(dt/3600);
+    const device=Number.isFinite(Number(b.speedKmh))?Math.max(0,Number(b.speedKmh)):null;
+    const observed=device==null?derived:device;
+    maxSpeed=Math.max(maxSpeed,observed);
+    const transport=observed>6;
+    b.segment=transport?'transport':'walk';
+    if(!Number.isFinite(km)||km<0||observed>350)continue;
+    distance+=km;
+    if(transport)transportDistance+=km;else walkingDistance+=km;
+  }
+
+  const altitudeRows=prepared
+    .map((p,i)=>({i,alt:Number(p.altitude),acc:p.altitudeAccuracy==null?null:Number(p.altitudeAccuracy)}))
+    .filter(x=>Number.isFinite(x.alt)&&(x.acc==null||!Number.isFinite(x.acc)||x.acc<=35));
+  const smoothed=[];
+  for(let j=0;j<altitudeRows.length;j++){
+    const vals=[];
+    for(let k=Math.max(0,j-1);k<=Math.min(altitudeRows.length-1,j+1);k++)vals.push(altitudeRows[k].alt);
+    const value=median(vals);
+    if(value!=null)smoothed.push(value);
+  }
+  let elevationGain=0,elevationMin=null,elevationMax=null;
+  if(smoothed.length){
+    elevationMin=Math.min(...smoothed);
+    elevationMax=Math.max(...smoothed);
+    for(let i=1;i<smoothed.length;i++){
+      const delta=smoothed[i]-smoothed[i-1];
+      if(delta>=2.5)elevationGain+=delta;
+    }
+  }
+  const firstTime=Number(prepared[0]?.t)||0,lastTime=Number(prepared[prepared.length-1]?.t)||firstTime;
+  const startMs=Number(startedAt)||firstTime,endMs=Number(endedAt)||lastTime;
+  const totalSeconds=Math.max(0,(endMs-startMs)/1000);
+  const avgSpeed=totalSeconds>0?distance/(totalSeconds/3600):0;
+  return {
+    points:prepared,distance,walkingDistance,transportDistance,totalSeconds,
+    avgSpeed,maxSpeed,elevationGain,
+    elevationMin:elevationMin==null?null:elevationMin,
+    elevationMax:elevationMax==null?null:elevationMax
+  };
+}
+function flaneuringPayload(nativeResult={}){
+  const points=Array.isArray(nativeResult.points)?nativeResult.points:[];
+  const summary=summarizeFlaneuringRoute(points,nativeResult.startedAt,nativeResult.endedAt);
+  const startMs=Number(nativeResult.startedAt)||Date.now(),endMs=Number(nativeResult.endedAt)||Date.now();
+  return {
+    draftId:nativeResult.sessionId||undefined,
+    type:'flaneuring',
+    date:localDateKey(new Date(startMs)),
+    title:'Фланирование',
+    distance:summary.distance,
+    walkingDistance:summary.walkingDistance,
+    transportDistance:summary.transportDistance,
+    duration:Math.max(0,Math.round((endMs-startMs)/1000)),
+    movingDuration:null,
+    avgSpeed:summary.avgSpeed,
+    maxSpeed:summary.maxSpeed,
+    elevationGain:summary.elevationGain,
+    elevationMin:summary.elevationMin,
+    elevationMax:summary.elevationMax,
+    routePoints:compactRoutePoints(summary.points),
+    startedAt:new Date(startMs).toISOString(),
+    endedAt:new Date(endMs).toISOString(),
+    trackingMode:'flaneuring_native',
+    gpsVerified:true,
+    autoEnded:nativeResult.autoEnded===true,
+    ratingEligible:true,
+  };
+}
 function summarizeRoute(points=[],type='bike'){
   if(points.length<2)return {points:[...points],distance:0,totalSeconds:0,movingSeconds:0,stopSeconds:0,stopCount:0,transportDistance:0,avgSpeed:0,maxSpeed:0};
   const prepared=type==='hike'?classifyHikeRoute(points):points.map(p=>({...p}));
