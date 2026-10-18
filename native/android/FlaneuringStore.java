@@ -46,6 +46,7 @@ public final class FlaneuringStore {
   public static synchronized JSONObject append(Context c,Location loc){
     SharedPreferences p=prefs(c);
     if(!p.getBoolean(ACTIVE,false))return status(c);
+    if(shouldAutoStop(c)){finish(c,true);return status(c);}
     long now=loc.getTime()>0?loc.getTime():System.currentTimeMillis();
     JSONArray points;
     try{points=new JSONArray(p.getString(POINTS,"[]"));}catch(Exception e){points=new JSONArray();}
