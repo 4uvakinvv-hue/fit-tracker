@@ -836,6 +836,7 @@ export default function App(){
   const [stepsStatus,setStepsStatus]=useState('loading');
   const [stepsSyncing,setStepsSyncing]=useState(false);
   const stepsSyncLock=useRef(false);
+  const flaneuringSyncLock=useRef(false);
   const [stepsDiagnostics,setStepsDiagnostics]=useState(null);
   const [screen,setScreen]=useState('home');
   const [selectedDateKey,setSelectedDateKey]=useState(localDateKey());
@@ -926,6 +927,7 @@ export default function App(){
           setAuthSession(nextSession);
           await loadData(true,nextSession);
           await syncSteps(false,nextSession,{reason:'resume'});
+          await syncPendingFlaneuring(nextSession);
           return;
         }
 
@@ -934,6 +936,7 @@ export default function App(){
           setAuthSession(data.session);
           await loadData(true,data.session);
           await syncSteps(false,data.session,{reason:'resume'});
+          await syncPendingFlaneuring(data.session);
         }
       }catch(err){
         console.warn('Forma resume refresh failed',err);
@@ -987,6 +990,8 @@ export default function App(){
         }
         setBootProgress(82);setBootStage('Синхронизируем шаги');
         await syncSteps(false,authSession,{fullHistory:true,reason:'launch-backfill'});
+        if(!active)return;
+        await syncPendingFlaneuring(authSession);
         if(!active)return;
         setBootProgress(100);setBootStage('Готово');
         const wait=Math.max(0,2000-(Date.now()-bootStartedAt.current));
@@ -1315,6 +1320,24 @@ export default function App(){
     await savePlan(draftDateKey,type,'','planned');navigate(type);
   }
 
+  async function syncPendingFlaneuring(sessionOverride=authSession){
+    if(!sessionOverride?.user||!Capacitor.isNativePlatform()||Capacitor.getPlatform()!=='android'||flaneuringSyncLock.current)return false;
+    flaneuringSyncLock.current=true;
+    try{
+      const completed=await Flaneuring.getCompleted();
+      if(!completed?.sessionId||!completed?.endedAt)return false;
+      const payload=flaneuringPayload(completed);
+      await saveSession(payload);
+      await Flaneuring.clearCompleted();
+      return true;
+    }catch(err){
+      console.warn('Forma flaneuring pending sync failed',err);
+      return false;
+    }finally{
+      flaneuringSyncLock.current=false;
+    }
+  }
+
   async function saveSession(payload){
     if(isFuture(payload.date)){
       await savePlan(payload.date,payload.type,payload.title||'','planned');
@@ -1349,6 +1372,11 @@ export default function App(){
       stop_duration:payload.stopDuration??null,
       stop_count:payload.stopCount??0,
       transport_distance:payload.transportDistance??null,
+      walking_distance:payload.walkingDistance??null,
+      elevation_gain:payload.elevationGain??null,
+      elevation_min:payload.elevationMin??null,
+      elevation_max:payload.elevationMax??null,
+      auto_ended:payload.autoEnded===true,
       avg_speed:payload.avgSpeed??null,
       max_speed:payload.maxSpeed??null,
       route_points:payload.routePoints||null,
@@ -1411,7 +1439,7 @@ export default function App(){
       title:(patch.title??target.title??activityMeta(target.type)?.label??'').trim()||null,
       edited_at:new Date().toISOString(),
     };
-    if(['bike','run','hike','moto'].includes(target.type)&&patch.distance!==undefined){
+    if(['bike','run','hike','moto','flaneuring'].includes(target.type)&&patch.distance!==undefined){
       const nextDistance=Math.max(0,Number(patch.distance)||0);
       changes.distance=nextDistance;
       changes.distance_corrected=Math.abs(nextDistance-Number(target.distance||target.hikeDistance||0))>0.0001||target.distanceCorrected;
