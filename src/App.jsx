@@ -2304,14 +2304,88 @@ function expeditionDays(points=[]){
 
 function OutdoorTraining({dateKey,setDateKey,sessions,onBack,onSave,onSaveExpedition}){
   const initialDraft=loadExpeditionDraft();
-  const [mode,setMode]=useState(initialDraft?'hike':'bike'),[manualOpen,setManualOpen]=useState(false),[title,setTitle]=useState(initialDraft?.title||''),[distance,setDistance]=useState(''),[tracking,setTracking]=useState(false),[trackPoints,setTrackPoints]=useState(initialDraft?.points||[]),[gpsMessage,setGpsMessage]=useState(''),[result,setResult]=useState(null),[saving,setSaving]=useState(false),[expedition,setExpedition]=useState(initialDraft);
+  const [mode,setMode]=useState(initialDraft?'hike':'bike');
+  const [manualOpen,setManualOpen]=useState(false);
+  const [title,setTitle]=useState(initialDraft?.title||'');
+  const [distance,setDistance]=useState('');
+  const [tracking,setTracking]=useState(false);
+  const [trackPoints,setTrackPoints]=useState(initialDraft?.points||[]);
+  const [gpsMessage,setGpsMessage]=useState('');
+  const [result,setResult]=useState(null);
+  const [saving,setSaving]=useState(false);
+  const [expedition,setExpedition]=useState(initialDraft);
+  const [flaneuringState,setFlaneuringState]=useState(null);
   const watchRef=useRef(null),pointsRef=useRef(initialDraft?.points||[]),startedRef=useRef(initialDraft?.startedAt||null);
-  const meta=OUTDOOR_MODES.find(x=>x.id===mode)||OUTDOOR_MODES[0],history=sessions.filter(s=>s.type===mode&&isHistorySession(s)),distances=history.map(s=>Number(s.distance||(mode==='hike'?s.hikeDistance:0))||0),totalDistance=distances.reduce((a,b)=>a+b,0),avgDistance=average(distances),live=useMemo(()=>summarizeRoute(trackPoints,mode),[trackPoints,mode]),native=Capacitor.isNativePlatform()&&Capacitor.getPlatform()==='android';
-  useEffect(()=>()=>{if(watchRef.current)BackgroundGeolocation.stop().catch(()=>{});},[]);
-  function selectMode(next){if(tracking)return;setMode(next);setManualOpen(false);setResult(null);setGpsMessage('');setDistance('');if(!expedition)setTitle('');}
+  const meta=OUTDOOR_MODES.find(x=>x.id===mode)||OUTDOOR_MODES[0];
+  const history=sessions.filter(s=>s.type===mode&&isHistorySession(s));
+  const distances=history.map(s=>Number(s.distance||(mode==='hike'?s.hikeDistance:0))||0);
+  const totalDistance=distances.reduce((a,b)=>a+b,0),avgDistance=average(distances);
+  const native=Capacitor.isNativePlatform()&&Capacitor.getPlatform()==='android';
+  const live=useMemo(
+    ()=>mode==='flaneuring'
+      ?summarizeFlaneuringRoute(trackPoints,flaneuringState?.startedAt||startedRef.current,Date.now())
+      :summarizeRoute(trackPoints,mode),
+    [trackPoints,mode,flaneuringState?.startedAt]
+  );
+
+  useEffect(()=>()=>{if(watchRef.current&&watchRef.current!=='flaneuring-native')BackgroundGeolocation.stop().catch(()=>{});},[]);
+
+  useEffect(()=>{
+    if(!native)return;
+    let cancelled=false,timer=null;
+    const inspect=async()=>{
+      try{
+        const state=await Flaneuring.status();
+        if(cancelled)return;
+        if(state?.active){
+          setFlaneuringState(state);
+          setMode('flaneuring');
+          setTracking(true);
+          watchRef.current='flaneuring-native';
+          startedRef.current=Number(state.startedAt)||Date.now();
+          pointsRef.current=Array.isArray(state.points)?state.points:[];
+          setTrackPoints(pointsRef.current);
+          return;
+        }
+        if(watchRef.current==='flaneuring-native'){
+          setTracking(false);watchRef.current=null;
+        }
+        const completed=await Flaneuring.getCompleted();
+        if(completed?.sessionId&&completed?.endedAt){
+          const payload=flaneuringPayload(completed);
+          setMode('flaneuring');setResult(payload);
+          try{
+            setSaving(true);
+            await onSave(payload);
+            await Flaneuring.clearCompleted();
+          }catch(err){
+            console.warn('Forma flaneuring foreground autosave failed',err);
+            setGpsMessage('Фланирование завершено и сохранено на телефоне. Синхронизируем при появлении интернета.');
+          }finally{setSaving(false);}
+        }
+      }catch(err){console.warn('Forma flaneuring status failed',err);}
+    };
+    inspect();
+    timer=setInterval(inspect,60000);
+    return()=>{cancelled=true;if(timer)clearInterval(timer);};
+  },[native]);
+
+  function selectMode(next){
+    if(tracking)return;
+    setMode(next);setManualOpen(false);setResult(null);setGpsMessage('');setDistance('');
+    if(!expedition)setTitle('');
+  }
+
   function appendPoint(position,expeditionMode=false){
     if(!position)return;
-    const point={lat:Number(position.latitude),lng:Number(position.longitude),t:Number(position.time)||Date.now(),accuracy:Number(position.accuracy)||null,speedKmh:Number(position.speed)>=0?Number(position.speed)*3.6:null};
+    const point={
+      lat:Number(position.latitude),lng:Number(position.longitude),
+      t:Number(position.time)||Date.now(),
+      accuracy:Number(position.accuracy)||null,
+      speedKmh:Number(position.speed)>=0?Number(position.speed)*3.6:null,
+      altitude:Number.isFinite(Number(position.altitude))?Number(position.altitude):null,
+      altitudeAccuracy:Number.isFinite(Number(position.altitudeAccuracy))?Number(position.altitudeAccuracy):null
+    };
     if(!Number.isFinite(point.lat)||!Number.isFinite(point.lng)||!Number.isFinite(point.t))return;
     pointsRef.current=[...pointsRef.current,point];setTrackPoints(pointsRef.current);
     if(expeditionMode){
@@ -2319,24 +2393,77 @@ function OutdoorTraining({dateKey,setDateKey,sessions,onBack,onSave,onSaveExpedi
       setExpedition(next);persistExpeditionDraft(next);
     }
   }
+
   async function stopGps(){
     const active=watchRef.current;watchRef.current=null;if(active)await BackgroundGeolocation.stop().catch(()=>{});setTracking(false);
-    const summary=summarizeRoute(pointsRef.current,mode);if(summary.points.length<2||summary.distance<=0){setGpsMessage('Маршрут не записался. Внесите тренировку вручную.');setManualOpen(true);return;}
-    const finishedAt=new Date().toISOString(),resultData={...summary,type:mode,mode,title:title.trim()||meta.label,date:localDateKey(),routePoints:compactRoutePoints(summary.points),movingDuration:Math.round(summary.movingSeconds),stopDuration:Math.round(summary.stopSeconds),stopCount:summary.stopCount,transportDistance:summary.transportDistance,duration:Math.round(summary.totalSeconds),avgSpeed:summary.avgSpeed,maxSpeed:summary.maxSpeed,gpsVerified:true,startedAt:startedRef.current,endedAt:finishedAt};setResult(resultData);
-    try{const user=(await supabase.auth.getUser())?.data?.user;if(user)await supabase.from('feed_events').insert({actor_id:user.id,event_type:'gps_finished',activity_type:mode,title:resultData.title,payload:{distance:resultData.distance,duration:resultData.duration,moving_duration:resultData.movingDuration,stop_duration:resultData.stopDuration,stop_count:resultData.stopCount,transport_distance:resultData.transportDistance,avg_speed:resultData.avgSpeed,max_speed:resultData.maxSpeed}});}catch(err){console.warn('Forma GPS finish feed failed',err);}
+    const summary=summarizeRoute(pointsRef.current,mode);
+    if(summary.points.length<2||summary.distance<=0){setGpsMessage('Маршрут не записался. Внесите тренировку вручную.');setManualOpen(true);return;}
+    const finishedAt=new Date().toISOString();
+    const resultData={...summary,type:mode,mode,title:title.trim()||meta.label,date:localDateKey(),routePoints:compactRoutePoints(summary.points),movingDuration:Math.round(summary.movingSeconds),stopDuration:Math.round(summary.stopSeconds),stopCount:summary.stopCount,transportDistance:summary.transportDistance,duration:Math.round(summary.totalSeconds),avgSpeed:summary.avgSpeed,maxSpeed:summary.maxSpeed,gpsVerified:true,startedAt:startedRef.current,endedAt:finishedAt};
+    setResult(resultData);
+    try{
+      const user=(await supabase.auth.getUser())?.data?.user;
+      if(user)await supabase.from('feed_events').insert({actor_id:user.id,event_type:'gps_finished',activity_type:mode,title:resultData.title,payload:{distance:resultData.distance,duration:resultData.duration,moving_duration:resultData.movingDuration,stop_duration:resultData.stopDuration,stop_count:resultData.stopCount,transport_distance:resultData.transportDistance,avg_speed:resultData.avgSpeed,max_speed:resultData.maxSpeed}});
+    }catch(err){console.warn('Forma GPS finish feed failed',err);}
   }
+
   async function startGps(){
+    if(mode==='flaneuring'){await startFlaneuring();return;}
     setGpsMessage('');setResult(null);setManualOpen(false);
     if(!native){setGpsMessage('GPS-запись маршрута сейчас доступна в Android-приложении. Здесь можно внести тренировку вручную.');setManualOpen(true);return;}
     try{
       setDateKey(localDateKey());pointsRef.current=[];startedRef.current=new Date().toISOString();setTrackPoints([]);
       await BackgroundGeolocation.start({backgroundTitle:'Форма · '+meta.label,backgroundMessage:'Идёт запись маршрута. Нажмите, чтобы вернуться в «Форму».',requestPermissions:true,stale:false,distanceFilter:0,minIntervalMs:2000},(position,err)=>{
-        if(err){if(err.code==='NOT_AUTHORIZED'){setGpsMessage('Нет разрешения на геолокацию. Разрешите GPS или внесите тренировку вручную.');setManualOpen(true);}return;}appendPoint(position,false);
+        if(err){if(err.code==='NOT_AUTHORIZED'){setGpsMessage('Нет разрешения на геолокацию. Разрешите GPS или внесите тренировку вручную.');setManualOpen(true);}return;}
+        appendPoint(position,false);
       });
       watchRef.current='gps';setTracking(true);
-      const user=(await supabase.auth.getUser())?.data?.user;if(user)await supabase.from('feed_events').insert({actor_id:user.id,event_type:'gps_started',activity_type:mode,title:title.trim()||meta.label,payload:{started_at:startedRef.current}});
-    }catch(err){console.warn('Forma GPS start failed',err);setTracking(false);setGpsMessage('Не удалось запустить GPS. Проверьте разрешение геолокации или внесите тренировку вручную.');setManualOpen(true);}
+      const user=(await supabase.auth.getUser())?.data?.user;
+      if(user)await supabase.from('feed_events').insert({actor_id:user.id,event_type:'gps_started',activity_type:mode,title:title.trim()||meta.label,payload:{started_at:startedRef.current}});
+    }catch(err){
+      console.warn('Forma GPS start failed',err);setTracking(false);
+      setGpsMessage('Не удалось запустить GPS. Проверьте разрешение геолокации или внесите тренировку вручную.');setManualOpen(true);
+    }
   }
+
+  async function startFlaneuring(){
+    setGpsMessage('');setResult(null);setManualOpen(false);setMode('flaneuring');
+    if(!native){setGpsMessage('Фланирование с автозавершением доступно в Android-приложении.');return;}
+    try{
+      await requestDeviceNotificationPermission().catch(()=>false);
+      const state=await Flaneuring.start();
+      setDateKey(localDateKey());
+      setFlaneuringState(state);
+      startedRef.current=Number(state.startedAt)||Date.now();
+      pointsRef.current=Array.isArray(state.points)?state.points:[];
+      setTrackPoints(pointsRef.current);
+      watchRef.current='flaneuring-native';setTracking(true);
+      const user=(await supabase.auth.getUser())?.data?.user;
+      if(user)await supabase.from('feed_events').insert({actor_id:user.id,event_type:'gps_started',activity_type:'flaneuring',title:'Фланирование',payload:{started_at:new Date(startedRef.current).toISOString()}});
+    }catch(err){
+      console.warn('Forma flaneuring start failed',err);
+      setTracking(false);watchRef.current=null;
+      setGpsMessage('Не удалось начать фланирование. Разрешите Forma доступ к геолокации.');
+    }
+  }
+
+  async function stopFlaneuring(){
+    if(!native)return;
+    setSaving(true);setGpsMessage('');
+    try{
+      const completed=await Flaneuring.stop();
+      const payload=flaneuringPayload(completed);
+      setTracking(false);watchRef.current=null;setFlaneuringState(null);setResult(payload);
+      try{
+        await onSave(payload);
+        await Flaneuring.clearCompleted();
+      }catch(err){
+        console.warn('Forma flaneuring manual save failed',err);
+        setGpsMessage('Фланирование сохранено на телефоне. Синхронизируем автоматически, когда появится интернет.');
+      }
+    }finally{setSaving(false);}
+  }
+
   async function startOrResumeExpedition(){
     setGpsMessage('');setResult(null);setManualOpen(false);setMode('hike');
     if(!native){setGpsMessage('Офлайн-поход с контрольными точками доступен в Android-приложении.');return;}
@@ -2349,6 +2476,7 @@ function OutdoorTraining({dateKey,setDateKey,sessions,onBack,onSave,onSaveExpedi
       watchRef.current='expedition';setTracking(true);
     }catch(err){console.warn('Forma expedition start failed',err);setGpsMessage('Не удалось запустить офлайн-запись похода. Проверьте разрешение геолокации.');}
   }
+
   async function finishExpedition(){
     const active=watchRef.current;watchRef.current=null;if(active)await BackgroundGeolocation.stop().catch(()=>{});setTracking(false);
     const draft=loadExpeditionDraft()||expedition;if(!draft)return;
@@ -2362,17 +2490,97 @@ function OutdoorTraining({dateKey,setDateKey,sessions,onBack,onSave,onSaveExpedi
       console.warn('Forma expedition sync failed',err);setGpsMessage('Поход сохранён на телефоне. Данные не потеряны — синхронизируйте, когда появится интернет.');
     }finally{setSaving(false);}
   }
-  async function saveManual(){setSaving(true);try{const km=Math.max(0,Number(distance)||0),payload={type:mode,date:dateKey,title:title.trim()||meta.label,distance:km,trackingMode:'manual',gpsVerified:false,ratingEligible:mode==='moto'?false:dateKey===localDateKey()};if(mode==='hike'){payload.hikeDays=1;payload.hikeDistance=km;}await onSave(payload);}finally{setSaving(false);}}
-  async function saveGpsResult(){if(!result)return;setSaving(true);try{const payload={type:mode,date:localDateKey(),title:result.title,distance:result.distance,duration:result.duration,movingDuration:result.movingDuration,stopDuration:result.stopDuration,stopCount:result.stopCount,transportDistance:result.transportDistance,avgSpeed:result.avgSpeed,maxSpeed:result.maxSpeed,routePoints:result.routePoints,startedAt:result.startedAt,endedAt:result.endedAt,trackingMode:'gps',gpsVerified:true,ratingEligible:mode==='moto'?result.distance>=150:true};if(mode==='hike'){payload.hikeDays=1;payload.hikeDistance=result.distance;}await onSave(payload);}finally{setSaving(false);}}
-  if(result)return <main className={'sub-screen outdoor-training-screen outdoor-'+mode}><ScreenBack onBack={()=>setResult(null)} title="Тренировка завершена"/><RouteResultCard session={result}/>{mode==='moto'&&result.distance<150&&<div className="manual-rating-note">Мото сохранится в истории и статистике, но активный день начисляется только за GPS-поездку от 150 км.</div>}<button className="gradient-button" onClick={saveGpsResult} disabled={saving}>{saving?'Сохраняю…':'Сохранить тренировку'}</button></main>;
-  const recent=[...history].sort((a,b)=>b.date.localeCompare(a.date)||String(b.created_at||'').localeCompare(String(a.created_at||''))).slice(0,3);
-  return <main className={'sub-screen outdoor-training-screen outdoor-'+mode}><ScreenBack onBack={onBack} title="Вело / Бег / ПВД / Мото"/><div className="outdoor-mode-tabs">{OUTDOOR_MODES.map(x=><button key={x.id} className={mode===x.id?'active':''} onClick={()=>selectMode(x.id)} disabled={tracking}><span>{x.icon}</span>{x.label}</button>)}</div>
-    {expedition&&!tracking&&mode==='hike'&&<section className="expedition-resume-card"><small>ОФЛАЙН-ПОХОД СОХРАНЁН НА ТЕЛЕФОНЕ</small><strong>{expedition.title||'Многодневный поход'}</strong><span>{expedition.points?.length||0} контрольных GPS-точек</span><button className="gradient-button" onClick={startOrResumeExpedition}>Продолжить запись</button><button className="secondary-dark" onClick={finishExpedition} disabled={saving}>{saving?'Синхронизирую…':'Завершить и синхронизировать'}</button></section>}
-    {tracking&&<section className={'gps-live-card '+(watchRef.current==='expedition'?'expedition-live':'')}><div className="gps-live-pulse"><i/>{watchRef.current==='expedition'?'Офлайн-поход · контрольные точки':'GPS записывает'}</div><RouteSketch points={trackPoints}/><div className="gps-live-metrics"><span><small>{mode==='hike'?'Пешком':'Дистанция'}</small><strong>{live.distance.toFixed(2)} км</strong></span><span><small>{mode==='hike'?'Всего':'В движении'}</small><strong>{formatDuration(mode==='hike'?live.totalSeconds:live.movingSeconds)}</strong></span><span><small>{mode==='hike'?'Транспорт':'Средняя'}</small><strong>{mode==='hike'?live.transportDistance.toFixed(1)+' км':live.avgSpeed.toFixed(1)+' км/ч'}</strong></span></div>{(mode==='bike'||mode==='run'||mode==='moto')&&<small className="gps-stop-live">{mode==='moto'?'Отдых ≥2 мин':'Остановки ≥10 сек'}: {live.stopCount} · {formatDuration(live.stopSeconds)}</small>}{watchRef.current==='expedition'?<button className="stop-gps-button" onClick={finishExpedition}>Завершить многодневный поход</button>:<button className="stop-gps-button" onClick={stopGps}>Завершить тренировку</button>}</section>}
-    {!tracking&&!expedition&&<section className="outdoor-actions outdoor-actions-v17"><button className="gradient-button start-gps-button" onClick={startGps}><span>⌖</span>Начать GPS-тренировку</button>{mode==='hike'&&<button className="secondary-dark expedition-button" onClick={startOrResumeExpedition}>Многодневный поход · офлайн</button>}<button className="secondary-dark manual-training-button" onClick={()=>setManualOpen(v=>!v)}>Записать вручную</button><small>{mode==='hike'?'В ПВД транспортные отрезки быстрее 10 км/ч отмечаются пунктиром и не входят в пеший километраж.':mode==='moto'?'Мото даёт активный день только при GPS-подтверждении и дистанции от 150 км.':'GPS — основной режим. Ручная запись остаётся полноценным способом добавить тренировку.'}</small></section>}
+
+  async function saveManual(){
+    if(mode==='flaneuring')return;
+    setSaving(true);
+    try{
+      const km=Math.max(0,Number(distance)||0),payload={type:mode,date:dateKey,title:title.trim()||meta.label,distance:km,trackingMode:'manual',gpsVerified:false,ratingEligible:mode==='moto'?false:dateKey===localDateKey()};
+      if(mode==='hike'){payload.hikeDays=1;payload.hikeDistance=km;}
+      await onSave(payload);
+    }finally{setSaving(false);}
+  }
+
+  async function saveGpsResult(){
+    if(!result)return;
+    setSaving(true);
+    try{
+      if(result.type==='flaneuring'){
+        await onSave(result);
+        await Flaneuring.clearCompleted().catch(()=>{});
+        return;
+      }
+      const payload={type:mode,date:localDateKey(),title:result.title,distance:result.distance,duration:result.duration,movingDuration:result.movingDuration,stopDuration:result.stopDuration,stopCount:result.stopCount,transportDistance:result.transportDistance,avgSpeed:result.avgSpeed,maxSpeed:result.maxSpeed,routePoints:result.routePoints,startedAt:result.startedAt,endedAt:result.endedAt,trackingMode:'gps',gpsVerified:true,ratingEligible:mode==='moto'?result.distance>=150:true};
+      if(mode==='hike'){payload.hikeDays=1;payload.hikeDistance=result.distance;}
+      await onSave(payload);
+    }finally{setSaving(false);}
+  }
+
+  if(result)return <main className={'sub-screen outdoor-training-screen outdoor-'+mode}>
+    <ScreenBack onBack={()=>setResult(null)} title="Тренировка завершена"/>
+    <RouteResultCard session={result}/>
+    {result.type==='flaneuring'&&result.autoEnded&&<div className="flaneuring-auto-note"><strong>Завершено автоматически</strong><span>Два часа без заметного перемещения не включены во время активности.</span></div>}
+    {mode==='moto'&&result.distance<150&&<div className="manual-rating-note">Мото сохранится в истории и статистике, но активный день начисляется только за GPS-поездку от 150 км.</div>}
     {gpsMessage&&<div className="gps-message">{gpsMessage}</div>}
-    {manualOpen&&!tracking&&<section className="glass-card simple-form outdoor-manual-form"><label className="date-control embedded"><span>Дата</span><input type="date" value={dateKey} max={localDateKey()} onChange={e=>setDateKey(e.target.value)}/></label><label className="dark-field"><span>Название — необязательно</span><input value={title} onChange={e=>setTitle(e.target.value)} placeholder={mode==='bike'?'Вечерняя поездка':mode==='run'?'Пробежка':mode==='moto'?'Мотопрогулка':'ПВД / Поход'}/></label><label className="dark-field"><span>Расстояние, км</span><input inputMode="decimal" type="number" min="0" step="0.1" value={distance} onChange={e=>setDistance(e.target.value)} placeholder="12.5"/></label>{(dateKey<localDateKey()||mode==='moto')&&<small className="manual-rating-note">{mode==='moto'?'Ручная запись Мото идёт в историю и статистику, но без рейтинговых баллов.':'Запись задним числом попадёт в историю и статистику, но не даст рейтинговых баллов.'}</small>}<button className="gradient-button" onClick={saveManual} disabled={saving}>{saving?'Сохраняю…':'Сохранить вручную'}</button></section>}
-    {!tracking&&!manualOpen&&!expedition&&<section className="outdoor-stats-v17"><h2>Твоя статистика</h2><section className="outdoor-summary glass-card"><div><small>Всего</small><strong>{totalDistance.toFixed(1)} км</strong></div><div><small>Среднее</small><strong>{avgDistance.toFixed(1)} км</strong><em>за тренировку</em></div></section>{!!recent.length&&<div className="outdoor-recent-v17"><header><strong>Последние тренировки</strong><span>{history.length} всего</span></header>{recent.map(item=><div key={item.id}><span>{formatDate(item.date,{day:'numeric',month:'short'})}</span><strong>{item.title||meta.label}</strong><b>{sessionValue(item)}</b></div>)}</div>}</section>}
+    <button className="gradient-button" onClick={saveGpsResult} disabled={saving}>{saving?'Синхронизирую…':result.type==='flaneuring'?'Синхронизировать':'Сохранить тренировку'}</button>
+  </main>;
+
+  const recent=[...history].sort((a,b)=>b.date.localeCompare(a.date)||String(b.created_at||'').localeCompare(String(a.created_at||''))).slice(0,3);
+  const flanLastMove=Number(flaneuringState?.lastMoveAt)||0;
+  const flanIdleSec=flanLastMove?Math.max(0,(Date.now()-flanLastMove)/1000):0;
+  const flanRemaining=Math.max(0,7200-flanIdleSec);
+
+  return <main className={'sub-screen outdoor-training-screen outdoor-'+mode}>
+    <ScreenBack onBack={onBack} title="GPS / улица"/>
+    <div className="outdoor-mode-tabs">{OUTDOOR_MODES.map(x=><button key={x.id} className={mode===x.id?'active':''} onClick={()=>selectMode(x.id)} disabled={tracking}><span>{x.icon}</span>{x.label}</button>)}</div>
+
+    {expedition&&!tracking&&mode==='hike'&&<section className="expedition-resume-card"><small>ОФЛАЙН-ПОХОД СОХРАНЁН НА ТЕЛЕФОНЕ</small><strong>{expedition.title||'Многодневный поход'}</strong><span>{expedition.points?.length||0} контрольных GPS-точек</span><button className="gradient-button" onClick={startOrResumeExpedition}>Продолжить запись</button><button className="secondary-dark" onClick={finishExpedition} disabled={saving}>{saving?'Синхронизирую…':'Завершить и синхронизировать'}</button></section>}
+
+    {tracking&&mode==='flaneuring'&&<section className="gps-live-card flaneuring-live">
+      <div className="gps-live-pulse"><i/>Фланирование · запись идёт</div>
+      <RouteSketch points={live.points}/>
+      <div className="flaneuring-live-grid">
+        <span><small>Прошло</small><strong>{formatDuration(live.totalSeconds)}</strong></span>
+        <span><small>Весь маршрут</small><strong>{live.distance.toFixed(1)} км</strong></span>
+        <span><small>Пешком ≤6 км/ч</small><strong>{live.walkingDistance.toFixed(1)} км</strong></span>
+        <span><small>Транспорт</small><strong>{live.transportDistance.toFixed(1)} км</strong></span>
+        <span><small>Набор</small><strong>{live.elevationGain?Math.round(live.elevationGain)+' м':'—'}</strong></span>
+        <span><small>Высоты</small><strong>{live.elevationMin!=null&&live.elevationMax!=null?Math.round(live.elevationMin)+'–'+Math.round(live.elevationMax)+' м':'—'}</strong></span>
+      </div>
+      <div className="flaneuring-autostop"><small>Автозавершение</small><strong>{flanRemaining>0?formatDuration(flanRemaining):'скоро'}</strong><span>если не будет заметного перемещения</span></div>
+      <button className="stop-gps-button" onClick={stopFlaneuring} disabled={saving}>{saving?'Завершаю…':'Завершить сейчас'}</button>
+    </section>}
+
+    {tracking&&mode!=='flaneuring'&&<section className={'gps-live-card '+(watchRef.current==='expedition'?'expedition-live':'')}>
+      <div className="gps-live-pulse"><i/>{watchRef.current==='expedition'?'Офлайн-поход · контрольные точки':'GPS записывает'}</div>
+      <RouteSketch points={trackPoints}/>
+      <div className="gps-live-metrics"><span><small>{mode==='hike'?'Пешком':'Дистанция'}</small><strong>{live.distance.toFixed(2)} км</strong></span><span><small>{mode==='hike'?'Всего':'В движении'}</small><strong>{formatDuration(mode==='hike'?live.totalSeconds:live.movingSeconds)}</strong></span><span><small>{mode==='hike'?'Транспорт':'Средняя'}</small><strong>{mode==='hike'?live.transportDistance.toFixed(1)+' км':live.avgSpeed.toFixed(1)+' км/ч'}</strong></span></div>
+      {(mode==='bike'||mode==='run'||mode==='moto')&&<small className="gps-stop-live">{mode==='moto'?'Отдых ≥2 мин':'Остановки ≥10 сек'}: {live.stopCount} · {formatDuration(live.stopSeconds)}</small>}
+      {watchRef.current==='expedition'?<button className="stop-gps-button" onClick={finishExpedition}>Завершить многодневный поход</button>:<button className="stop-gps-button" onClick={stopGps}>Завершить тренировку</button>}
+    </section>}
+
+    {!tracking&&!expedition&&<section className="outdoor-actions outdoor-actions-v17">
+      {mode==='flaneuring'
+        ?<button className="gradient-button start-gps-button flaneuring-start" onClick={startFlaneuring}><span>🧭</span>Начать фланирование</button>
+        :<button className="gradient-button start-gps-button" onClick={startGps}><span>⌖</span>Начать GPS-тренировку</button>}
+      {mode==='hike'&&<button className="secondary-dark expedition-button" onClick={startOrResumeExpedition}>Многодневный поход · офлайн</button>}
+      {mode!=='flaneuring'&&<button className="secondary-dark manual-training-button" onClick={()=>setManualOpen(v=>!v)}>Записать вручную</button>}
+      <small>{
+        mode==='flaneuring'
+          ?'Без плана: пешком, поезд, машина, мото — всё одним маршрутом. Пешком считается скорость до 6 км/ч. После 2 часов без заметного перемещения Forma завершит запись сама и вычтет эти два часа.'
+          :mode==='hike'
+            ?'В ПВД транспортные отрезки быстрее 10 км/ч отмечаются пунктиром и не входят в пеший километраж.'
+            :mode==='moto'
+              ?'Мото даёт активный день только при GPS-подтверждении и дистанции от 150 км.'
+              :'GPS — основной режим. Ручная запись остаётся полноценным способом добавить тренировку.'
+      }</small>
+    </section>}
+
+    {gpsMessage&&<div className="gps-message">{gpsMessage}</div>}
+
+    {manualOpen&&!tracking&&mode!=='flaneuring'&&<section className="glass-card simple-form outdoor-manual-form"><label className="date-control embedded"><span>Дата</span><input type="date" value={dateKey} max={localDateKey()} onChange={e=>setDateKey(e.target.value)}/></label><label className="dark-field"><span>Название — необязательно</span><input value={title} onChange={e=>setTitle(e.target.value)} placeholder={mode==='bike'?'Вечерняя поездка':mode==='run'?'Пробежка':mode==='moto'?'Мотопрогулка':'ПВД / Поход'}/></label><label className="dark-field"><span>Расстояние, км</span><input inputMode="decimal" type="number" min="0" step="0.1" value={distance} onChange={e=>setDistance(e.target.value)} placeholder="12.5"/></label>{(dateKey<localDateKey()||mode==='moto')&&<small className="manual-rating-note">{mode==='moto'?'Ручная запись Мото идёт в историю и статистику, но без рейтинговых баллов.':'Запись задним числом попадёт в историю и статистику, но не даст рейтинговых баллов.'}</small>}<button className="gradient-button" onClick={saveManual} disabled={saving}>{saving?'Сохраняю…':'Сохранить вручную'}</button></section>}
+
+    {!tracking&&!manualOpen&&!expedition&&<section className="outdoor-stats-v17"><h2>Твоя статистика</h2><section className="outdoor-summary glass-card"><div><small>Всего</small><strong>{totalDistance.toFixed(1)} км</strong></div><div><small>Среднее</small><strong>{avgDistance.toFixed(1)} км</strong><em>за активность</em></div></section>{!!recent.length&&<div className="outdoor-recent-v17"><header><strong>Последние активности</strong><span>{history.length} всего</span></header>{recent.map(item=><div key={item.id}><span>{formatDate(item.date,{day:'numeric',month:'short'})}</span><strong>{item.title||meta.label}</strong><b>{sessionValue(item)}</b></div>)}</div>}</section>}
   </main>;
 }
 
