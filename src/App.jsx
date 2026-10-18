@@ -2486,7 +2486,7 @@ function OutdoorTraining({dateKey,setDateKey,sessions,onBack,onSave,onSaveExpedi
     const summary=summarizeRoute(pointsRef.current,mode);
     if(summary.points.length<2||summary.distance<=0){setGpsMessage('Маршрут не записался. Внесите тренировку вручную.');setManualOpen(true);return;}
     const finishedAt=new Date().toISOString();
-    const resultData={draftId:crypto.randomUUID(),...summary,type:mode,mode,title:title.trim()||meta.label,date:localDateKey(),routePoints:compactRoutePoints(summary.points),movingDuration:Math.round(summary.movingSeconds),stopDuration:Math.round(summary.stopSeconds),stopCount:summary.stopCount,transportDistance:summary.transportDistance,duration:Math.round(summary.totalSeconds),avgSpeed:summary.avgSpeed,maxSpeed:summary.maxSpeed,gpsVerified:true,startedAt:startedRef.current,endedAt:finishedAt};
+    const resultData={draftId:crypto.randomUUID(),...summary,type:mode,mode,title:title.trim()||meta.label,date:localDateKey(),routePoints:compactRoutePoints(summary.points),movingDuration:Math.round(summary.movingSeconds),stopDuration:Math.round(summary.stopSeconds),stopCount:summary.stopCount,transportDistance:summary.transportDistance,duration:Math.round(summary.totalSeconds),avgSpeed:summary.avgSpeed,maxSpeed:summary.maxSpeed,gpsVerified:true,trackingMode:'gps',gpsFilteredPoints:summary.filteredPoints||0,gpsDiscontinuities:summary.discontinuities||0,gpsSpoofDetected:summary.spoofDetected===true,ratingEligible:mode==='moto'?summary.distance>=150:true,hikeDays:mode==='hike'?1:null,hikeDistance:mode==='hike'?summary.distance:null,startedAt:startedRef.current,endedAt:finishedAt};
     queuePendingGpsSession(resultData);
     setResult(resultData);
     try{
