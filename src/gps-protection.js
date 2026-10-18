@@ -8,12 +8,12 @@ function haversineKm(a,b){
 }
 
 export function gpsTrustPolicy(type='bike'){
-  if(type==='run')return {maxSpeedKmh:45,maxAccuracyM:80,gapSeconds:90,recoverPoints:3};
-  if(type==='bike')return {maxSpeedKmh:95,maxAccuracyM:90,gapSeconds:120,recoverPoints:3};
-  if(type==='moto')return {maxSpeedKmh:280,maxAccuracyM:110,gapSeconds:180,recoverPoints:3};
-  if(type==='hike')return {maxSpeedKmh:220,maxAccuracyM:110,gapSeconds:300,recoverPoints:3};
-  if(type==='flaneuring')return {maxSpeedKmh:320,maxAccuracyM:120,gapSeconds:600,recoverPoints:3};
-  return {maxSpeedKmh:120,maxAccuracyM:100,gapSeconds:180,recoverPoints:3};
+  if(type==='run')return {maxSpeedKmh:45,maxAccuracyM:80,gapSeconds:600,recoveryRadiusKm:.6};
+  if(type==='bike')return {maxSpeedKmh:95,maxAccuracyM:90,gapSeconds:600,recoveryRadiusKm:1.2};
+  if(type==='moto')return {maxSpeedKmh:280,maxAccuracyM:110,gapSeconds:900,recoveryRadiusKm:3};
+  if(type==='hike')return {maxSpeedKmh:220,maxAccuracyM:110,gapSeconds:1200,recoveryRadiusKm:2};
+  if(type==='flaneuring')return {maxSpeedKmh:320,maxAccuracyM:120,gapSeconds:1200,recoveryRadiusKm:3};
+  return {maxSpeedKmh:120,maxAccuracyM:100,gapSeconds:600,recoveryRadiusKm:1.5};
 }
 function normalizeGpsPoint(p){
   if(!p)return null;
@@ -66,28 +66,21 @@ export function sanitizeGpsPoints(points=[],type='bike'){
       accept(p,true);discontinuities++;continue;
     }
     if(assessment.trusted){
-      if(pending.length){filteredPoints+=pending.length;pending=[];spoofDetected=true;}
+      if(pending.length){
+        if(assessment.km>policy.recoveryRadiusKm){
+          pending.push(p);
+          if(pending.length>60){filteredPoints+=pending.length-20;pending=pending.slice(-20);}
+          spoofDetected=true;
+          continue;
+        }
+        filteredPoints+=pending.length;pending=[];spoofDetected=true;
+      }
       accept(p);continue;
     }
 
     spoofDetected=true;
     pending.push(p);
-    if(pending.length>=policy.recoverPoints){
-      const cluster=pending.slice(-policy.recoverPoints);
-      let clusterTrusted=true;
-      for(let i=1;i<cluster.length;i++){
-        const local=gpsSegmentAssessment(cluster[i-1],cluster[i],type);
-        if(!local.trusted||local.longGap){clusterTrusted=false;break;}
-      }
-      if(clusterTrusted){
-        filteredPoints+=Math.max(0,pending.length-1);
-        accept(cluster[cluster.length-1],true);
-        discontinuities++;pending=[];
-      }else if(pending.length>8){
-        filteredPoints+=pending.length-3;
-        pending=pending.slice(-3);
-      }
-    }
+    if(pending.length>60){filteredPoints+=pending.length-20;pending=pending.slice(-20);}
   }
   filteredPoints+=pending.length;
   return {points:out,filteredPoints,discontinuities,spoofDetected};
