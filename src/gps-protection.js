@@ -21,7 +21,7 @@ function normalizeGpsPoint(p){
   if(!Number.isFinite(lat)||!Number.isFinite(lng)||!Number.isFinite(t))return null;
   const accuracy=p.accuracy==null?null:Number(p.accuracy);
   const speedKmh=p.speedKmh==null?null:Number(p.speedKmh);
-  return {...p,lat,lng,t,accuracy:Number.isFinite(accuracy)?accuracy:null,speedKmh:Number.isFinite(speedKmh)?Math.max(0,speedKmh):null};
+  return {...p,lat,lng,t,accuracy:Number.isFinite(accuracy)?accuracy:null,speedKmh:Number.isFinite(speedKmh)?Math.max(0,speedKmh):null,mocked:p.mocked===true||p.mock===true};
 }
 export function gpsSegmentAssessment(a,b,type='bike'){
   const policy=gpsTrustPolicy(type);
@@ -29,14 +29,15 @@ export function gpsSegmentAssessment(a,b,type='bike'){
   if(!Number.isFinite(dt)||dt<=0)return {trusted:false,reason:'time',dt:0,km:0,derivedSpeed:0,deviceSpeed:null,longGap:false};
   const km=haversineKm(a,b),derivedSpeed=km/(dt/3600);
   const deviceSpeed=Number.isFinite(Number(b.speedKmh))?Math.max(0,Number(b.speedKmh)):null;
+  const mocked=b.mocked===true;
   const poorAccuracy=(Number.isFinite(Number(b.accuracy))&&Number(b.accuracy)>policy.maxAccuracyM);
   const impossibleSpeed=derivedSpeed>policy.maxSpeedKmh;
   const deviceImpossible=deviceSpeed!=null&&deviceSpeed>policy.maxSpeedKmh*1.15;
   const speedMismatch=deviceSpeed!=null&&derivedSpeed>80&&deviceSpeed<Math.max(25,derivedSpeed*.35);
   const teleport=dt<60&&km>Math.max(1.5,policy.maxSpeedKmh*dt/3600*1.35);
   return {
-    trusted:!poorAccuracy&&!impossibleSpeed&&!deviceImpossible&&!speedMismatch&&!teleport,
-    reason:poorAccuracy?'accuracy':impossibleSpeed||deviceImpossible?'speed':speedMismatch?'mismatch':teleport?'jump':'ok',
+    trusted:!mocked&&!poorAccuracy&&!impossibleSpeed&&!deviceImpossible&&!speedMismatch&&!teleport,
+    reason:mocked?'mock':poorAccuracy?'accuracy':impossibleSpeed||deviceImpossible?'speed':speedMismatch?'mismatch':teleport?'jump':'ok',
     dt,km,derivedSpeed,deviceSpeed,
     longGap:dt>policy.gapSeconds
   };
