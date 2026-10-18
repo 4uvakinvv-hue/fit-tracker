@@ -1331,16 +1331,20 @@ export default function App(){
   async function syncPendingFlaneuring(sessionOverride=authSession){
     if(!sessionOverride?.user||!Capacitor.isNativePlatform()||Capacitor.getPlatform()!=='android'||flaneuringSyncLock.current)return false;
     flaneuringSyncLock.current=true;
+    let synced=false;
     try{
-      const completed=await Flaneuring.getCompleted();
-      if(!completed?.sessionId||!completed?.endedAt)return false;
-      const payload=flaneuringPayload(completed);
-      await saveSession(payload);
-      await Flaneuring.clearCompleted();
-      return true;
+      for(let i=0;i<20;i++){
+        const completed=await Flaneuring.getCompleted();
+        if(!completed?.sessionId||!completed?.endedAt)break;
+        const payload=flaneuringPayload(completed);
+        await saveSession(payload);
+        await Flaneuring.clearCompleted();
+        synced=true;
+      }
+      return synced;
     }catch(err){
       console.warn('Forma flaneuring pending sync failed',err);
-      return false;
+      return synced;
     }finally{
       flaneuringSyncLock.current=false;
     }
