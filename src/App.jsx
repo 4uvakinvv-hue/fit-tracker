@@ -1683,15 +1683,21 @@ function Home({onOpenProfile,schedule,sessions,profile,dailySteps,expeditionDays
 
   return <main className="main-screen home-no-scroll">
     <header className="topbar home-topbar">
-      <button type="button" className="home-profile-link" onClick={onOpenProfile} aria-label="Мой профиль и настройки" style={{position:'absolute',right:14,top:10,zIndex:5,border:'1px solid rgba(120,130,140,.3)',borderRadius:24,padding:'5px 10px',background:'var(--card-bg,#fff)',color:'inherit',fontSize:12,cursor:'pointer'}}>◉ {profile?.name||'Мой профиль'} ›</button>
       <div className="home-brand-block">
         <div className="brand-admin-row">
           <Brand compact/>
-          <FeedBell onOpen={onOpenFeed}/>
-          {isBoss&&<button className="admin-bell" onClick={async()=>{setNotificationsOpen(true);await onMarkNotificationsRead();}} aria-label="Уведомления администратора">
-            <span>🛡</span>{unreadNotifications>0&&<b>{unreadNotifications>9?'9+':unreadNotifications}</b>}
-          </button>}
+          <div className="home-notification-actions">
+            <FeedBell onOpen={onOpenFeed}/>
+            {isBoss&&<button className="admin-bell" onClick={async()=>{setNotificationsOpen(true);await onMarkNotificationsRead();}} aria-label="Уведомления администратора">
+              <span>🛡</span>{unreadNotifications>0&&<b>{unreadNotifications>9?'9+':unreadNotifications}</b>}
+            </button>}
+          </div>
         </div>
+        <button type="button" className="home-profile-link" onClick={onOpenProfile} aria-label="Мой профиль и настройки">
+          <span className="home-profile-avatar" aria-hidden="true">{profile?.name?.trim()?.[0]?.toUpperCase()||'У'}</span>
+          <span className="home-profile-copy"><small>Мой профиль</small><strong>{profile?.name||'Пользователь'}</strong></span>
+          <span className="home-profile-arrow" aria-hidden="true">›</span>
+        </button>
         <div className="season-title-row">
           <span>Сезон</span>
           <strong>{season.name.toUpperCase()}</strong>

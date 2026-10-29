@@ -5,7 +5,7 @@ import {draftKey,readDraft,writeDraft,normalizeResults,validateResults,todayMosc
 import {bodyweightMode,workoutVolume,failureType,formatPreviousDate} from './coach-volume.js';
 import {exerciseTechnique} from './exercise-technique.js';
 export default function TrainerWorkout({userId,onClose,onSave,onSaved}){
- const [plan,setPlan]=useState(null),[data,setData]=useState(null),[date,setDate]=useState(todayMoscow()),[loading,setLoading]=useState(true),[error,setError]=useState(''),[saving,setSaving]=useState(false),[notice,setNotice]=useState(''),[completed,setCompleted]=useState(false);
+ const [plan,setPlan]=useState(null),[data,setData]=useState(null),[loading,setLoading]=useState(true),[error,setError]=useState(''),[saving,setSaving]=useState(false),[notice,setNotice]=useState(''),[completed,setCompleted]=useState(false);
  const [intakeNeeded,setIntakeNeeded]=useState(false),[reload,setReload]=useState(0);
  const [bodyWeight,setBodyWeight]=useState(''),[previousByExercise,setPreviousByExercise]=useState({});
  const current=useRef(null),busy=useRef(false);
@@ -29,27 +29,27 @@ export default function TrainerWorkout({userId,onClose,onSave,onSaved}){
    const key=String(exercise.exercise||'').trim().toLowerCase();
    if(key&&!last[key])last[key]={...exercise,date:session.date};
   }
-  if(active){setPreviousByExercise(last);setBodyWeight(profileResult.data?.body_weight_kg==null?'':String(profileResult.data.body_weight_kg));setPlan(row);setData(next);current.current={key,data:next};setDate(draft?.date||todayMoscow());setCompleted(!!r.data?.length);setNotice(draft?'Черновик восстановлен.':'Результаты сохраняются автоматически на этом устройстве.');setLoading(false);}
+  if(active){setPreviousByExercise(last);setBodyWeight(profileResult.data?.body_weight_kg==null?'':String(profileResult.data.body_weight_kg));setPlan(row);setData(next);current.current={key,data:next};setCompleted(!!r.data?.length);setNotice(draft?'Черновик восстановлен.':'Результаты сохраняются автоматически на этом устройстве.');setLoading(false);}
  })().catch(e=>{if(active){setError(e.message||'Не удалось загрузить тренировку.');setLoading(false);}});return()=>{active=false;};},[userId,reload]);
  function persist(next){current.current={...current.current,data:next};setData(next);try{writeDraft(localStorage,current.current.key,next);localStorage.setItem(pointer,JSON.stringify({key:current.current.key,planId:plan.id}));setNotice('Черновик сохранён. В историю попадёт после завершения тренировки.');setError('');}catch{setError('Не удалось сохранить черновик на устройстве. Не закрывай экран до завершения тренировки.');}}
- function update(i,field,value){persist({...current.current.data,date,baseRows:current.current.data.baseRows.map((r,n)=>n===i?{...r,[field]:value}:r)});}
+ function update(i,field,value){persist({...current.current.data,baseRows:current.current.data.baseRows.map((r,n)=>n===i?{...r,[field]:value}:r)});}
  function updateBodyWeight(i,value){update(i,'bodyWeight',value);}
- function updateWishes(value){persist({...current.current.data,date,wishes:value});}
- async function finish(){if(busy.current||completed)return;const snapshot=current.current.data;if(date>todayMoscow()){setError('Результат можно сохранить только за сегодня или прошедшую дату. План уже хранится отдельно.');return;}const invalid=validateResults(snapshot.baseRows);if(invalid){setError(invalid);return;}
+ function updateWishes(value){persist({...current.current.data,wishes:value});}
+ async function finish(){if(busy.current||completed)return;const snapshot=current.current.data,executionDate=todayMoscow();const invalid=validateResults(snapshot.baseRows);if(invalid){setError(invalid);return;}
   if(snapshot.baseRows.some(r=>bodyweightMode(r.exercise)!=='external'&&!(Number(r.bodyWeight||bodyWeight)>0))){setError('Укажи собственный вес для подтягиваний, брусьев и гравитрона.');return;}
-  busy.current=true;setSaving(true);setError('');try{writeDraft(localStorage,current.current.key,{...snapshot,date});await onSave({draftId:snapshot.id,trainerPlanId:plan.id,type:'gym',date,gymGroup:'custom',title:plan.title,baseRows:normalizeResults(snapshot.baseRows.map((r,i)=>({...r,...(bodyweightMode(r.exercise)!=='external'?{bodyWeight:r.bodyWeight||bodyWeight}:{}),...(i===0?{userWishes:String(snapshot.wishes||'').trim()}:{} )}))),extraRows:[],coachFeedback:String(snapshot.wishes||'').trim()});localStorage.removeItem(current.current.key);localStorage.removeItem(pointer);setCompleted(true);setNotice('Тренировка сохранена.');onSaved?.();}catch(e){setError(e.message||'Не удалось сохранить. Черновик остаётся на устройстве.');}finally{busy.current=false;setSaving(false);}}
+  busy.current=true;setSaving(true);setError('');try{writeDraft(localStorage,current.current.key,{...snapshot,date:executionDate});await onSave({draftId:snapshot.id,trainerPlanId:plan.id,type:'gym',date:executionDate,gymGroup:'custom',title:plan.title,baseRows:normalizeResults(snapshot.baseRows.map((r,i)=>({...r,...(bodyweightMode(r.exercise)!=='external'?{bodyWeight:r.bodyWeight||bodyWeight}:{}),...(i===0?{userWishes:String(snapshot.wishes||'').trim()}:{} )}))),extraRows:[],coachFeedback:String(snapshot.wishes||'').trim()});localStorage.removeItem(current.current.key);localStorage.removeItem(pointer);setCompleted(true);setNotice('Тренировка сохранена.');onSaved?.();}catch(e){setError(e.message||'Не удалось сохранить. Черновик остаётся на устройстве.');}finally{busy.current=false;setSaving(false);}}
  return <main className="sub-screen coach-workout-screen" aria-labelledby="coach-workout-title">
   <div className="screen-back-row coach-screen-header"><button className="back-button" aria-label="Назад" onClick={onClose}>‹</button><strong id="coach-workout-title">Тренировка от тренера</strong></div>
   {loading&&<p>Загружаем тренировку…</p>}{error&&<p className="error-line" role="alert">{error}</p>}
   {plan&&data&&<>
    {plan.notes&&<><button className="coach-recommendations-toggle" aria-expanded={recommendationsOpen} aria-controls="coach-general-notes" onClick={()=>setRecommendationsOpen(v=>!v)}>Общие рекомендации от тренера<span>{recommendationsOpen?'⌃':'⌄'}</span></button>{recommendationsOpen&&<div id="coach-general-notes" className="coach-general-notes">{generalNotes(plan.notes)}</div>}</>}
-   <div className="coach-workout-heading"><h2>{plan.title}</h2>{completed?<p className="success-line">Тренировка уже сохранена.</p>:<input type="date" aria-label="Дата выполнения" value={date} disabled={saving} onChange={e=>{setDate(e.target.value);persist({...current.current.data,date:e.target.value});}}/>}</div>
-   <p className="coach-saving-hint" role="status">{notice}</p>
-   {!completed&&<p className="coach-edit-hint">Нагрузка уже предложена. Поправь цифры по выполнению; «Сохранить» подтвердит результаты.</p>}
-   <div className="coach-volume-summary" aria-live="polite" style={{display:'flex',justifyContent:'space-between',alignItems:'center',gap:8,padding:'8px 2px',fontSize:13}}>
-     <span>{completed?'Сохранённый тоннаж':'Расчётный тоннаж'}</span>
+   <div className="coach-workout-heading"><h2>{plan.title}</h2>{completed&&<p className="success-line">Тренировка уже сохранена.</p>}</div>
+   <div className="coach-volume-summary" aria-live="polite">
+     <span>Тоннаж тренировки:</span>
      <strong>{workoutVolume(data.baseRows.map(r=>({...r,bodyWeight:r.bodyWeight||bodyWeight})))==null?'Укажи собственный вес':Math.round(workoutVolume(data.baseRows.map(r=>({...r,bodyWeight:r.bodyWeight||bodyWeight})))).toLocaleString('ru-RU')+' кг'}</strong>
    </div>
+   <p className="coach-saving-hint" role="status">{notice}</p>
+   {!completed&&<p className="coach-edit-hint">Нагрузка уже предложена. Поправь цифры по выполнению; «Сохранить» подтвердит результаты.</p>}
    {data.baseRows.map((r,i)=><article className="coach-exercise-card coach-exercise-compact" key={i}>
     <header><span>{i+1}</span><h3>{r.exercise}</h3></header>
     <p className="coach-target">{r.targetSets} × {r.targetReps} · {r.targetWeight==null?'вес подобрать':`${r.targetWeight} кг${r.weightBasis==='per_hand'?' на руку':''}`}{r.targetRir?' · запас '+r.targetRir:''}</p>
