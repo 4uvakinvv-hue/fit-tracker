@@ -39,5 +39,5 @@ export function formatPreviousDate(date) {
  if (!date) return '';
  const d=new Date(date+'T12:00:00');
  if (Number.isNaN(d.getTime())) return '';
- return new Intl.DateTimeFormat('ru-RU',{day:'2-digit',month:'2-digit',weekday:'short'}).format(d);
+ const day=new Intl.DateTimeFormat('ru-RU',{day:'2-digit',month:'2-digit'}).format(d);\n const weekday=new Intl.DateTimeFormat('ru-RU',{weekday:'short'}).format(d).replace('.','');\n return `${day} (${weekday})`;
 }
