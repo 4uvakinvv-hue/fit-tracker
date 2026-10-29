@@ -1903,7 +1903,7 @@ function ProfileScreen({profile,email,isBoss,onBack,onNameChanged,onWeightChange
  const [weight,setWeight]=useState(profile?.body_weight_kg==null?'':String(profile.body_weight_kg));
  const [weightNotice,setWeightNotice]=useState(''),[password,setPassword]=useState(''),[passwordNotice,setPasswordNotice]=useState('');
  async function saveWeight(e){e.preventDefault();const value=Number(String(weight).replace(',','.'));if(!Number.isFinite(value)||value<20||value>400){setWeightNotice('Укажи вес от 20 до 400 кг.');return;}
- const {error}=await supabase.from('profiles').update({body_weight_kg:value}).eq('id',profile.id);setWeightNotice(error?'Не удалось сохранить вес.':'Вес сохранён.');if(!error)onWeightChanged(value);}
+ const {error}=await supabase.rpc('set_body_weight_kg',{p_weight:value});setWeightNotice(error?'Не удалось сохранить вес.':'Вес сохранён.');if(!error)onWeightChanged(value);}
  async function savePassword(e){e.preventDefault();if(password.length<8){setPasswordNotice('Минимум 8 символов.');return;}const {error}=await supabase.auth.updateUser({password});setPasswordNotice(error?'Не удалось сменить пароль.':'Пароль обновлён.');if(!error)setPassword('');}
  return <main className="tab-screen about-screen"><button className="back-button" onClick={onBack}>‹</button><h1>Мой профиль</h1>
  <ProfileName profile={profile} onChanged={onNameChanged}/>
