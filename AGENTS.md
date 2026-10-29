@@ -14,3 +14,5 @@
 - For gym/trainer UI changes also read GYM_TRAINER_SETUP.md. Preserve unfinished local drafts, never mix targets with actual results, and run gym-drafts/gym-ui lifecycle tests. Coach plans are server-published into coach_workout_plans, not completed sessions.
 
 - For registration, login, password recovery, session persistence, or user-admin changes, read `AUTH_SETUP.md`. Production Supabase Auth Site URL/Redirect URLs are part of the auth integration; do not assume client code alone fixes email links.
+
+- **Canonical product/business rules:** before any feature work read `docs/FORMA_PRODUCT_RULES.md` (scoring, tonnage/bodyweight/gravitron, coaching, GPS, profile and UI). Every owner-approved rule must be updated there together with implementation and tests, in the same PR. If documentation and code disagree, report the mismatch instead of silently changing semantics.
