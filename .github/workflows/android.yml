@@ -53,7 +53,7 @@ jobs:
           cp native/android/FlaneuringService.java android/app/src/main/java/ru/forma/app/FlaneuringService.java
           cp native/android/FlaneuringPlugin.java android/app/src/main/java/ru/forma/app/FlaneuringPlugin.java
           sed -i '/<\/application>/i\        <service android:name=".FlaneuringService" android:foregroundServiceType="location" android:exported="false" />' android/app/src/main/AndroidManifest.xml
-          sed -i 's/versionCode 1/versionCode 2104/' android/app/build.gradle
+          sed -i 's/versionCode 1/versionCode 2105/' android/app/build.gradle
           sed -i 's/versionName "1.0"/versionName "2.1"/' android/app/build.gradle
 
       - name: Build APK
@@ -78,11 +78,11 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release delete android-v2.1 -y --cleanup-tag || true
-          gh release create android-v2.1 android/app/build/outputs/apk/debug/forma-v2.1.apk android/app/build/outputs/bundle/debug/forma-v2.1.aab --title "Форма Android 2.1" --notes "Android-сборка приложения Форма 2.1." --prerelease
+          gh release create android-v2.1 android/app/build/outputs/apk/debug/forma-v2.1.apk android/app/build/outputs/bundle/debug/forma-v2.1.aab --title "Форма Android 2.1" --notes "Forma 2.1: обновлённые тренировки тренера, тоннаж с учётом собственного веса, профиль и история." --prerelease
 
       - name: Publish stable Android download
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release delete android-current -y --cleanup-tag || true
-          gh release create android-current android/app/build/outputs/apk/debug/forma-android.apk --title "Форма Android — актуальная версия" --notes "Постоянная ссылка на актуальный APK приложения Форма." --prerelease
+          gh release create android-current android/app/build/outputs/apk/debug/forma-android.apk --title "Форма Android — актуальная версия" --notes "Актуальная Forma 2.1: тренировки, тоннаж, профиль." --prerelease
