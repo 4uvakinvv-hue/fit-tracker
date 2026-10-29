@@ -3,6 +3,7 @@ import {supabase} from './supabase.js';
 import {coachCue,restCue,generalNotes} from './coach-presentation.js';
 import {draftKey,readDraft,writeDraft,normalizeResults,validateResults,todayMoscow,restoreCoachDraft} from './gym-drafts.js';
 import {bodyweightMode,workoutVolume,failureType,formatPreviousDate} from './coach-volume.js';
+import {exerciseTechnique} from './exercise-technique.js';
 export default function TrainerWorkout({userId,onClose,onSave,onSaved}){
  const [plan,setPlan]=useState(null),[data,setData]=useState(null),[date,setDate]=useState(todayMoscow()),[loading,setLoading]=useState(true),[error,setError]=useState(''),[saving,setSaving]=useState(false),[notice,setNotice]=useState(''),[completed,setCompleted]=useState(false);
  const [intakeNeeded,setIntakeNeeded]=useState(false),[reload,setReload]=useState(0);
@@ -57,7 +58,7 @@ export default function TrainerWorkout({userId,onClose,onSave,onSaved}){
     <div className="coach-card-info">
      {restCue(r)&&<small>{restCue(r)}</small>}
      <details className="coach-technique-details"><summary>Техника и нюансы</summary>
-      <p>{r.technique||r.exerciseTechnique||coachCue(r)||'Выполняй движение плавно, с контролируемой амплитудой, без рывков и боли.'}</p>
+      <p><strong>Что за упражнение:</strong> {exerciseTechnique(r.exercise).what}</p><p><strong>Как выполнять:</strong> {exerciseTechnique(r.exercise).how}</p><p><strong>Нюансы:</strong> {exerciseTechnique(r.exercise).tips}</p>
       {r.coachNote&&<p><strong>Указания тренера:</strong> {r.coachNote}</p>}
      </details>
     </div>
