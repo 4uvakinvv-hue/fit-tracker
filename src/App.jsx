@@ -4,6 +4,7 @@ import TrainerModal from './TrainerModal.jsx';
 import GymTraining from './GymTraining.jsx';
 import TrainerWorkout from './TrainerWorkout.jsx';
 import ProfileName from './ProfileName.jsx';
+import {rowVolume} from './coach-volume.js';
 import { stepsReadStart, normalizeStepSamples, stepsFreshness, stepsStatusText, sumStepSamplesByDate, mergeStepRows, nextHourly55 } from './steps-sync.js';
 import { App as NativeApp } from '@capacitor/app';
 import { Capacitor } from '@capacitor/core';
@@ -95,9 +96,7 @@ function normalizeRows(rows,n){return Array.from({length:n},(_,i)=>({
   weight:rows?.[i]?.weight??'',
   comment:rows?.[i]?.comment||''
 }));}
-function rowTonnage(row){
-  return Math.max(0,Number(row?.sets)||0)*Math.max(0,Number(String(row?.reps??'').replace(',','.'))||0)*Math.max(0,Number(String(row?.weight??'').replace(',','.'))||0)*(row?.weightBasis==='per_hand'?2:1);
-}
+function rowTonnage(row){return rowVolume(row)??0;}
 function workoutTonnage(baseRows=[],extraRows=[]){
   return [...baseRows,...extraRows].reduce((sum,row)=>sum+rowTonnage(row),0);
 }
@@ -1624,7 +1623,7 @@ export default function App(){
   if(loadError)return <main className="onboarding dark-screen"><Brand/><h1>Связь с базой</h1><p className="soft-text">{loadError}</p><div className="glass-card onboarding-form"><button className="gradient-button" onClick={loadData}>Повторить</button></div></main>;
 
   return <div className={`app-shell-dark season-${seasonKey()} screen-${screen}`}>
-    {screen==='home'&&<Home schedule={schedule} sessions={numberedSessions} profile={profile} dailySteps={dailySteps} expeditionDays={expeditionDays} saveNotice={saveNotice} isBoss={isBoss} adminNotifications={adminNotifications} onTrainer={requestTrainer} onMarkNotificationsRead={markNotificationsRead} hookahEvents={hookahEvents} hookahProgramStartedOn={hookahProgramStartedOn} canUndoHookah={!!undoHookahId} onHookah={addHookah} onBonusHookah={addBonusHookah} onUndoHookah={undoHookah} stepsStatus={stepsStatus} stepsSyncing={stepsSyncing} onEnableSteps={()=>syncSteps(true,authSession,{fullHistory:true,reason:'manual'})} onOpenSteps={()=>navigate('steps-history')} onOpenFeed={()=>navigate('feed')} selectedDateKey={selectedDateKey} setSelectedDateKey={setSelectedDateKey} onSavePlan={savePlan} onDeletePlan={deletePlan} onProposal={sendProposal} onOpenWorkout={openAdd}/>} 
+    {screen==='home'&&<Home onOpenProfile={()=>navigate('profile')} schedule={schedule} sessions={numberedSessions} profile={profile} dailySteps={dailySteps} expeditionDays={expeditionDays} saveNotice={saveNotice} isBoss={isBoss} adminNotifications={adminNotifications} onTrainer={requestTrainer} onMarkNotificationsRead={markNotificationsRead} hookahEvents={hookahEvents} hookahProgramStartedOn={hookahProgramStartedOn} canUndoHookah={!!undoHookahId} onHookah={addHookah} onBonusHookah={addBonusHookah} onUndoHookah={undoHookah} stepsStatus={stepsStatus} stepsSyncing={stepsSyncing} onEnableSteps={()=>syncSteps(true,authSession,{fullHistory:true,reason:'manual'})} onOpenSteps={()=>navigate('steps-history')} onOpenFeed={()=>navigate('feed')} selectedDateKey={selectedDateKey} setSelectedDateKey={setSelectedDateKey} onSavePlan={savePlan} onDeletePlan={deletePlan} onProposal={sendProposal} onOpenWorkout={openAdd}/>} 
     {screen==='history'&&<History sessions={numberedSessions} onDelete={deleteSession} onUpdate={updateSession}/>}
     {screen.startsWith('history-')&&screen!=='steps-history'&&<History sessions={numberedSessions} onDelete={deleteSession} onUpdate={updateSession} filterType={screen.slice(8)}/>} 
     {screen==='steps-history'&&<StepsHistoryV17 dailySteps={dailySteps} stepsStatus={stepsStatus} stepsSyncing={stepsSyncing} diagnostics={stepsDiagnostics} onSync={()=>syncSteps(true,authSession,{fullHistory:true,reason:'manual'})} onSettings={()=>Health.openHealthConnectSettings().catch(()=>setStepsStatus('error'))} onBack={()=>goBack('home')}/>}
@@ -1642,7 +1641,8 @@ export default function App(){
     {screen==='combat-history'&&<CombatHistory sessions={numberedSessions.filter(s=>s.type==='combat'&&isHistorySession(s))} onBack={()=>goBack('combat')}/>}
     {screen==='hike'&&<HikeTraining dateKey={draftDateKey} setDateKey={setDraftDateKey} sessions={numberedSessions} onBack={()=>goBack('add-training')} onHistory={()=>navigate('hike-history')} onSave={saveSession}/>}
     {screen==='hike-history'&&<HikeHistory sessions={numberedSessions.filter(s=>s.type==='hike'&&isHistorySession(s))} onBack={()=>goBack('hike')}/>}
-    {screen==='about'&&<AboutScreen isBoss={isBoss} profile={profile} onNameChanged={data=>{setProfile(p=>({...p,name:data.name,name_changed_at:data.name_changed_at}));setMembers(rows=>rows.map(m=>m.id===authSession.user.id?{...m,name:data.name}:m));}}/>}
+    {screen==='about'&&<AboutScreen/>}
+    {screen==='profile'&&<ProfileScreen profile={profile} email={authSession.user.email} isBoss={isBoss} onBack={()=>goBack('home')} onNameChanged={data=>{setProfile(p=>({...p,name:data.name,name_changed_at:data.name_changed_at}));setMembers(rows=>rows.map(m=>m.id===authSession.user.id?{...m,name:data.name}:m));}} onWeightChanged={weight=>setProfile(p=>({...p,body_weight_kg:weight}))}/>}
     {trainerOpen&&<TrainerModal onClose={()=>setTrainerOpen(false)} onWorkout={()=>{setTrainerOpen(false);navigate('coach-workout');}}/>}
     {screen==='coach-workout'&&<TrainerWorkout userId={authSession.user.id} onClose={()=>goBack('gym')} onSave={saveSession}/>}
     {screen==='why'&&<WhyScreen onBack={()=>goBack('home')}/>} 
@@ -1660,7 +1660,7 @@ function BottomNav({screen,onNavigate}){
   </nav>;
 }
 
-function Home({schedule,sessions,profile,dailySteps,expeditionDays,saveNotice,isBoss,adminNotifications,onTrainer,onMarkNotificationsRead,hookahEvents,hookahProgramStartedOn,canUndoHookah,onHookah,onBonusHookah,onUndoHookah,stepsStatus,stepsSyncing,onEnableSteps,onOpenSteps,onOpenFeed,selectedDateKey,setSelectedDateKey,onSavePlan,onDeletePlan,onProposal,onOpenWorkout}){
+function Home({onOpenProfile,schedule,sessions,profile,dailySteps,expeditionDays,saveNotice,isBoss,adminNotifications,onTrainer,onMarkNotificationsRead,hookahEvents,hookahProgramStartedOn,canUndoHookah,onHookah,onBonusHookah,onUndoHookah,stepsStatus,stepsSyncing,onEnableSteps,onOpenSteps,onOpenFeed,selectedDateKey,setSelectedDateKey,onSavePlan,onDeletePlan,onProposal,onOpenWorkout}){
   const [pointsOpen,setPointsOpen]=useState(false);
   const [notificationsOpen,setNotificationsOpen]=useState(false);
   const events=pointEvents(sessions,dailySteps,hookahEvents,expeditionDays).slice(-10).reverse();
@@ -1683,6 +1683,7 @@ function Home({schedule,sessions,profile,dailySteps,expeditionDays,saveNotice,is
 
   return <main className="main-screen home-no-scroll">
     <header className="topbar home-topbar">
+      <button type="button" className="home-profile-link" onClick={onOpenProfile} aria-label="Мой профиль и настройки" style={{position:'absolute',right:14,top:10,zIndex:5,border:'1px solid rgba(120,130,140,.3)',borderRadius:24,padding:'5px 10px',background:'var(--card-bg,#fff)',color:'inherit',fontSize:12,cursor:'pointer'}}>◉ {profile?.name||'Мой профиль'} ›</button>
       <div className="home-brand-block">
         <div className="brand-admin-row">
           <Brand compact/>
@@ -1898,7 +1899,22 @@ function AdminUsersPanel(){
   </section>;
 }
 
-function AboutScreen({isBoss=false,profile,onNameChanged}){
+function ProfileScreen({profile,email,isBoss,onBack,onNameChanged,onWeightChanged}){
+ const [weight,setWeight]=useState(profile?.body_weight_kg==null?'':String(profile.body_weight_kg));
+ const [weightNotice,setWeightNotice]=useState(''),[password,setPassword]=useState(''),[passwordNotice,setPasswordNotice]=useState('');
+ async function saveWeight(e){e.preventDefault();const value=Number(String(weight).replace(',','.'));if(!Number.isFinite(value)||value<20||value>400){setWeightNotice('Укажи вес от 20 до 400 кг.');return;}
+ const {error}=await supabase.rpc('set_body_weight_kg',{p_weight:value});setWeightNotice(error?'Не удалось сохранить вес.':'Вес сохранён.');if(!error)onWeightChanged(value);}
+ async function savePassword(e){e.preventDefault();if(password.length<8){setPasswordNotice('Минимум 8 символов.');return;}const {error}=await supabase.auth.updateUser({password});setPasswordNotice(error?'Не удалось сменить пароль.':'Пароль обновлён.');if(!error)setPassword('');}
+ return <main className="tab-screen about-screen"><button className="back-button" onClick={onBack}>‹</button><h1>Мой профиль</h1>
+ <ProfileName profile={profile} onChanged={onNameChanged}/>
+ <section className="glass-card" style={{padding:16,marginBottom:12}}><h2>Контакты</h2><p>{email||'Почта не указана'}</p><small>Для изменения почты используйте подтверждение через настройки аккаунта.</small></section>
+ <form className="glass-card" onSubmit={saveWeight} style={{padding:16,marginBottom:12}}><h2>Вес тела</h2><label>Собственный вес, кг <input type="number" min="20" max="400" step="0.1" value={weight} onChange={e=>setWeight(e.target.value)} style={{width:'100%',boxSizing:'border-box',padding:10}}/></label><button type="submit" className="secondary-button">Сохранить вес</button>{weightNotice&&<p role="status">{weightNotice}</p>}</form>
+ <form className="glass-card" onSubmit={savePassword} style={{padding:16,marginBottom:12}}><h2>Безопасность</h2><label>Новый пароль <input type="password" autoComplete="new-password" minLength="8" value={password} onChange={e=>setPassword(e.target.value)}/></label><button type="submit" className="secondary-button">Сменить пароль</button>{passwordNotice&&<p role="status">{passwordNotice}</p>}</form>
+ <section className="glass-card" style={{padding:16,marginBottom:12}}><h2>Подписки</h2><p>Информация о подписке тренера и доступных возможностях.</p></section>
+ {isBoss&&<AdminUsersPanel/>}
+ </main>;
+}
+function AboutScreen(){
   const [iosHelp,setIosHelp]=useState(false);
 
   function openAndroid(){
@@ -1913,45 +1929,6 @@ function AboutScreen({isBoss=false,profile,onNameChanged}){
   return <main className="tab-screen about-screen about-tab-screen">
     <p className="eyebrow-dark">Форма</p>
     <h1>О приложении</h1>
-    {profile&&<ProfileName profile={profile} onChanged={onNameChanged}/>}
-    {isBoss&&<AdminUsersPanel/>}
-
-    <section className="why-intro glass-card about-concept-hero">
-      <h2>Не про идеальные тренировки.<br/>Про то, чтобы чаще двигаться.</h2>
-      <p>Неважно, что именно ты делаешь: идёшь в зал, катаешься на велосипеде, занимаешься на турниках, единоборствами или уходишь в поход. Задача «Формы» — чтобы движения в жизни становилось больше.</p>
-    </section>
-
-    <section className="about-principles">
-      <article><strong>Сделал — зафиксируй</strong><p>Так отдельные тренировки складываются в реальную картину твоей активности.</p></article>
-      <article><strong>Баллы — за регулярность</strong><p>Они не измеряют твою физическую форму. Лучше делать хоть что-то регулярно, чем раз в месяц совершать спортивный подвиг.</p></article>
-      <article><strong>Статистика — про факты</strong><p>Через месяц ты уже видишь не ощущения, а сколько реально тренировался, прошёл, проехал и поднял.</p></article>
-      <article><strong>Рейтинг — немного игры</strong><p>Догоняй друзей, держи ритм и начинай каждый сезон с нового старта.</p></article>
-    </section>
-
-    <section className="why-final about-main-idea">
-      <span>Главная идея</span>
-      <h2>Не перестраивай жизнь вокруг приложения.</h2>
-      <p>Живи как обычно. Просто замечай свою активность и сохраняй её.</p>
-      <strong>Цель — самому двигаться чуть больше, чем раньше.</strong>
-    </section>
-
-    <details className="points-structure glass-card">
-      <summary>Структура начисления баллов <span>⌄</span></summary>
-      <div>
-        <p><strong>Главное правило:</strong> рейтинг ценит регулярность, а не количество тренировок за один день.</p>
-        <p><b>Активный день: +5.</b> Зал, CrossFit, воркаут, единоборства, вело, бег, хайкинг или 15 000+ шагов — вид активности не важен. Даже если активностей несколько, базовые +5 за день начисляются один раз.</p>
-        <p><b>Серия:</b> второй активный день подряд даёт +1, третий +2, четвёртый +3, пятый +4, шестой +5. На этом цикл заканчивается. Седьмой день заложен как день отдыха и восстановления. Если вы всё равно тренируетесь на седьмой день, активность засчитывается и даёт базовые +5, но бонус серии снова начинается с нуля как новый шестидневный цикл.</p>
-        <p><b>Пропуск:</b> один пропущенный день обрывает серию. После трёх дней без активности спортивный рейтинг уменьшается на 1 балл за каждый следующий день, но спортивная часть не падает ниже нуля.</p>
-        <p><b>Задним числом:</b> запись остаётся в истории и статистике, но рейтинговых баллов не даёт и серию не восстанавливает.</p>
-        <p><b>GPS:</b> скачки мгновенной скорости не останавливают запись — маршрут сохраняется целиком. Велопоездка более 100 км получает дополнительный +5 только если средняя скорость не выше 50 км/ч. Для бега и хайкинга записи со средней скоростью выше 30 км/ч всё равно сохраняются и дают обычные баллы активного дня, но не считаются корректными для дополнительных GPS-бонусов.</p>
-        {isBoss&&<p><b>Вредная привычка:</b> −2 за каждую отмеченную запись. Только этот персональный штраф может увести итоговый рейтинг ниже нуля.</p>}
-      </div>
-    </details>
-
-    <section className="about-hero glass-card">
-      <Brand compact/>
-      <p>Некоммерческий проект Василия Чувакина, созданный для повышения личной активности каждого человека. Приложение спроектировано исходя из видения автора; предложения по настройке, новым функциям и конструктивная обратная связь приветствуются.</p>
-    </section>
 
     <section className="download-card glass-card">
       <h2>Установить «Форму»</h2>
@@ -1975,12 +1952,8 @@ function AboutScreen({isBoss=false,profile,onNameChanged}){
       </div>}
     </section>
 
-    <section className="about-signature">
-      <p>С благодарностью всем и каждому, кто пользуется этим приложением.</p>
-      <p>Здоровья вам и яркой жизни.</p>
-      <strong>Чувакин Василий</strong>
-      <small>Форма · версия {APP_VERSION}</small>
-    </section>
+    <p className="about-version-label">Форма · версия {APP_VERSION}</p>
+
   </main>;
 }
 
@@ -2127,10 +2100,10 @@ function ReadonlyExerciseBlock({title,rows}){
     <div className="readonly-head"><span>Упражнение</span><span>Подх.</span><span>Повт.</span><span>Вес</span></div>
     {visible.map((r,i)=><div className="readonly-row-wrap" key={i}>
       <div className="readonly-row"><span>{r.exercise}</span><span>{r.sets||'—'}</span><span>{r.reps||'—'}</span><span>{r.weight||'—'} кг</span></div>
-      {r.coachNote&&<div className="readonly-comment">Тренер: {r.coachNote}</div>}
+
       {r.weightBasis==='per_hand'&&<div className="readonly-comment">Вес указан на одну руку; выполнено с обеих сторон.</div>}
-      {r.setRir?.length>0&&<div className="readonly-comment">Запас по подходам: {Array.from({length:Number(r.sets)||r.setRir.length},(_,n)=>r.setRir[n]||'неизвестно').join(' / ')}</div>}
-      {r.rir&&<div className="readonly-comment">Повторения в запасе: {r.rir}</div>}
+
+
       {r.comment&&<div className="readonly-comment">▤ {r.comment}</div>}
     </div>)}
   </section>;
