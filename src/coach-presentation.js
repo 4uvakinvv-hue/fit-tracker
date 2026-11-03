@@ -14,4 +14,30 @@ export function coachCue(row){
  return text.length>210?text.slice(0,210).replace(/\s+\S*$/,'')+'…':text;
 }
 export function restCue(row){return (row.coachNote||row.comment||'').match(/Отдых\s+[^.!?]+/i)?.[0]||'';}
+// A superset is two or more consecutive plan exercises with the same non-empty `superset` label.
+export function supersetGroup(rows,index){
+ const label=row=>String(row?.superset??'').trim();
+ const own=label(rows?.[index]);
+ if(!own)return null;
+ let start=index,end=index;
+ while(start>0&&label(rows[start-1])===own)start--;
+ while(end<rows.length-1&&label(rows[end+1])===own)end++;
+ if(start===end)return null;
+ return {label:own,position:index-start+1,size:end-start+1,first:index===start,last:index===end,nextNumber:index<end?index+2:null};
+}
+// Up to `limit` latest confirmed executions per exercise name; sessions must be sorted newest first.
+export function recentResultsByExercise(sessions,limit=3){
+ const recent={};
+ for(const session of sessions||[]){
+  const seen=new Set();
+  for(const exercise of [...(session.base_rows||[]),...(session.extra_rows||[])]){
+   const key=String(exercise?.exercise||'').trim().toLowerCase();
+   if(!key||seen.has(key))continue;
+   seen.add(key);
+   const list=recent[key]||(recent[key]=[]);
+   if(list.length<limit)list.push({...exercise,date:session.date});
+  }
+ }
+ return recent;
+}
 export function generalNotes(notes){return String(notes||'').replace(/Отдельно запиши фактические подходы, повторения, вес, RIR по подходам и замечания\./g,'Запиши общее количество рабочих подходов, среднее число повторений, рабочий вес и комментарий, если он нужен. Каждый подход отдельно записывать не требуется.');}

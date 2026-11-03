@@ -59,6 +59,35 @@ test('coach completion assigns the current Moscow date without a user date field
  const expected=new Intl.DateTimeFormat('en-CA',{timeZone:'Europe/Moscow',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
  assert.equal(saved.date,expected);await unmount();globalThis.fetch=original;
 });
+test('coach cards show three latest results and superset badges',async()=>{
+ localStorage.clear();
+ const plan={id:'00000000-0000-4000-8000-000000000003',title:'Грудь',exercises:[
+  {exercise:'Жим штанги лёжа',sets:3,reps:'8–10',weight:80,comment:'Отдых 3 минуты.'},
+  {exercise:'Разгибание рук стоя на верхнем блоке',sets:3,reps:'10–12',weight:30,superset:'A',comment:'Отдых 2 минуты.'},
+  {exercise:'Махи гантелями в стороны стоя',sets:3,reps:'12–15',weight:10,weightBasis:'per_hand',superset:'A',comment:'Отдых 90 секунд после пары.'}]};
+ const history=[
+  {date:'2026-11-02',base_rows:[{exercise:'Махи гантелями в стороны стоя',sets:'3',reps:'12',weight:'12'}]},
+  {date:'2026-10-30',base_rows:[{exercise:'Жим штанги лёжа',sets:'3',reps:'7',weight:'90'},{exercise:'Махи гантелями в стороны стоя',sets:'4',reps:'12',weight:'12'}]},
+  {date:'2026-10-26',base_rows:[{exercise:'Махи гантелями в стороны стоя',sets:'4',reps:'16',weight:'10'}]},
+  {date:'2026-10-21',base_rows:[{exercise:'Жим штанги лёжа',sets:'3',reps:'8',weight:'80'},{exercise:'Махи гантелями в стороны стоя',sets:'3',reps:'15',weight:'9'}]}];
+ const original=globalThis.fetch;
+ globalThis.fetch=async(url)=>{const u=String(url);if(u.includes('/functions/v1/trainer-access'))return Response.json({active:true});if(u.includes('coach_workout_plans'))return Response.json(plan);if(u.includes('/sessions')&&u.includes('base_rows'))return Response.json(history);if(u.includes('/sessions'))return Response.json([]);return Response.json({});};
+ root=createRoot(document.getElementById('root'));await React.act(async()=>{root.render(React.createElement(Coach,{userId:'history-user',onClose(){},onSave:async()=>{}}));await new Promise(r=>setTimeout(r,100));});
+ const cards=[...document.querySelectorAll('.coach-exercise-card')];assert.equal(cards.length,3,document.body.textContent);
+ const lines=card=>[...card.querySelectorAll('.coach-last-result')].map(x=>x.textContent);
+ assert.ok(cards[0].querySelector('.coach-last-results').textContent.startsWith('Прошлые:'));
+ assert.deepEqual(lines(cards[0]).map(x=>x.slice(0,5)),['30.10','21.10']);
+ assert.deepEqual(lines(cards[2]).map(x=>x.slice(0,5)),['02.11','30.10','26.10'],'only the three newest, newest first');
+ assert.ok(lines(cards[2])[0].includes('3 × 12 · 12 кг'));
+ assert.equal(cards[1].querySelector('.coach-last-results'),null);
+ assert.equal(cards[0].querySelector('.coach-superset-badge'),null);
+ assert.equal(cards[1].querySelector('.coach-superset-badge').textContent,'Суперсет A · 1/2');
+ assert.equal(cards[2].querySelector('.coach-superset-badge').textContent,'Суперсет A · 2/2');
+ assert.equal(cards[1].querySelector('.coach-superset-rest').textContent,'Без отдыха → упражнение 3');
+ assert.ok(cards[2].querySelector('.coach-card-info>small').textContent.includes('Отдых 90 секунд после пары'));
+ assert.ok(cards[1].classList.contains('coach-superset-continues')&&cards[2].classList.contains('coach-superset-continued'));
+ await unmount();globalThis.fetch=original;
+});
 test('coach training control is prominent and rejects inactive access',async()=>{
  localStorage.clear();
  let opened=0;

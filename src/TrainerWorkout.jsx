@@ -1,6 +1,6 @@
 import {useEffect,useRef,useState} from 'react';
 import {supabase} from './supabase.js';
-import {coachCue,restCue,generalNotes} from './coach-presentation.js';
+import {coachCue,restCue,generalNotes,supersetGroup,recentResultsByExercise} from './coach-presentation.js';
 import {draftKey,readDraft,writeDraft,normalizeResults,validateResults,todayMoscow,restoreCoachDraft} from './gym-drafts.js';
 import {bodyweightMode,workoutVolume,failureType,formatPreviousDate} from './coach-volume.js';
 import {exerciseTechnique} from './exercise-technique.js';
@@ -22,13 +22,9 @@ export default function TrainerWorkout({userId,onClose,onSave,onSaved}){
   const r=await supabase.from('sessions').select('id').eq('user_id',userId).eq('coach_plan_id',row.id).eq('confirmed',true).limit(1);if(r.error)throw r.error;
   const [profileResult,historyResult]=await Promise.all([
     supabase.from('profiles').select('body_weight_kg').eq('id',userId).maybeSingle(),
-    supabase.from('sessions').select('date,base_rows,extra_rows').eq('user_id',userId).eq('type','gym').eq('confirmed',true).order('date',{ascending:false}).limit(100)
+    supabase.from('sessions').select('date,base_rows,extra_rows').eq('user_id',userId).eq('type','gym').eq('confirmed',true).order('date',{ascending:false}).order('created_at',{ascending:false}).limit(100)
   ]);
-  const last={};
-  for(const session of historyResult.data||[])for(const exercise of [...(session.base_rows||[]),...(session.extra_rows||[])]){
-   const key=String(exercise.exercise||'').trim().toLowerCase();
-   if(key&&!last[key])last[key]={...exercise,date:session.date};
-  }
+  const last=recentResultsByExercise(historyResult.data,3);
   if(active){setPreviousByExercise(last);setBodyWeight(profileResult.data?.body_weight_kg==null?'':String(profileResult.data.body_weight_kg));setPlan(row);setData(next);current.current={key,data:next};setCompleted(!!r.data?.length);setNotice(draft?'Черновик восстановлен.':'Результаты сохраняются автоматически на этом устройстве.');setLoading(false);}
  })().catch(e=>{if(active){setError(e.message||'Не удалось загрузить тренировку.');setLoading(false);}});return()=>{active=false;};},[userId,reload]);
  function persist(next){current.current={...current.current,data:next};setData(next);try{writeDraft(localStorage,current.current.key,next);localStorage.setItem(pointer,JSON.stringify({key:current.current.key,planId:plan.id}));setNotice('Черновик сохранён. В историю попадёт после завершения тренировки.');setError('');}catch{setError('Не удалось сохранить черновик на устройстве. Не закрывай экран до завершения тренировки.');}}
@@ -50,13 +46,14 @@ export default function TrainerWorkout({userId,onClose,onSave,onSaved}){
    </div>
    <p className="coach-saving-hint" role="status">{notice}</p>
    {!completed&&<p className="coach-edit-hint">Нагрузка уже предложена. Поправь цифры по выполнению; «Сохранить» подтвердит результаты.</p>}
-   {data.baseRows.map((r,i)=><article className="coach-exercise-card coach-exercise-compact" key={i}>
+   {data.baseRows.map((r,i)=>{const superset=supersetGroup(data.baseRows,i),history=previousByExercise[String(r.exercise||'').trim().toLowerCase()]||[];return <article className={`coach-exercise-card coach-exercise-compact${superset?' coach-superset':''}${superset&&!superset.last?' coach-superset-continues':''}${superset&&!superset.first?' coach-superset-continued':''}`} key={i}>
     <header><span>{i+1}</span><h3>{r.exercise}</h3></header>
+    {superset&&<p className="coach-superset-badge">Суперсет {superset.label} · {superset.position}/{superset.size}</p>}
     <p className="coach-target">{r.targetSets} × {r.targetReps} · {r.targetWeight==null?'вес подобрать':`${r.targetWeight} кг${r.weightBasis==='per_hand'?' на руку':''}`}{r.targetRir?' · запас '+r.targetRir:''}</p>
-    {previousByExercise[String(r.exercise||'').trim().toLowerCase()]&&(()=>{const p=previousByExercise[String(r.exercise||'').trim().toLowerCase()];return <p className="coach-last-result" style={{margin:'2px 0 5px',fontSize:12,color:'#697784'}}>Прошлая: {formatPreviousDate(p.date)} · {p.sets} × {p.reps} · {p.weight} кг</p>;})()}
+    {history.length>0&&<div className="coach-last-results"><span>{history.length===1?'Прошлая:':'Прошлые:'}</span><div>{history.map((p,n)=><p className="coach-last-result" key={n}>{formatPreviousDate(p.date)} · {p.sets} × {p.reps} · {p.weight} кг</p>)}</div></div>}
     {failureType(r,plan)&&<details className="coach-failure-compact" style={{fontSize:12,margin:'5px 0',padding:'5px 8px',borderRadius:8,background:'#fee2e2',color:'#991b1b'}}><summary style={{cursor:'pointer',display:'flex',justifyContent:'space-between'}}><strong>{failureType(r,plan)==='technical'?'Технический отказ':'Полный отказ'}</strong><span>Подробнее ⌄</span></summary><p style={{margin:'8px 0 0'}}>{failureType(r,plan)==='technical'?'Заверши подход, когда следующее повторение уже нельзя выполнить с правильной техникой. Сохраняй контроль веса и траектории.':'Работай до невозможности выполнить следующее повторение самостоятельно. Предельное усилие не означает потерю контроля: заранее обеспечь безопасное завершение подхода, особенно без страхующего.'}</p></details>}
     <div className="coach-card-info">
-     {restCue(r)&&<small>{restCue(r)}</small>}
+     {superset&&!superset.last?<small className="coach-superset-rest">Без отдыха → упражнение {superset.nextNumber}</small>:restCue(r)&&<small>{restCue(r)}</small>}
      <details className="coach-technique-details"><summary>Техника и нюансы</summary>
       <p><strong>Что за упражнение:</strong> {exerciseTechnique(r.exercise).what}</p><p><strong>Как выполнять:</strong> {exerciseTechnique(r.exercise).how}</p><p><strong>Нюансы:</strong> {exerciseTechnique(r.exercise).tips}</p>
       {r.coachNote&&<p><strong>Указания тренера:</strong> {r.coachNote}</p>}
@@ -70,7 +67,7 @@ export default function TrainerWorkout({userId,onClose,onSave,onSaved}){
      {bodyweightMode(r.exercise)!=='external'&&<label className="coach-body-weight" style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:8,fontSize:12,marginTop:6}}><span>Собственный вес, кг</span><input type="number" inputMode="decimal" min="1" max="500" step="0.1" style={{width:88,padding:7,borderRadius:8}} value={r.bodyWeight??bodyWeight} disabled={saving} onChange={e=>updateBodyWeight(i,e.target.value)}/></label>}
      {openComments[i]&&<div className="coach-comment-editor"><textarea aria-label={`${r.exercise}: текст комментария`} value={r.comment||''} disabled={saving} onChange={e=>update(i,'comment',e.target.value)} placeholder="Комментарий, если есть что отметить"/><button type="button" onClick={()=>setOpenComments(v=>({...v,[i]:false}))}>Готово</button></div>}
     </>}
-   </article>)}
+   </article>;})}
    {!completed&&<section className="coach-wishes-box" style={{display:"grid",gap:8,margin:"16px 0",padding:14,border:"1px solid #cfd9dd",borderRadius:14}}><label htmlFor="coach-wishes-input">Пожелания к следующей тренировке</label><textarea id="coach-wishes-input" className="coach-wishes-input" style={{width:"100%",minHeight:90,boxSizing:"border-box",padding:10,borderRadius:10,fontSize:15,resize:"vertical"}} aria-label="Пожелания к следующей тренировке" value={data.wishes||''} disabled={saving} onChange={e=>updateWishes(e.target.value)} placeholder="Какие упражнения не понравились? Что хочется заменить или на какие мышцы сделать акцент?" maxLength={1500}/><small>Сохранится вместе с результатами. При отсутствии тревожных симптомов следующий план будет подготовлен автоматически; важные ограничения потребуют дополнительной проверки.</small></section>}
    {!completed&&<div className="coach-save-footer"><button className="gradient-button" disabled={saving} onClick={finish}>{saving?'Сохраняем…':'Сохранить тренировку'}</button></div>}
   </>}

@@ -15,6 +15,8 @@ Coach training is a dedicated app screen, with a collapsed general-recommendatio
 ## Publishing a coach plan
 Apply `supabase/coach-workout-plans.sql` once with an authorized DB administrator. This creates `public.coach_workout_plans`, private authorization helpers, and the optional session foreign key/unique completion index. Existing applied policies should be inspected before running schema SQL again. Plans are server-published; members may only read their own while access is active. Database policies also reject linking someone else's plan to a new or edited session. Private helper functions bind all decisions to `auth.uid()`; no exposed SECURITY DEFINER RPC is added.
 
+Before writing any plan, read the member's standing program rules in `private.coach_program_rules` (cycle, priorities, day layout, preferences; schema in `supabase/coach-program-rules.sql`). Update that row the same day the owner approves a new rule. It is server-only: no client grants, not exposed to the app. Personal training details belong there, not in this public repository.
+
 A trainer/automation may insert one immutable plan for the authorized user through the database connector. Required fields:
 
 ```json
@@ -29,6 +31,8 @@ A trainer/automation may insert one immutable plan for the authorized user throu
   ]
 }
 ```
+
+Optional `"superset":"A"` on two or more consecutive exercises marks a superset (see `docs/FORMA_PRODUCT_RULES.md` §5); write the rest after the pair in the last exercise's `comment`. Optional `"weight":null` means «вес подобрать» — the member must enter the actual weight before saving.
 
 Example weight 0 above is only a schema example, never a load recommendation. For a unilateral movement performed on both sides, specify `weightBasis:"per_hand"` and state the weight convention explicitly. If the load applies to total plates/machine stack instead, explain it in comment. Never invent comparability between machines or attach scientific certainty to guessed weights.
 
