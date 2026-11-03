@@ -16,6 +16,7 @@
 - For registration, login, password recovery, session persistence, or user-admin changes, read `AUTH_SETUP.md`. Production Supabase Auth Site URL/Redirect URLs are part of the auth integration; do not assume client code alone fixes email links.
 
 - **Coach plans:** before publishing any `coach_workout_plans` row follow `docs/AI_COACH.md` (workflow, plan contract) and read the member's `private.coach_program_rules`; keep it updated with every owner-approved training decision. Methodology is `docs/FORMA_PRODUCT_RULES.md` §4.1.
+- **Strength-coach skill:** for analysis, generation, revision, or publishing of strength plans also follow `skills/forma-strength-coach/SKILL.md`. It is an execution checklist; current `docs/AI_COACH.md`, `docs/FORMA_PRODUCT_RULES.md`, and live member rules remain canonical.
 - **Public repository:** never commit personal data, goals, body metrics, training history or individual program rules; they live only in the database (`private.coach_program_rules`).
 
 - **Canonical product/business rules:** before any feature work read `docs/FORMA_PRODUCT_RULES.md` (scoring, tonnage/bodyweight/gravitron, coaching, GPS, profile and UI). Every owner-approved rule must be updated there together with implementation and tests, in the same PR. If documentation and code disagree, report the mismatch instead of silently changing semantics.
