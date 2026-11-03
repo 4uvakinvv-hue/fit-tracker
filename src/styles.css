@@ -4092,3 +4092,10 @@
 .coach-exercise-card.coach-superset-continues{margin-bottom:4px;border-bottom-left-radius:4px;border-bottom-right-radius:4px}
 .coach-exercise-card.coach-superset-continued{margin-top:4px;border-top-left-radius:4px;border-top-right-radius:4px}
 .coach-card-info>small.coach-superset-rest{color:var(--violet);font-weight:700}
+
+/* Coach screen: gentle magnet of exercise cards to the top while scrolling (owner request, 3 Nov 2026).
+   proximity = snaps only when the scroll stops near a card; free scrolling stays possible. */
+html:has(.coach-workout-screen),.app-shell-dark>.sub-screen.coach-workout-screen{scroll-snap-type:y proximity}
+.coach-workout-screen .coach-exercise-card{scroll-snap-align:start;scroll-margin-top:calc(10px + env(safe-area-inset-top,0px))}
+.coach-workout-screen>.coach-screen-header{scroll-snap-align:start;scroll-margin-top:240px}
+.coach-workout-screen .coach-save-footer{scroll-snap-align:end;scroll-margin-bottom:calc(16px + env(safe-area-inset-bottom,0px))}

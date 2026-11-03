@@ -24,3 +24,11 @@ test('recent results keep the three newest executions per exercise, one per sess
  assert.equal(recent['жим'].length,1);
  assert.deepEqual(recentResultsByExercise(null),{});
 });
+
+test('coach screen keeps gentle scroll snapping of exercise cards',async()=>{
+ const {readFile}=await import('node:fs/promises');
+ const css=await readFile(new URL('../src/styles.css',import.meta.url),'utf8');
+ assert.match(css,/html:has\(\.coach-workout-screen\)[^{]*\{scroll-snap-type:y proximity\}/,'proximity, not mandatory: free scrolling must stay possible');
+ assert.match(css,/\.coach-workout-screen \.coach-exercise-card\{scroll-snap-align:start;scroll-margin-top:/);
+ assert.match(css,/\.coach-workout-screen \.coach-save-footer\{scroll-snap-align:end/,'save button must stay reachable');
+});
