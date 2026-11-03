@@ -4099,3 +4099,258 @@ html:has(.coach-workout-screen),.app-shell-dark>.sub-screen.coach-workout-screen
 .coach-workout-screen .coach-exercise-card{scroll-snap-align:start;scroll-margin-top:calc(10px + env(safe-area-inset-top,0px))}
 .coach-workout-screen>.coach-screen-header{scroll-snap-align:start;scroll-margin-top:240px}
 .coach-workout-screen .coach-save-footer{scroll-snap-align:end;scroll-margin-bottom:calc(16px + env(safe-area-inset-bottom,0px))}
+
+/* Forma 2.1 — winter treatment (owner request, 3 Nov 2026).
+   Winter must contain no orange: white snowflakes instead of leaves, icy panels, gentle snowfall.
+   Part 1 is handcrafted (mirrors the autumn reference treatment). Part 2 is a generated winter
+   recolor of every season-independent rule that hard-codes warm colors; regenerate it whenever such
+   a rule is added (see docs/FORMA_PRODUCT_RULES.md §6). Activity identity colors keep distinct
+   winter hues: combat/tabata work — winter berry, CrossFit — frost white, moto — steel, run — aqua. */
+.app-shell-dark.season-winter{position:relative;isolation:isolate}
+.app-shell-dark.season-winter>*{position:relative;z-index:1}
+.app-shell-dark.season-winter>.main-screen,
+.app-shell-dark.season-winter>.tab-screen,
+.app-shell-dark.season-winter>.sub-screen{z-index:auto!important}
+.app-shell-dark.season-winter>.bottom-nav{position:fixed;z-index:100}
+
+/* static snowflakes along the edges, like the autumn leaves */
+.app-shell-dark.season-winter::before{
+  content:"";
+  position:fixed;
+  inset:0;
+  z-index:0;
+  pointer-events:none;
+  opacity:.34;
+  background-image:
+    url('./assets/snowflake.svg'),url('./assets/snowflake.svg'),url('./assets/snowflake.svg'),url('./assets/snowflake.svg'),
+    url('./assets/snowflake.svg'),url('./assets/snowflake.svg'),url('./assets/snowflake.svg'),url('./assets/snowflake.svg');
+  background-repeat:no-repeat;
+  background-position:-12px 6%,calc(100% + 14px) 10%,-16px 30%,calc(100% + 12px) 36%,-10px 57%,calc(100% + 16px) 66%,-18px 83%,calc(100% + 12px) 93%;
+  background-size:48px 48px,58px 58px,64px 64px,44px 44px,56px 56px,70px 70px,50px 50px,60px 60px;
+  filter:drop-shadow(0 0 8px rgba(170,225,255,.55));
+}
+/* very slow snowfall behind the content; tile sizes 220/330 loop seamlessly over 660px */
+.app-shell-dark.season-winter::after{
+  content:"";
+  position:fixed;
+  left:0;
+  right:0;
+  top:-660px;
+  height:calc(100% + 660px);
+  z-index:0;
+  pointer-events:none;
+  opacity:.5;
+  background-image:
+    radial-gradient(circle 1.6px at 24px 36px,#fff 0 60%,transparent 100%),
+    radial-gradient(circle 1.2px at 128px 152px,rgba(255,255,255,.9) 0 60%,transparent 100%),
+    radial-gradient(circle 2px at 188px 84px,rgba(255,255,255,.85) 0 60%,transparent 100%),
+    radial-gradient(circle 1.4px at 72px 196px,rgba(230,245,255,.8) 0 60%,transparent 100%),
+    radial-gradient(circle 2.3px at 46px 118px,rgba(220,240,255,.7) 0 60%,transparent 100%),
+    radial-gradient(circle 1.8px at 262px 268px,rgba(255,255,255,.75) 0 60%,transparent 100%),
+    radial-gradient(circle 1.3px at 300px 40px,rgba(255,255,255,.8) 0 60%,transparent 100%),
+    radial-gradient(circle 2.6px at 150px 300px,rgba(210,235,255,.55) 0 60%,transparent 100%);
+  background-size:220px 220px,220px 220px,220px 220px,220px 220px,330px 330px,330px 330px,330px 330px,330px 330px;
+  animation:forma-snowfall 80s linear infinite;
+  will-change:transform;
+}
+@keyframes forma-snowfall{from{transform:translate3d(0,0,0)}to{transform:translate3d(0,660px,0)}}
+@media (prefers-reduced-motion:reduce){.app-shell-dark.season-winter::after{animation:none}}
+
+/* season icon: white snowflake instead of the leaf */
+.app-shell-dark.season-winter .season-leaf-icon,
+.auth-screen.season-winter .season-leaf-icon{
+  width:19px;
+  height:19px;
+  -webkit-mask:url('./assets/snowflake.svg') center/contain no-repeat;
+  mask:url('./assets/snowflake.svg') center/contain no-repeat;
+  background:linear-gradient(160deg,#ffffff 0%,#e6f7ff 48%,#a6defe 100%)!important;
+  filter:drop-shadow(0 0 6px rgba(165,224,255,.8)) drop-shadow(0 1px 2px rgba(4,20,45,.6))!important;
+  transform:none;
+}
+.app-shell-dark.season-winter .season-leaf-icon.small,
+.auth-screen.season-winter .season-leaf-icon.small{width:15px;height:15px;transform:rotate(15deg)}
+.app-shell-dark.season-winter .season-title-row strong{text-shadow:0 0 15px rgba(140,212,255,.42)}
+
+/* frosted score card */
+.app-shell-dark.season-winter .season-score-card{
+  border-color:rgba(175,228,255,.40);
+  background:linear-gradient(160deg,rgba(34,88,146,.84),rgba(12,40,80,.95));
+  box-shadow:inset 0 1px rgba(232,248,255,.16),0 10px 28px rgba(0,0,0,.28),0 0 20px rgba(110,200,255,.14);
+}
+.app-shell-dark.season-winter .season-score-card::after{
+  content:"";
+  position:absolute;
+  right:8px;
+  bottom:6px;
+  width:24px;
+  height:24px;
+  background:#e2f5ff;
+  opacity:.42;
+  -webkit-mask:url('./assets/snowflake.svg') center/contain no-repeat;
+  mask:url('./assets/snowflake.svg') center/contain no-repeat;
+  transform:rotate(15deg);
+}
+
+/* icy primary action with snowflake accents */
+.app-shell-dark.season-winter .workout-cta{
+  position:relative;
+  overflow:hidden;
+  background:linear-gradient(100deg,#c4ecff 0%,#7fcaff 52%,#acdeff 100%);
+  box-shadow:0 12px 28px rgba(60,160,255,.25),inset 0 1px rgba(255,255,255,.6);
+}
+.app-shell-dark.season-winter .workout-cta::before,
+.app-shell-dark.season-winter .workout-cta::after{
+  content:"";
+  position:absolute;
+  width:40px;
+  height:40px;
+  background:#ffffff;
+  opacity:.5;
+  -webkit-mask:url('./assets/snowflake.svg') center/contain no-repeat;
+  mask:url('./assets/snowflake.svg') center/contain no-repeat;
+  pointer-events:none;
+}
+.app-shell-dark.season-winter .workout-cta::before{left:-9px;bottom:-10px;transform:rotate(-12deg)}
+.app-shell-dark.season-winter .workout-cta::after{right:-8px;top:-9px;transform:rotate(18deg)}
+
+/* date wheel */
+.app-shell-dark.season-winter .date-wheel-shell{
+  border:1px solid rgba(140,210,255,.22);
+  background:linear-gradient(180deg,rgba(18,48,86,.88),rgba(9,26,50,.94));
+  box-shadow:inset 0 0 42px rgba(110,200,255,.10),0 20px 46px rgba(0,0,0,.28);
+}
+.app-shell-dark.season-winter .wheel-date-row{background:linear-gradient(90deg,rgba(40,86,140,.29),rgba(24,54,92,.22));border:1px solid rgba(170,225,255,.05)}
+.app-shell-dark.season-winter .wheel-date-row.selected{
+  outline:2px solid #a6defe;
+  background:linear-gradient(90deg,rgba(24,74,132,.98),rgba(14,44,84,.98));
+  box-shadow:0 0 0 1px rgba(232,248,255,.46),0 0 9px #a6defe,0 0 22px rgba(90,190,255,.7),0 0 42px rgba(50,140,255,.3),inset 0 0 22px rgba(120,200,255,.2);
+}
+.app-shell-dark.season-winter .wheel-date-row.selected::before{
+  content:"";
+  position:absolute;
+  left:-5px;
+  top:50%;
+  width:20px;
+  height:20px;
+  transform:translateY(-50%) rotate(-18deg);
+  background:#ffffff;
+  opacity:.78;
+  -webkit-mask:url('./assets/snowflake.svg') center/contain no-repeat;
+  mask:url('./assets/snowflake.svg') center/contain no-repeat;
+  filter:drop-shadow(0 0 8px rgba(150,215,255,.9));
+  pointer-events:none;
+}
+.app-shell-dark.season-winter .wheel-date-row.selected .wheel-date-label{color:#fff;text-shadow:0 0 12px rgba(160,222,255,.55)}
+.app-shell-dark.season-winter .wheel-date-row.selected .inline-activity{background:rgba(10,36,70,.56);box-shadow:inset 0 0 14px rgba(120,200,255,.14)}
+.app-shell-dark.season-winter .wheel-fade-top{background:linear-gradient(180deg,rgba(14,40,74,.98) 0%,rgba(14,40,74,.84) 30%,transparent 100%)}
+.app-shell-dark.season-winter .wheel-fade-bottom{background:linear-gradient(0deg,rgba(9,26,50,.98) 0%,rgba(9,26,50,.84) 30%,transparent 100%)}
+
+/* calendar block: frosted navy instead of the brown autumn card */
+.app-shell-dark.season-winter .week-calendar-shell{
+  background:linear-gradient(180deg,rgba(26,70,122,.82),rgba(10,32,64,.94))!important;
+  border:1px solid rgba(160,220,255,.26)!important;
+  box-shadow:inset 0 1px rgba(232,248,255,.10),inset 0 0 34px rgba(110,200,255,.08),0 18px 38px rgba(0,0,0,.26)!important;
+}
+.app-shell-dark.season-winter .calendar-toggle-v17{background:rgba(120,200,255,.10);border-color:rgba(160,220,255,.24);color:#e8f6ff}
+.app-shell-dark.season-winter .calendar-toggle-v17>span{color:#a6defe;text-shadow:0 0 8px rgba(140,210,255,.5)}
+.app-shell-dark.season-winter .calendar-toggle-v17>b{color:#a6defe}
+
+/* navigation, cards */
+.app-shell-dark.season-winter .glass-card,
+.app-shell-dark.season-winter .history-accordion,
+.app-shell-dark.season-winter .master-history-row,
+.app-shell-dark.season-winter .previous-season:not(.previous-season-autumn),
+.app-shell-dark.season-winter .activity-choice{box-shadow:inset 0 1px rgba(225,244,255,.05),0 14px 34px rgba(0,0,0,.2)}
+.app-shell-dark.season-winter .bottom-nav{background:linear-gradient(180deg,rgba(16,46,84,.92),rgba(6,16,30,.98));border-top-color:rgba(150,215,255,.22)}
+.app-shell-dark.season-winter .bottom-nav button.active{color:#a9e2ff;text-shadow:0 0 10px rgba(120,200,255,.5)}
+.app-shell-dark.season-winter .bottom-nav button.active .nav-icon{filter:drop-shadow(0 0 7px rgba(140,210,255,.7))}
+
+/* emoji in UI chrome: silver bell and frost lightning instead of yellow */
+.app-shell-dark.season-winter .feed-bell>span,
+.app-shell-dark.season-winter .admin-bell>span{filter:grayscale(1) brightness(1.55) drop-shadow(0 0 5px rgba(170,225,255,.65))}
+.app-shell-dark.season-winter .activity-choice.crossfit>span:first-child,
+.app-shell-dark.season-winter .stat-card-v17.crossfit .stat-icon{filter:grayscale(1) brightness(1.7) drop-shadow(0 0 6px rgba(170,225,255,.7))}
+
+/* Part 2 — generated winter recolor of season-independent warm colors */
+/* generated by scripts/winter-recolor.mjs: 73 rules */
+.app-shell-dark.season-winter .score-card span{color:#5ebffb}
+.app-shell-dark.season-winter .trainer-button{border:1px solid rgba(61,178,250,0.35);background:linear-gradient(135deg,rgba(22,45,75,0.58),rgba(31,34,45,.95));color:#9dd6fc}
+.app-shell-dark.season-winter .leader-row>b{color:#60c0fb}
+.app-shell-dark.season-winter .previous-row b{color:#60c0fb}
+.app-shell-dark.season-winter .gradient-button,
+.app-shell-dark.season-winter .auth-screen .gradient-button{color:#080e16}
+.app-shell-dark.season-winter .combat{color:#f1708e!important}
+.app-shell-dark.season-winter .activity-choice.combat span,
+.app-shell-dark.season-winter .activity-choice.combat .activity-svg{color:#f1708e!important}
+.app-shell-dark.season-winter .combat-metric-hero>span{background:rgba(238,87,122,0.09)}
+.app-shell-dark.season-winter .hookah-quick-card{background:linear-gradient(145deg,rgba(30,55,87,0.88),rgba(20,27,35,0.96));border:1px solid rgba(89,189,251,0.2)}
+.app-shell-dark.season-winter .hookah-money strong{color:#52bafb}
+.app-shell-dark.season-winter .hookah-seven strong{color:#cadde9}
+.app-shell-dark.season-winter .hookah-button{background:linear-gradient(100deg,#50b9fb,#37a9f0);color:#08111d}
+.app-shell-dark.season-winter .hookah-undo{color:#74a6c5}
+.app-shell-dark.season-winter .hookah-stat-card{background:linear-gradient(145deg,rgba(29,52,83,0.88),rgba(20,25,32,0.97));border:1px solid rgba(80,185,251,0.22)}
+.app-shell-dark.season-winter .hookah-stat-card strong{color:#4fb9fa}
+.app-shell-dark.season-winter .week-calendar-shell{background:linear-gradient(180deg,rgba(20,31,45,0.88),rgba(15,18,22,0.94));border:1px solid rgba(78,184,250,0.2);box-shadow:inset 0 0 34px rgba(37,168,249,0.06),0 18px 38px rgba(0,0,0,.24)}
+.app-shell-dark.season-winter .week-column.active-week{background:linear-gradient(180deg,rgba(27,55,91,0.34),rgba(24,37,55,0.24));border-color:rgba(77,184,250,0.2)}
+.app-shell-dark.season-winter .week-day.today .week-day-date strong{color:#b4d9f2}
+.app-shell-dark.season-winter .week-day.selected{background:linear-gradient(100deg,rgba(30,62,104,0.98),rgba(21,41,68,0.97));border-color:#4ab7fa;box-shadow:0 0 0 1px rgba(189,227,253,0.3),0 0 10px rgba(63,178,250,0.72),inset 0 0 14px rgba(34,167,249,0.16)}
+.app-shell-dark.season-winter .admin-bell{border:1px solid rgba(79,185,250,0.18);color:#8ed2fc}
+.app-shell-dark.season-winter .admin-bell b{box-shadow:0 0 0 2px rgba(15,22,32,0.9)}
+.app-shell-dark.season-winter .admin-notifications-modal{background:linear-gradient(180deg,rgba(24,34,48,0.99),rgba(17,15,16,.99));border:1px solid rgba(80,185,251,0.25)}
+.app-shell-dark.season-winter .admin-notifications-modal>header small{color:#46a8e5}
+.app-shell-dark.season-winter .admin-notification-list article.unread{background:rgba(50,173,250,0.08);border-color:rgba(69,181,250,0.22)}
+.app-shell-dark.season-winter .admin-notification-icon{background:rgba(71,181,250,0.09)}
+.app-shell-dark.season-winter .season-leaf-icon{background:linear-gradient(145deg,#71c6fb 0%,#37affa 42%,#218fd3 78%,#244b7e 100%)!important;filter:drop-shadow(0 0 6px rgba(60,177,250,0.6)) drop-shadow(0 2px 2px rgba(18,38,63,0.55))!important}
+.app-shell-dark.season-winter .members-screen .leader-row.me{border-color:#4cb7fa!important;background:linear-gradient(110deg,rgba(29,60,100,0.88),rgba(23,33,47,0.96))!important;box-shadow:0 0 0 1px rgba(121,202,252,0.24),0 0 16px rgba(51,174,250,0.25)!important}
+.app-shell-dark.season-winter .outdoor-mode-tabs button.active{color:#0c0f12;background:linear-gradient(120deg,#5fbffb,#3da8eb);box-shadow:0 0 17px rgba(68,173,238,0.2)}
+.app-shell-dark.season-winter .outdoor-run .outdoor-mode-tabs button.active{background:linear-gradient(120deg,#99f5e3,#e8746a)}
+.app-shell-dark.season-winter .gps-live-card,
+.app-shell-dark.season-winter .route-result-card{border:1px solid rgba(82,179,239,0.23)}
+.app-shell-dark.season-winter .gps-live-pulse{color:#7bc1ec}
+.app-shell-dark.season-winter .route-sketch polyline{stroke:#53b3ef;filter:drop-shadow(0 0 3px rgba(83,179,239,0.45))}
+.app-shell-dark.season-winter .route-finish{fill:#87cffc}
+.app-shell-dark.season-winter .outdoor-run .route-sketch polyline,
+.app-shell-dark.season-winter .route-result-card.run .route-sketch polyline{stroke:#7ae3ce}
+.app-shell-dark.season-winter .gps-message{background:rgba(52,144,201,0.1);border:1px solid rgba(72,172,234,0.2);color:#7cb6db}
+.app-shell-dark.season-winter .manual-rating-note{color:#5fa5d0!important}
+.app-shell-dark.season-winter .route-result-card>header small{color:#519fd0}
+.app-shell-dark.season-winter .route-download{border:1px solid rgba(89,189,251,0.22);background:rgba(69,181,250,0.08);color:#78c1ef}
+.app-shell-dark.season-winter .calendar-focus-v17>button{background:rgba(77,184,250,0.1);border:1px solid rgba(77,184,250,0.22);color:#66c2fb}
+.app-shell-dark.season-winter .calendar-toggle-v17{border:1px solid rgba(79,185,250,0.16);color:#dfecf4}
+.app-shell-dark.season-winter .calendar-toggle-v17>span{color:#50b9fb}
+.app-shell-dark.season-winter .calendar-toggle-v17>b{color:#78b2d7}
+.app-shell-dark.season-winter .calendar-v17 .week-day.today{border-color:rgba(96,192,251,0.62)!important;box-shadow:inset 0 0 0 1px rgba(117,200,251,0.12),0 0 10px rgba(55,175,250,0.12)}
+.app-shell-dark.season-winter .calendar-v17 .week-day.today::after{color:#66c2fb}
+.app-shell-dark.season-winter .hookah-stat-main-v17 strong,
+.app-shell-dark.season-winter .hookah-fund-v17 strong{color:#53bbfb}
+.app-shell-dark.season-winter .hookah-fund-v17 button{background:linear-gradient(100deg,#5ebffb,#3ab0fa);color:#0c1929}
+.app-shell-dark.season-winter .hookah-expand-v17{color:#72b0d6}
+.app-shell-dark.season-winter .withdraw-history-v17>div b{color:#6fc5fb}
+.app-shell-dark.season-winter .history-edit-button-v18{border:1px solid rgba(89,189,251,0.23);background:rgba(69,181,250,0.075);color:#73c1f1}
+.app-shell-dark.season-winter .feed-bell{border:1px solid rgba(92,190,251,0.18);color:#72c0f1}
+.app-shell-dark.season-winter .feed-event.gps_finished{border-color:rgba(82,179,239,0.24)}
+.app-shell-dark.season-winter .feed-event em{color:#6aa9d0}
+.app-shell-dark.season-winter .route-export-actions button{border:1px solid rgba(89,189,251,0.22);background:rgba(69,181,250,0.08);color:#78c1ef}
+.app-shell-dark.season-winter .route-fullscreen-inner header small{color:#5aacdf}
+.app-shell-dark.season-winter .tabata-card.work{border-color:rgba(240,103,135,0.42);box-shadow:0 0 28px rgba(237,78,115,0.08)}
+.app-shell-dark.season-winter .tabata-card.work header strong{color:#f387a0}
+.app-shell-dark.season-winter .crossfit-history-detail span{color:#bbe1fb}
+.app-shell-dark.season-winter .activity-choice.crossfit span,
+.app-shell-dark.season-winter .stat-card-v17.crossfit .stat-icon{color:#bbe1fb!important}
+.app-shell-dark.season-winter .activity-choice.crossfit{border-color:rgba(187,225,251,0.22)}
+.app-shell-dark.season-winter .hookah-money em{color:#6ea9cd}
+.app-shell-dark.season-winter .hookah-fullscreen{background:radial-gradient(circle at 70% -5%,rgba(50,154,218,0.22),transparent 35%), linear-gradient(180deg,#0d1621,#0c1118 52%,#080c12)}
+.app-shell-dark.season-winter .hookah-fullscreen-head small{color:#60b3e5}
+.app-shell-dark.season-winter .hookah-week-switch>button{border:1px solid rgba(92,190,251,0.18);color:#6cbcee}
+.app-shell-dark.season-winter .hookah-full-week article.today{border-color:rgba(96,186,242,0.5);box-shadow:0 0 18px rgba(66,174,241,0.1)}
+.app-shell-dark.season-winter .hookah-day-data span{color:#4882a6}
+.app-shell-dark.season-winter .withdraw-history-full>div b{color:#70b3dc}
+.app-shell-dark.season-winter .route-result-card.moto{border-color:rgba(119,159,199,0.22)}
+.app-shell-dark.season-winter .outdoor-moto .outdoor-mode-tabs button.active{color:#779fc7}
+.app-shell-dark.season-winter .activity-choice.moto span,
+.app-shell-dark.season-winter .stat-card-v17.moto .stat-icon{color:#779fc7!important}
+.app-shell-dark.season-winter .admin-users-toggle small{color:#5eafe1}
+.app-shell-dark.season-winter .admin-users-toggle>b{color:#62a5ce}
+.app-shell-dark.season-winter .admin-users-list article.unconfirmed{border-color:rgba(79,177,238,0.35)}
+.app-shell-dark.season-winter .admin-users-list article.unconfirmed .admin-user-main small{color:#65b1e1}
+/* End of generated winter recolor */
