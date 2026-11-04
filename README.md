@@ -7,10 +7,11 @@
 ## С чего начать (людям и ИИ)
 
 1. `AGENTS.md` — обязательные правила работы с репозиторием, публикации и интеграциями.
-2. `docs/FORMA_PRODUCT_RULES.md` — единый контракт продукта: баллы, тоннаж, методика тренера (§4), экран тренировки от тренера (§5), GPS.
-3. `docs/AI_COACH.md` — как ИИ-тренер читает данные, составляет и публикует планы; контракт плана; подключение другого ИИ.
-4. Настройка интеграций: `TRAINER_SETUP.md`, `GYM_TRAINER_SETUP.md`, `AUTH_SETUP.md`, `FATSECRET_SETUP.md`, `STEPS_SETUP.md`, `PROFILE_NAME_SETUP.md`, `SPRINTHOST.md`.
-5. Схема базы и серверная логика: `supabase/*.sql`, `supabase/functions/`.
+2. `docs/FORMA_PRODUCT_RULES.md` — единый контракт продукта: баллы, тоннаж, экран тренировки от тренера (§5), GPS.
+3. `docs/COACH_KNOWLEDGE.md` — база знаний ИИ-тренера: видение владельца, научная база, методика женского тренинга.
+4. `docs/AI_COACH.md` — как ИИ-тренер читает данные, составляет и публикует планы; контракт плана; подключение другого ИИ.
+5. Настройка интеграций: `TRAINER_SETUP.md`, `GYM_TRAINER_SETUP.md`, `AUTH_SETUP.md`, `FATSECRET_SETUP.md`, `STEPS_SETUP.md`, `PROFILE_NAME_SETUP.md`, `SPRINTHOST.md`.
+6. Схема базы и серверная логика: `supabase/*.sql`, `supabase/functions/`.
 
 Репозиторий публичный: личные данные и индивидуальные правила тренировок хранятся только в базе.
 

@@ -1,6 +1,6 @@
 # Forma 2.1 gym and coach workouts
 
-> Implementation notes for the gym and coach screens. Methodology: `docs/FORMA_PRODUCT_RULES.md` §4.1. How an AI coach reads data and publishes plans: `docs/AI_COACH.md`. Personal program rules: `private.coach_program_rules` (database only).
+> Implementation notes for the gym and coach screens. Methodology: `docs/COACH_KNOWLEDGE.md`. How an AI coach reads data and publishes plans: `docs/AI_COACH.md`. Personal program rules: `private.coach_program_rules` (database only).
 
 ## Persistent draft contract
 Manual modes (chest/back/legs/custom) write synchronously to `localStorage` after each exercise, count, weight, or comment change. Keys include authenticated user ID, mode, date and muscle group. Selection is restored; separate dates/groups/users never share a draft. The last unfinished manual date can be resumed when reopening today's gym screen. External template refreshes do not reset active input. Drafts survive screen lock, component destruction and app/browser restart on the same device; clearing browser/app storage or reinstalling removes them. There is no cross-device draft sync.
@@ -42,7 +42,7 @@ Do not insert the plan into `sessions` or overwrite `gym_templates`/an unfinishe
 
 ## Personal member context
 
-Moved to `private.coach_program_rules` on 3 November 2026: this repository is public, so personal data, goals, history and individual program rules are not stored here. Read the current rules only from the database. Coaching methodology is in `docs/FORMA_PRODUCT_RULES.md` §4.1, the AI-coach workflow and plan contract in `docs/AI_COACH.md`.
+Moved to `private.coach_program_rules` on 3 November 2026: this repository is public, so personal data, goals, history and individual program rules are not stored here. Read the current rules only from the database. Coaching methodology is in `docs/COACH_KNOWLEDGE.md`, the AI-coach workflow and plan contract in `docs/AI_COACH.md`.
 
 ## Coach wishes and automatic follow-up (15 October 2026)
 
