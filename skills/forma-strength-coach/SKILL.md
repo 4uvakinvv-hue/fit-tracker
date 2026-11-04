@@ -15,7 +15,7 @@ Read, in this order:
 
 1. `AGENTS.md`.
 2. `docs/AI_COACH.md` for the operating workflow and plan schema.
-3. `docs/FORMA_PRODUCT_RULES.md` §4 and §4.1 for the current methodology; §5 for superset/UI semantics when relevant.
+3. `docs/COACH_KNOWLEDGE.md` for the current methodology (§1 owner vision, §2 science base, §3 women's training); `docs/FORMA_PRODUCT_RULES.md` §5 for superset/UI semantics when relevant.
 4. The member's live `private.coach_program_rules`. These personal rules override generic preferences but do not override safety constraints or the canonical product contract.
 5. At least one complete recent training cycle from confirmed `public.sessions`, including per-exercise `comment` and session `coach_feedback`.
 6. The latest `published` row in `public.coach_workout_plans`.
@@ -150,7 +150,7 @@ When publishing:
 5. Re-read the same latest-`published` query the app uses.
 6. Verify title, block, exercise count, sets, failure flags, superset grouping, and recommendations.
 7. Record newly approved personal decisions in `private.coach_program_rules` the same day.
-8. Put newly approved general methodology into `docs/FORMA_PRODUCT_RULES.md`, not into private member data.
+8. Put newly approved general methodology into `docs/COACH_KNOWLEDGE.md`, not into private member data.
 
 Do not publish a workout two sessions ahead: the client shows the latest published plan.
 
