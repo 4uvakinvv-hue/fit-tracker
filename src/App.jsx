@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { supabase } from './supabase.js';
+import {FORMA_ACTIVITIES,QUICK_DEFAULT,cleanQuickActivities} from './forma-design-contract.js';
 import TrainerModal from './TrainerModal.jsx';
 import GymTraining from './GymTraining.jsx';
 import TrainerWorkout from './TrainerWorkout.jsx';
@@ -18,20 +19,7 @@ import { LocalNotifications } from '@capacitor/local-notifications';
 import { Share } from '@capacitor/share';
 
 const APP_VERSION = '2.1';
-const FORMA_ACTIVITIES = [
-  {id:'gym',label:'Тренажёрка',caption:'Силовая тренировка'},
-  {id:'bike',label:'Вело',caption:'Езда на велосипеде'},
-  {id:'hike',label:'Поход',caption:'Активный туризм'},
-  {id:'run',label:'Бег',caption:'Пробежка и интервалы'},
-  {id:'crossfit',label:'CrossFit',caption:'Высокоинтенсивный тренинг'},
-  {id:'flaneuring',label:'Фланирование',caption:'Прогулка и активное движение'},
-  {id:'workout',label:'Воркаут',caption:'Тренировки с весом тела'},
-  {id:'combat',label:'Единоборства',caption:'Бокс, ММА и другие'}
-];
-const QUICK_DEFAULT = ['gym','bike'];
-function cleanQuickActivities(ids){
-  return Array.isArray(ids)?[...new Set(ids.filter(id=>FORMA_ACTIVITIES.some(x=>x.id===id)))]:QUICK_DEFAULT;
-}
+const APP_VERSION = '2.1';
 const ANDROID_APK_URL = 'https://github.com/4uvakinvv-hue/fit-tracker/releases/download/android-current/forma-android.apk';
 const IOS_INSTALL_URL = 'https://4uvakinvv-hue.github.io/fit-tracker/';
 const AUTH_RECOVERY_REDIRECT_URL = 'https://4uvakinvv-hue.github.io/fit-tracker/';
