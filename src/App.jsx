@@ -3069,124 +3069,61 @@ function HookahHistoryFullscreen({hookahEvents,hookahStartedOn,hookahProgramStar
   </div>;
 }
 
-function StatisticsV17({sessions,dailySteps,isBoss,hookahEvents,hookahStartedOn,hookahProgramStartedOn,profile,memberCount,onOpenMembers,onOpenHistory,onOpenSteps}){
-  const [range,setRange]=useState('30d');
-  const [customStart,setCustomStart]=useState(localDateKey(addDays(new Date(),-30)));
-  const [customEnd,setCustomEnd]=useState(localDateKey());
-  const [hookahOpen,setHookahOpen]=useState(false);
-  const [withdrawals,setWithdrawals]=useState([]);
-  const [withdrawing,setWithdrawing]=useState(false);
+function StatisticsV17({sessions,dailySteps,profile,memberCount,onOpenMembers,onOpenHistory,onOpenSteps}){
+  const [period,setPeriod]=useState('month');
+  const [graphType,setGraphType]=useState('all');
+  const [selectedBar,setSelectedBar]=useState(null);
   const season=seasonMeta();
-
-  useEffect(()=>{
-    let active=true;
-    if(!isBoss||!profile?.id){setWithdrawals([]);return ()=>{active=false;};}
-    supabase.from('hookah_withdrawals').select('id,amount,withdrawn_at').eq('user_id',profile.id).order('withdrawn_at',{ascending:false})
-      .then(({data,error})=>{if(!active)return;if(error)console.warn('Forma withdrawals load failed',error);else setWithdrawals(data||[]);});
-    return ()=>{active=false;};
-  },[isBoss,profile?.id]);
-
-  const today=new Date();
-  let start,end=localDateKey(today);
-  if(range==='prev-month'){
-    const first=new Date(today.getFullYear(),today.getMonth(),1,12);
-    start=localDateKey(addMonths(first,-1));end=localDateKey(addDays(first,-1));
-  }else if(range==='30d')start=localDateKey(addDays(today,-29));
-  else if(range==='6m')start=localDateKey(addMonths(today,-6));
-  else if(range==='1y')start=localDateKey(addYears(today,-1));
-  else{start=customStart;end=customEnd;}
-
-  const filtered=sessions.filter(x=>isStatsSession(x)&&x.date>=start&&x.date<=end);
-  const gymSessions=filtered.filter(x=>x.type==='gym');
-  const gym=gymSessions.length;
-  const tonnage=gymSessions.reduce((n,x)=>n+workoutTonnage(x.baseRows||[],x.extraRows||[]),0);
-  const avgTonnage=gym?tonnage/gym:0;
-  const bikeSessions=filtered.filter(x=>x.type==='bike');
-  const bike=bikeSessions.reduce((n,x)=>n+(Number(x.distance)||0),0);
-  const avgBike=bikeSessions.length?bike/bikeSessions.length:0;
-  const runSessions=filtered.filter(x=>x.type==='run');
-  const runDistance=runSessions.reduce((n,x)=>n+(Number(x.distance)||0),0);
-  const avgRun=runSessions.length?runDistance/runSessions.length:0;
-  const stepRows=(dailySteps||[]).filter(x=>x.date>=start&&x.date<=end);
-  const stepTotal=stepRows.reduce((n,x)=>n+(Number(x.steps)||0),0);
-  const avgSteps=stepRows.length?stepTotal/stepRows.length:0;
-  const workoutCount=filtered.filter(x=>x.type==='workout').length;
-  const combatCount=filtered.filter(x=>x.type==='combat').length;
-  const crossfitCount=filtered.filter(x=>x.type==='crossfit').length;
-  const motoSessions=filtered.filter(x=>x.type==='moto');
-  const motoDistance=motoSessions.reduce((n,x)=>n+(Number(x.distance)||0),0);
-  const avgMoto=motoSessions.length?motoDistance/motoSessions.length:0;
-  const flaneuringSessions=filtered.filter(x=>x.type==='flaneuring');
-  const flaneuringDistance=flaneuringSessions.reduce((n,x)=>n+(Number(x.distance)||0),0);
-  const flaneuringWalking=flaneuringSessions.reduce((n,x)=>n+(Number(x.walkingDistance)||0),0);
-  const flaneuringHours=flaneuringSessions.reduce((n,x)=>n+(Number(x.duration)||0),0)/3600;
-  const hikes=filtered.filter(x=>x.type==='hike');
-  const hikeCount=hikes.length;
-  const hikeDays=hikes.reduce((n,x)=>n+Math.max(Number(x.hikeDays)||1,1),0);
-  const hikeDistance=hikes.reduce((n,x)=>n+(Number(x.distance||x.hikeDistance)||0),0);
-
-  const todayKey=localDateKey();
-  const trackedStart=start<hookahStartedOn?hookahStartedOn:start;
-  const trackedEnd=end>todayKey?todayKey:end;
-  const hookahInRange=isBoss?ordinaryHookahEvents(hookahEvents).filter(h=>h.event_date>=trackedStart&&h.event_date<=trackedEnd):[];
-  const hookahCount=hookahInRange.length;
-  const hookahDays=trackedEnd>=trackedStart?daysBetween(trackedStart,trackedEnd)+1:0;
-  let hookahSlots=0;
-  if(hookahDays>0){for(let i=0;i<Math.min(hookahDays,5000);i++)hookahSlots+=hookahDayPlan(localDateKey(addDays(dateFromKey(trackedStart),i)),hookahProgramStartedOn).slots;}
-  const hookahWeeklyAvg=hookahDays?hookahCount*7/hookahDays:0;
-  const earningForDay=key=>hookahEarningForDay(hookahEvents,key,hookahProgramStartedOn);
-
-  const yesterdayKey=localDateKey(addDays(dateFromKey(todayKey),-1));
-  let lifetimeEarned=0;
-  if(isBoss&&hookahStartedOn&&hookahStartedOn<=yesterdayKey){
-    const maxDays=Math.min(daysBetween(hookahStartedOn,yesterdayKey)+1,5000);
-    for(let i=0;i<maxDays;i++) lifetimeEarned+=earningForDay(localDateKey(addDays(dateFromKey(hookahStartedOn),i)));
-  }
-  const withdrawnTotal=withdrawals.reduce((sum,row)=>sum+Number(row.amount||0),0);
-  const available=Math.max(0,lifetimeEarned-withdrawnTotal);
-
-  async function withdraw(){
-    if(!isBoss||!profile?.id||available<=0||withdrawing)return;
-    ensureAudioContext();setWithdrawing(true);
-    try{
-      const {data,error}=await supabase.from('hookah_withdrawals').insert({user_id:profile.id,amount:available}).select('id,amount,withdrawn_at').single();
-      if(error)throw error;
-      setWithdrawals(cur=>[data,...cur]);playCoinEffect();
-    }catch(err){console.error('Forma withdrawal save failed',err);window.alert('Не получилось зафиксировать вывод. Попробуй ещё раз.');}
-    finally{setWithdrawing(false);}
-  }
-
-  const ranges=[['prev-month','Прошедший месяц'],['30d','30 дней'],['6m','6 месяцев'],['1y','Год'],['custom','Свой диапазон']];
-  const compact=[];
-  if(bike>0)compact.push({key:'bike',type:'bike',accent:'amber',title:'Вело',value:bike.toLocaleString('ru-RU'),unit:'км',secondary:bikeSessions.length?'Среднее '+avgBike.toFixed(1)+' км / поездку':'',open:()=>onOpenHistory('bike')});
-  if(runDistance>0)compact.push({key:'run',type:'run',accent:'run',title:'Бег',value:runDistance.toLocaleString('ru-RU'),unit:'км',secondary:runSessions.length?'Среднее '+avgRun.toFixed(1)+' км / пробежку':'',open:()=>onOpenHistory('run')});
-  if(hikeCount>0)compact.push({key:'hike',type:'hike',accent:'hike',title:'ПВД / Поход',value:(hikeDistance||hikeCount).toLocaleString('ru-RU'),unit:hikeDistance?'км':'походов',secondary:hikeCount+' походов · '+hikeDays+' дн.',open:()=>onOpenHistory('hike')});
-  if(motoDistance>0)compact.push({key:'moto',type:'moto',accent:'moto',title:'Мото',value:motoDistance.toLocaleString('ru-RU'),unit:'км',secondary:motoSessions.length?'Среднее '+avgMoto.toFixed(1)+' км / поездку':'',open:()=>onOpenHistory('moto')});
-  if(flaneuringSessions.length>0)compact.push({key:'flaneuring',type:'flaneuring',accent:'flaneuring',title:'Фланирование',value:flaneuringWalking.toFixed(1),unit:'км пешком',secondary:flaneuringDistance.toFixed(1)+' км всего · '+flaneuringHours.toFixed(1)+' ч',open:()=>onOpenHistory('flaneuring')});
-  if(stepTotal>0)compact.push({key:'steps',type:'steps',accent:'green',title:'Шаги',value:stepTotal.toLocaleString('ru-RU'),unit:'шагов',secondary:stepRows.length?'Среднее '+Math.round(avgSteps).toLocaleString('ru-RU')+' / день':'',open:onOpenSteps});
-  if(workoutCount>0)compact.push({key:'workout',type:'workout',accent:'coral',title:'Воркаут',value:workoutCount.toLocaleString('ru-RU'),unit:'тренировок',secondary:'',open:()=>onOpenHistory('workout')});
-  if(combatCount>0)compact.push({key:'combat',type:'combat',accent:'combat',title:'Единоборства',value:combatCount.toLocaleString('ru-RU'),unit:'тренировок',secondary:'',open:()=>onOpenHistory('combat')});
-  if(crossfitCount>0)compact.push({key:'crossfit',type:'crossfit',accent:'crossfit',title:'CrossFit',value:crossfitCount.toLocaleString('ru-RU'),unit:'тренировок',secondary:'',open:()=>onOpenHistory('crossfit')});
-
-  return <main className="tab-screen stats-screen stats-v17">
-    <p className="eyebrow-dark">Сводка</p><h1>Статистика</h1>
-    <button className="rank-summary-card" onClick={onOpenMembers}><div><small>Сезон {season.name}. День {season.day} из {season.total}</small><strong>{profile?.points||0} баллов</strong></div><div><span>Рейтинг</span><b>{profile?.rank?'#'+profile.rank:'—'} <em>из {memberCount}</em></b></div><i>›</i></button>
-    <div className="range-tabs">{ranges.map(item=><button key={item[0]} className={range===item[0]?'active':''} onClick={()=>setRange(item[0])}>{item[1]}</button>)}</div>
-    {range==='custom'&&<div className="custom-range"><label><span>От</span><input type="date" value={customStart} onChange={e=>setCustomStart(e.target.value)}/></label><label><span>До</span><input type="date" value={customEnd} onChange={e=>setCustomEnd(e.target.value)}/></label></div>}
-    <p className="range-caption">{formatDate(start)} — {formatDate(end)}</p>
-
-    <div className="stats-grid-big stats-grid-v17">
-      {gym>0&&<button type="button" className="gym-stat-card-v17 stat-wide" onClick={()=>onOpenHistory('gym')}><span className="stat-icon"><ActivityGlyph type="gym" className="violet"/></span><span><small>Тренажёрка</small><strong>{gym} тренировок</strong><em>Тоннаж {formatKg(tonnage)} кг · среднее {formatKg(avgTonnage)} кг / трен.</em></span><b>›</b></button>}
-      {compact.map((card,index)=><V17StatCard key={card.key} {...card} onClick={card.open} wide={compact.length%2===1&&index===compact.length-1}/>)}
-      {Number(profile?.seriesCount||0)>0&&<article className="series-stat-card-v110"><small>Серии сезона</small><strong>{profile.seriesCount}</strong><em>закрыто полностью</em></article>}
-      {!gym&&!compact.length&&!isBoss&&<div className="empty-state stat-empty-v17">В выбранном периоде пока нет активности.</div>}
-      {isBoss&&<article className="hookah-stat-card hookah-stat-v17" onClick={()=>setHookahOpen(true)}>
-        <div className="hookah-stat-main-v17"><small>Кальян</small><strong>{hookahCount} из {hookahSlots}</strong><em>В среднем {hookahWeeklyAvg.toFixed(1)} / неделю · {hookahDayPlan(todayKey,hookahProgramStartedOn).label}</em></div>
-        <div className="hookah-fund-v17"><small>Фонд ерунды</small><strong>{available.toLocaleString('ru-RU')} ₽</strong><em>Доступно к выводу</em><button type="button" disabled={!available||withdrawing} onClick={e=>{e.stopPropagation();withdraw();}}>{withdrawing?'Фиксирую…':'Вывел деньги'}</button></div>
-        <b className="hookah-expand-v17">›</b>
-      </article>}
+  const today=localDateKey();
+  const offsets={week:6,month:29,year:364};
+  const start=localDateKey(addDays(new Date(),-offsets[period]));
+  const actual=(sessions||[]).filter(s=>isStatsSession(s)&&s.date>=start&&s.date<=today);
+  const gym=actual.filter(s=>s.type==='gym');
+  const km=actual.filter(s=>s.type==='bike').reduce((sum,s)=>sum+(Number(s.distance)||0),0);
+  const steps=(dailySteps||[]).filter(s=>s.date>=start&&s.date<=today).reduce((sum,s)=>sum+Math.max(0,Number(s.steps)||0),0);
+  const categories=[...new Set(actual.map(s=>s.type||'other'))];
+  const distribution=categories.map(type=>({type,label:activityMeta(type)?.label||type,count:actual.filter(s=>s.type===type).length})).sort((a,b)=>b.count-a.count);
+  const palette=['#0ba77e','#78d1b3','#e1bd73','#89abb7','#caabcf','#d7a7a1','#a2b56d','#75a6a1'];
+  const graphOptions=[{id:'all',label:'Все активности'},{id:'gym',label:'Тренировки'},...distribution.filter(d=>d.type!=='gym').map(d=>({id:d.type,label:d.label}))];
+  const graphRows=graphType==='all'?actual:actual.filter(s=>s.type===graphType);
+  const count=period==='week'?7:period==='month'?10:12;
+  const chartStart=dateFromKey(start),chartEnd=dateFromKey(today);
+  const span=Math.max(1,daysBetween(start,today)+1);
+  const chart=Array.from({length:count},(_,i)=>{
+    const first=localDateKey(addDays(chartStart,Math.floor(i*span/count)));
+    const last=i===count-1?today:localDateKey(addDays(chartStart,Math.floor((i+1)*span/count)-1));
+    return {id:i,first,last,label:period==='year'?new Intl.DateTimeFormat('ru-RU',{month:'short'}).format(dateFromKey(first)):formatDate(first,{day:'numeric',month:'short'}),items:graphRows.filter(s=>s.date>=first&&s.date<=last)};
+  });
+  const max=Math.max(1,...chart.map(x=>x.items.length));
+  const selected=chart.find(x=>x.id===selectedBar);
+  const angle=distribution.reduce((sum,item,i)=>sum+(item.count/Math.max(actual.length,1))*360,0);
+  let deg=0;
+  const segments=distribution.map((item,i)=>{const from=deg;deg+=item.count/Math.max(actual.length,1)*360;return palette[i%palette.length]+' '+from+'deg '+deg+'deg';});
+  const seasonPercent=Math.max(0,Math.min(100,Math.round(season.day/season.total*100)));
+  const streak=streakState(sessions,dailySteps).day;
+  return <main className="tab-screen stats-screen forma-stats">
+    <header className="forma-tab-heading"><p className="eyebrow-dark">Твой прогресс</p><h1>Статистика</h1></header>
+    <div className="forma-period-tabs" role="group" aria-label="Период статистики">{[['week','Неделя'],['month','Месяц'],['year','Год']].map(([id,label])=><button key={id} type="button" className={period===id?'active':''} aria-pressed={period===id} onClick={()=>{setPeriod(id);setSelectedBar(null);}}>{label}</button>)}</div>
+    <button type="button" className="forma-stats-season" onClick={onOpenMembers}>
+      <span className="forma-stats-season-copy"><small>Сезон · {season.name}</small><strong>День {season.day} из {season.total}</strong><span className="forma-season-progress"><i style={{width:seasonPercent+'%'}}/></span><span className="forma-stats-season-value">{seasonPercent}% · {Number(profile?.points||0).toLocaleString('ru-RU')} баллов</span><em>Место: {profile?.rank?'№'+profile.rank:'—'} из {memberCount||0} ›</em></span>
+      <span className="forma-stats-athlete" aria-hidden="true"/>
+    </button>
+    <div className="forma-metrics-grid">
+      <button type="button" onClick={()=>onOpenHistory('gym')}><small>Тренировки</small><strong>{gym.length}</strong><span>За период</span></button>
+      <button type="button" onClick={()=>onOpenHistory('bike')}><small>Велосипед</small><strong>{km.toFixed(1)}</strong><span>км</span></button>
+      <button type="button" onClick={onOpenSteps}><small>Шаги</small><strong>{steps.toLocaleString('ru-RU')}</strong><span>За период</span></button>
+      <article><small>Серия</small><strong>{Math.min(streak,6)} / 6</strong><span>Активных дней</span></article>
     </div>
-    {hookahOpen&&<HookahHistoryFullscreen hookahEvents={hookahEvents} hookahStartedOn={hookahStartedOn} hookahProgramStartedOn={hookahProgramStartedOn} withdrawals={withdrawals} onClose={()=>setHookahOpen(false)}/>}
+    <section className="forma-stats-chart glass-card">
+      <header><h2>Активность</h2><select value={graphType} aria-label="Тип активности на графике" onChange={e=>{setGraphType(e.target.value);setSelectedBar(null);}}>{graphOptions.map(o=><option value={o.id} key={o.id}>{o.label}</option>)}</select></header>
+      <div className="forma-chart-bars">{chart.map(item=><button type="button" key={item.id} className={item.id===selectedBar?'selected':''} onClick={()=>setSelectedBar(item.id===selectedBar?null:item.id)} aria-label={formatDate(item.first)+' — '+formatDate(item.last)+': '+item.items.length+' активностей'}><span className="forma-chart-track"><i style={{height:Math.max(4,100*item.items.length/max)+'%'}}/></span><small>{item.label}</small></button>)}</div>
+      {selected&&<div className="forma-chart-details"><strong>{formatDate(selected.first)} — {formatDate(selected.last)} · {selected.items.length}</strong>{selected.items.map(s=><button type="button" key={s.id} onClick={()=>onOpenHistory(s.type)}>{formatDate(s.date,{day:'numeric',month:'short'})} · {activityLabel(s)} <b>›</b></button>)}{!selected.items.length&&<span>Выполненных активностей нет.</span>}</div>}
+    </section>
+    <section className="forma-distribution glass-card">
+      <h2>Распределение</h2>
+      <div className="forma-distribution-body"><div className="forma-donut" style={{background:distribution.length?'conic-gradient('+segments.join(',')+')':'#e9ddd2'}}><span><strong>{actual.length}</strong><small>активностей</small></span></div><div className="forma-donut-legend">{distribution.map((d,i)=><button type="button" key={d.type} onClick={()=>onOpenHistory(d.type)}><i style={{background:palette[i%palette.length]}}/>{d.label}<strong>{d.count} · {Math.round(d.count/Math.max(1,actual.length)*100)}%</strong></button>)}{!distribution.length&&<p>Пока нет сохранённых активностей.</p>}</div></div>
+    </section>
+    <p className="forma-stats-summary">{formatDate(start)} — {formatDate(today)} · Только завершённые активности</p>
   </main>;
 }
 
