@@ -1,0 +1,232 @@
+/* FORMA Design v1.0 — 08.11.2026. Light theme is the only product theme.
+   Keep this after legacy styles until the old seasonal-dark rules are retired. */
+:root {
+  --bg:#f7eee6;--panel:#fffaf5;--muted:#766e68;--mint:#0aa77f;
+  --violet:#0b9d82;--amber:#d9a84f;--coral:#b98171;
+  color:#292c29;background:#f7eee6;color-scheme:light;
+}
+html,body,#root{background:#f7eee6!important;color:#292c29;color-scheme:light}
+input,select,textarea{color-scheme:light}
+.app-shell-dark.forma-design-v1{
+  --season-primary:#079f78;--season-secondary:#55dfac;
+  --season-panel:#fff9f3;--season-panel-strong:#f5e9dd;
+  --season-border:rgba(151,132,111,.22);--season-glow:rgba(80,64,48,.12);
+  min-height:100dvh;background:#f7eee6!important;color:#292d29;
+  padding-bottom:calc(70px + env(safe-area-inset-bottom));
+}
+.forma-design-v1 *{overflow-wrap:normal;word-break:normal;hyphens:none}
+.forma-design-v1 .main-screen,.forma-design-v1 .tab-screen,.forma-design-v1 .sub-screen{
+  color:#292d29;padding-left:clamp(12px,3.6vw,18px);padding-right:clamp(12px,3.6vw,18px);
+}
+.forma-design-v1 h1,.forma-design-v1 h2,.forma-design-v1 h3,.forma-design-v1 strong{color:#242b27}
+.forma-design-v1 .eyebrow-dark,.forma-design-v1 .soft-text,.forma-design-v1 .members-caption{color:#71736d}
+.forma-design-v1 .glass-card,.forma-design-v1 .history-accordion,
+.forma-design-v1 .master-history-row,.forma-design-v1 .previous-season,
+.forma-design-v1 .stat-card,.forma-design-v1 .exercise-block,
+.forma-design-v1 .leader-row,.forma-design-v1 .recent-row,
+.forma-design-v1 .season-card,.forma-design-v1 .rank-summary-card,
+.forma-design-v1 .why-flow section,.forma-design-v1 .why-intro,
+.forma-design-v1 .feed-event,.forma-design-v1 .download-card{
+  color:#292d29!important;background:linear-gradient(145deg,#fffdf9,#f3e8de)!important;
+  border:1px solid rgba(165,151,136,.22)!important;border-radius:20px;
+  box-shadow:inset 1px 2px 2px #fff,5px 7px 15px rgba(126,100,77,.15),-4px -4px 11px rgba(255,255,255,.92)!important;
+}
+.forma-design-v1 .glass-card small,.forma-design-v1 .leader-row small,.forma-design-v1 .stat-card small{color:#777873!important}
+.forma-design-v1 .glass-card strong,.forma-design-v1 .leader-row strong,.forma-design-v1 .stat-card strong{color:#222b26!important}
+.forma-design-v1 .gradient-button,.forma-design-v1 .range-tabs button.active,
+.forma-design-v1 .secondary-button{
+  background:linear-gradient(165deg,#70ebc1 0%,#10a67f 53%,#08795e 100%)!important;
+  color:#fff!important;border:1px solid #6bdcba!important;
+  border-radius:999px;box-shadow:inset 1px 2px 3px rgba(255,255,255,.55),inset -2px -3px 4px rgba(0,67,48,.23),0 6px 13px rgba(9,130,100,.23)!important;
+}
+.forma-design-v1 button{transition:filter .15s ease,transform .12s ease}
+.forma-design-v1 button:active{transform:translateY(1px);filter:brightness(.96)}
+.forma-design-v1 button:focus-visible,.forma-design-v1 input:focus-visible,
+.forma-design-v1 select:focus-visible{outline:2px solid #0aa77f;outline-offset:3px}
+.forma-design-v1 .logo-lockup{display:inline-flex;align-items:center;gap:5px;font-weight:950;font-size:27px;font-style:italic;color:#202b29!important;white-space:nowrap;line-height:1}
+.forma-design-v1 .logo-lockup.compact{font-size:24px}
+.forma-brand-stripes{letter-spacing:-.37em;padding-right:.34em;color:#10bc8e;transform:skew(-14deg);font-weight:1000;font-style:italic;font-size:1.24em}
+.forma-brand-word{color:#202925!important;font-size:1em;letter-spacing:-.075em}
+.forma-design-v1 .bottom-nav{
+  z-index:100!important;display:grid;grid-template-columns:repeat(5,minmax(0,1fr))!important;
+  min-height:66px;padding:7px 8px calc(5px + env(safe-area-inset-bottom));
+  background:linear-gradient(180deg,#fffaf5,#f3e7dc)!important;
+  border-top:1px solid #e2d4c8!important;
+  box-shadow:0 -4px 16px rgba(65,54,43,.07);
+}
+.forma-design-v1 .bottom-nav button{color:#777a74!important;font-size:clamp(8px,2.35vw,10px);gap:3px;min-width:0}
+.forma-design-v1 .bottom-nav button.active{color:#079e79!important;text-shadow:none!important}
+.forma-design-v1 .bottom-nav button.active .nav-icon{filter:none!important}
+.forma-design-v1 .nav-icon{font-size:19px;line-height:1}
+.forma-design-v1 .back-button,.forma-design-v1 .feed-bell,.forma-design-v1 .admin-bell{
+  color:#187f69!important;background:linear-gradient(145deg,#fffdf9,#e9dfd6)!important;
+  border:1px solid #e9dbcf!important;box-shadow:3px 4px 9px #d7c6b7,-3px -3px 8px #fff!important;
+}
+.forma-design-v1 .date-control input,.forma-design-v1 .dark-field input,
+.forma-design-v1 .exercise-row input,.forma-design-v1 .exercise-search,
+.forma-design-v1 .custom-range input,.forma-design-v1 textarea,
+.forma-design-v1 select{
+  background:#fdf9f5!important;color:#252c28!important;
+  border:1px solid #ddcfc3!important;border-radius:13px;
+  box-shadow:inset 2px 2px 5px #e9ddd3,inset -2px -2px 5px #fff!important;
+}
+.forma-design-v1 .dark-field span,.forma-design-v1 .date-control span{color:#595f5a}
+.forma-design-v1 .secondary-dark,.forma-design-v1 .account-actions button{
+  color:#286d5c!important;background:linear-gradient(145deg,#fffdf9,#ede2d8)!important;
+  box-shadow:3px 4px 9px #dbcbbd,-3px -3px 8px white!important;
+}
+.forma-design-v1 .screen-back-row{margin:0 0 7px}
+.forma-design-v1 .screen-back-row strong{font-size:20px}
+/* Home: every interactive element stays in one viewport with a fixed bottom bar. */
+.forma-design-v1 .forma-home{
+  height:calc(100dvh - 69px - env(safe-area-inset-bottom));
+  min-height:0;max-width:620px;display:flex;flex-direction:column;
+  gap:clamp(5px,1.2dvh,10px);padding-top:calc(env(safe-area-inset-top) + 6px)!important;
+  padding-bottom:4px!important;overflow:hidden!important;
+}
+.forma-home-head{display:flex;justify-content:space-between;align-items:center;flex:0 0 auto;gap:8px}
+.forma-home-actions{display:flex;align-items:center;gap:7px}
+.forma-profile-button{
+  display:flex;align-items:center;gap:4px;background:#f8f1e9;color:#3b594d;
+  padding:3px 7px 3px 3px;border:1px solid #e7d7c8;border-radius:23px;
+  font-size:10px;font-weight:800;white-space:nowrap;
+  box-shadow:2px 3px 8px #dfcec0,-2px -2px 8px #fff;
+}
+.forma-profile-button .home-profile-avatar{width:31px;height:31px;min-width:31px;display:grid;place-items:center;
+  background:linear-gradient(155deg,#def8eb,#0eb48a);border:2px solid #fff;color:#185a48;
+  font-size:14px;border-radius:50%;box-shadow:0 2px 4px rgba(56,110,87,.2)}
+.forma-home-actions .feed-bell,.forma-home-actions .admin-bell{width:35px;height:35px;min-height:35px;padding:0;display:grid;place-items:center;border-radius:50%;font-size:17px}
+.forma-home-actions .admin-bell b{position:absolute;right:0;top:0}
+.forma-season-hero{flex:0 1 clamp(124px,25dvh,196px);min-height:112px;overflow:hidden;position:relative;
+  display:flex;align-items:center;padding:clamp(12px,3.8vw,20px);
+  background:linear-gradient(120deg,rgba(17,29,27,.92) 0%,rgba(25,42,36,.86) 62%,rgba(21,35,32,.26)),
+    url('/fit-tracker/splash-v1.8.jpg') 79% 37%/cover no-repeat;
+  color:white;border-radius:22px;border:2px solid rgba(255,255,255,.74);
+  box-shadow:5px 7px 15px rgba(81,60,43,.24),-4px -4px 12px white,inset 0 1px rgba(255,255,255,.5)}
+.forma-season-copy{z-index:2;position:relative;width:63%;min-width:190px;display:grid;justify-items:start;gap:5px}
+.forma-season-copy h1{color:#fff!important;font-size:clamp(17px,5vw,25px);line-height:1.13;margin:0;font-weight:850}
+.forma-green-mark{font-size:11px;color:#4effb8;font-weight:800}
+.forma-season-progress{width:min(100%,188px);height:10px;background:rgba(230,250,235,.7);border-radius:40px;padding:2px;box-shadow:inset 0 2px 3px rgba(0,0,0,.2)}
+.forma-season-progress i{height:100%;display:block;background:linear-gradient(90deg,#56edb5,#12b982);border-radius:40px}
+.forma-season-copy>strong{font-size:11px;color:white!important}
+.forma-points-pill{display:flex;gap:10px;align-items:center;border-radius:30px;padding:6px 11px;
+  background:linear-gradient(160deg,#fffdf8,#e5e9df);color:#1a6e52;font-size:11px;font-weight:750;
+  box-shadow:inset 0 1px #fff,0 3px 7px rgba(0,0,0,.2)}
+.forma-points-pill b{color:#1d2923;font-size:14px}
+.forma-quick-section{flex:0 0 auto;min-height:0;display:grid;gap:6px}
+.forma-section-label{display:flex;justify-content:space-between;align-items:center}
+.forma-section-label h2{font-size:16px;margin:0;color:#222b25}
+.forma-section-label button{font-size:10px;color:#4a7969;background:transparent}
+.forma-quick-grid{display:flex;align-items:stretch;gap:8px;min-height:0;max-width:100%;overflow-x:auto;overflow-y:hidden;scrollbar-width:none;padding:5px 3px 10px}
+.forma-quick-grid::-webkit-scrollbar{display:none}
+.forma-quick-card{flex:0 0 clamp(94px,28vw,154px);height:clamp(82px,16dvh,128px);padding:0;position:relative;overflow:hidden;
+  border-radius:17px;background:#eadccf;border:2px solid #fff;
+  box-shadow:3px 4px 8px rgba(116,92,70,.2),-3px -3px 8px white;display:flex;flex-direction:column}
+.forma-quick-photo{flex:1;min-height:0;background:linear-gradient(120deg,rgba(13,29,25,.1),rgba(44,74,64,.12)),url('/fit-tracker/splash-v1.8.jpg') center 42%/cover}
+.forma-quick-label{display:flex;align-items:center;justify-content:center;gap:5px;background:#fff9f3;color:#255b48;
+  font-size:clamp(9px,2.8vw,11px);font-weight:850;min-height:27px;white-space:nowrap}
+.forma-quick-label .activity-svg{width:17px;height:17px}
+.forma-quick-empty{padding:12px;font-size:12px;color:#16775c;background:#fef8f1;border-radius:17px}
+.forma-add-activity{width:100%;min-height:clamp(37px,6.4dvh,52px);display:flex;justify-content:center;align-items:center;gap:13px;font-size:clamp(13px,3.6vw,16px)}
+.forma-add-activity>b{margin-left:auto;font-size:22px}.forma-add-activity>span{margin-left:auto;font-size:20px}
+.forma-home-summary{display:grid;grid-template-columns:1fr 1fr;gap:8px;flex:0 0 auto}
+.forma-summary-tile{display:grid;align-content:center;justify-items:start;text-align:left;gap:3px;
+  min-height:clamp(60px,10dvh,82px);padding:9px 12px;border-radius:17px;
+  background:linear-gradient(140deg,#fffdf8,#f0e4da);border:1px solid #e6d6c9;
+  box-shadow:3px 5px 10px #dfcec0,-3px -3px 9px white;color:#262e29}
+.forma-summary-tile small{color:#59796b;font-size:10px}
+.forma-summary-tile strong{font-size:clamp(16px,4.3vw,22px);line-height:1}
+.forma-summary-tile em{font-size:9px;color:#88827a;font-style:normal}
+.forma-series-dots{display:flex;gap:4px;margin-top:4px}
+.forma-series-dots i{height:9px;aspect-ratio:1;border-radius:50%;background:#ddd6cb;box-shadow:inset 1px 1px 3px #a59d91}
+.forma-series-dots i.complete{background:#0aae82;box-shadow:0 1px 3px #149b7b}
+.forma-home .week-calendar-shell{min-height:0!important;max-height:none!important;flex:1 1 auto;overflow:hidden!important;
+  margin:0!important;padding:4px 8px!important;background:linear-gradient(160deg,#fffdf9,#f2e8de)!important;
+  border:1px solid #eaded3!important;border-radius:17px!important;box-shadow:2px 4px 9px #e2d4c8,-2px -2px 8px white!important}
+.forma-home .calendar-focus-v17{padding:1px!important;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:3px}
+.forma-home .calendar-focus-v17 small{display:none}.forma-home .calendar-focus-v17 strong{font-size:12px!important}
+.forma-home .calendar-focus-v17 span{font-size:10px!important}
+.forma-home .calendar-toggle-v17{min-height:26px!important;padding:3px 8px!important;background:#e5f6e9!important;color:#147557!important;border-radius:20px;margin-top:3px!important}
+.forma-home .calendar-open .week-columns{max-height:23dvh;overflow-y:auto}
+.forma-home .calendar-closed .week-columns{display:none}
+/* Activities: two columns, fixed approved order, no gaps in the middle. */
+.forma-activity-screen{padding-top:calc(env(safe-area-inset-top) + 6px)!important;padding-bottom:calc(88px + env(safe-area-inset-bottom))!important}
+.forma-activity-subtitle{text-align:center;color:#77746e;font-size:12px;margin:0 0 7px}
+.forma-activity-screen .add-date-compact{width:max-content;min-width:180px;max-width:100%;margin:0 auto 12px;display:flex;align-items:center;gap:8px;border-radius:24px;padding:4px 9px;background:#fff9f3}
+.forma-activity-screen .add-date-compact input{height:32px!important;width:150px!important;font-size:12px;border-radius:20px!important}
+.forma-activity-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.forma-activity-card{height:clamp(136px,23dvh,185px);position:relative;min-width:0;border-radius:19px;
+  background:linear-gradient(160deg,#fffcf7,#f0e5da);border:2px solid #fff;
+  box-shadow:4px 6px 12px rgba(107,88,68,.2),-4px -4px 11px #fff;overflow:hidden}
+.forma-activity-select{padding:0;background:transparent;color:#202b25;width:100%;height:100%;display:flex;flex-direction:column;overflow:hidden;text-align:left}
+.forma-activity-photo{display:block;flex:1;min-height:0;width:100%;
+  background:linear-gradient(120deg,rgba(19,37,32,.08),rgba(56,77,58,.08)),url('/fit-tracker/splash-v1.8.jpg') center 36%/cover}
+.forma-photo-bike .forma-activity-photo,.forma-photo-bike .forma-quick-photo{background-position:63% 55%}
+.forma-photo-hike .forma-activity-photo{background-position:74% 20%}
+.forma-photo-run .forma-activity-photo{background-position:50% 18%}
+.forma-photo-crossfit .forma-activity-photo{background-position:40% 50%}
+.forma-photo-workout .forma-activity-photo{background-position:45% 35%}
+.forma-photo-combat .forma-activity-photo{background-position:70% 49%}
+.forma-activity-description{width:100%;background:#fffaf4;display:flex;align-items:center;gap:7px;padding:7px 8px;min-height:45px}
+.forma-activity-description>.activity-svg{width:22px;height:22px;flex:0 0 22px;color:#099d78}
+.forma-activity-description>span{min-width:0;display:grid;gap:2px}
+.forma-activity-description strong{font-size:clamp(11px,3.2vw,14px);color:#1e2b25;white-space:nowrap}
+.forma-activity-description small{font-size:clamp(8px,2.2vw,10px);color:#847e78;white-space:nowrap}
+.forma-star{position:absolute;top:8px;right:8px;width:27px;height:27px;border-radius:50%;background:#fff9f2;color:#afa59a;
+  border:1px solid #f0e7dc;box-shadow:0 3px 6px rgba(0,0,0,.2);display:grid;place-items:center;font-size:18px}
+.forma-star.selected{color:#08a57c;background:#ebfff3}
+.forma-other-button{min-height:47px;width:100%;margin-top:13px;font-size:15px;display:flex;justify-content:center;gap:15px;align-items:center}
+.forma-other-button b{font-size:24px;font-weight:400}
+/* Workout, modal and text states. */
+.forma-design-v1 .gym-screen{padding-top:calc(env(safe-area-inset-top) + 8px)!important}
+.forma-design-v1 .gym-coach-top{margin:8px 0!important}
+.forma-design-v1 .gym-tabs{grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}
+.forma-design-v1 .gym-tabs button{min-height:38px;padding:6px 3px;flex-direction:column;gap:2px;
+  background:linear-gradient(145deg,#fffcf7,#f0e5da)!important;color:#59665d!important;border:1px solid #e9dcd0!important;
+  border-radius:18px;box-shadow:2px 3px 7px #decfc2,-2px -2px 8px white!important;font-size:11px}
+.forma-design-v1 .gym-tabs button.active{color:white!important;background:linear-gradient(130deg,#44cfa6,#088969)!important}
+.forma-design-v1 .gym-tabs button.active span{color:white!important}
+.forma-design-v1 .gym-tabs button span{font-size:16px}
+.forma-design-v1 .gym-draft-status{font-size:10px;color:#7b857b}
+.forma-design-v1 .exercise-block{padding:9px;margin:8px 0}
+.forma-design-v1 .exercise-block header{display:none}
+.forma-design-v1 .exercise-head{display:grid;grid-template-columns:minmax(0,1fr) 45px 45px 47px 23px;gap:5px;font-size:8px;color:#65776d}
+.forma-design-v1 .exercise-row{display:grid;grid-template-columns:minmax(0,1fr) 45px 45px 47px 23px;gap:4px}
+.forma-design-v1 .exercise-row input{height:34px;padding:4px!important;font-size:11px}
+.forma-design-v1 .exercise-select-button{background:#fdf8f3!important;color:#292e29!important;font-size:11px;min-height:34px!important;border:1px solid #e7d8ca!important}
+.forma-design-v1 .exercise-note-button{background:#ebf7ef!important;color:#1c8568!important}
+.forma-design-v1 .weight-input small{display:none!important}
+.forma-design-v1 .tonnage-summary{background:linear-gradient(160deg,#fffdf8,#eee4da)!important;color:#276c56!important;border:1px solid #e7dacd!important;border-radius:16px!important}
+.forma-design-v1 .tonnage-summary strong{color:#202b26!important}
+.forma-design-v1 .gym-save-primary{min-height:48px;font-size:14px}
+.forma-design-v1 .gym-history-link,.forma-design-v1 .gym-quiet-link{color:#197b61!important}
+.forma-design-v1 .modal-backdrop{background:rgba(43,43,39,.42)!important}
+.forma-design-v1 .other-modal,.forma-design-v1 .points-modal,
+.forma-design-v1 .admin-notifications-modal,.forma-design-v1 .exercise-picker{background:#fff8f0!important;color:#252b27!important;border:1px solid #e8d5c4!important}
+.forma-design-v1 .points-events article,.forma-design-v1 .member-events-v17{color:#252b27!important;background:#f8f1e9!important}
+.forma-design-v1 .home-profile-copy,.forma-design-v1 .home-profile-avatar{color:#163e30}
+.forma-design-v1 .about-version-label{color:#786d62!important}
+/* Compact phones, safe areas; content uses scaling rather than word breaking. */
+@media(max-height:760px){
+  .forma-design-v1 .forma-home{gap:5px}
+  .forma-season-hero{flex-basis:clamp(115px,22dvh,158px);padding:10px}
+  .forma-quick-card{height:clamp(72px,13dvh,96px)}
+  .forma-summary-tile{min-height:56px;padding:6px 9px}
+  .forma-home .week-calendar-shell{padding:2px 6px!important}
+  .forma-home .calendar-focus-v17 strong{font-size:11px!important}
+}
+@media(max-height:650px){
+  .forma-design-v1 .forma-home{gap:4px}
+  .forma-season-hero{min-height:98px;flex-basis:102px}
+  .forma-quick-card{height:68px}
+  .forma-home-summary .forma-summary-tile{min-height:50px}
+  .forma-quick-grid{padding-bottom:4px}
+  .forma-home .calendar-focus-v17 span{display:none}
+}
+@media(max-width:360px){
+  .forma-design-v1 .logo-lockup.compact{font-size:21px}
+  .forma-profile-button>span:last-child{display:none}
+  .forma-activity-grid{gap:7px}.forma-activity-description{padding:5px}
+  .forma-activity-description small{font-size:8px}
+  .forma-design-v1 .gym-tabs button{font-size:10px}
+}
