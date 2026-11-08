@@ -459,3 +459,25 @@ input,select,textarea{color-scheme:light}
   .forma-design-v1 .exercise-head,.forma-design-v1 .exercise-row{grid-template-columns:23px minmax(0,1fr) 34px 34px 34px 20px!important}
   .forma-exercise-preview{width:23px;height:29px}.forma-design-v1 .exercise-select-button{font-size:9px}
 }
+
+/* Preserve/edit legacy extra workout rows when a previously saved template
+   contains >8 exercises: never hide nonempty rows or silently discard them. */
+.forma-legacy-overflow{margin:9px 0;padding:8px 11px;border-radius:14px;
+  border:1px solid #dfcbb5;background:#fff5e9;color:#745c48}
+.forma-legacy-overflow>summary{font-size:11px;font-weight:760;line-height:1.5;cursor:pointer}
+.forma-legacy-overflow .exercise-block{margin:10px 0 3px}
+.forma-design-v1 .other-modal .dark-field textarea{min-height:74px;padding:10px;resize:vertical}
+.forma-design-v1 .forma-avatar-editor{display:flex;align-items:center;gap:13px;padding:15px;margin:15px 0}
+.forma-avatar-display{flex:0 0 74px;width:74px;height:74px;border-radius:50%;
+  border:3px solid white;box-shadow:3px 4px 9px #d2c2b4,-3px -3px 8px white;
+  background:linear-gradient(145deg,#c4ffdd,#45c79c);color:#17533d;display:grid;place-items:center;overflow:hidden;
+  font-size:30px;font-weight:850}
+.forma-avatar-display img{width:100%;height:100%;object-fit:cover}
+.forma-avatar-editor>div{flex:1;min-width:0}
+.forma-avatar-editor strong{font-size:14px;color:#283b2f}
+.forma-avatar-editor p{font-size:10px;color:#7c7e74;line-height:1.4}
+.forma-avatar-upload{background:linear-gradient(140deg,#63e1b6,#0a9c72);color:white;border-radius:18px;
+  padding:9px 15px;display:inline-block;cursor:pointer;font-size:11px;font-weight:800;
+  box-shadow:inset 0 1px rgba(255,255,255,.6),0 3px 8px #abccbb}
+.forma-avatar-upload input{position:absolute;width:1px;height:1px;overflow:hidden;opacity:0}
+.forma-avatar-editor .error-line,.forma-avatar-editor .success-line{display:block;margin:6px 0;font-size:10px}
