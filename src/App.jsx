@@ -1324,10 +1324,11 @@ export default function App(){
         supabase.from('hookah_events').select('id,event_date,smoked_at,is_bonus').eq('user_id',userId).order('smoked_at',{ascending:true}),
         supabase.from('admin_notifications').select('id,type,title,member_name,member_email,created_at,read_at').eq('recipient_user_id',userId).order('created_at',{ascending:false}).limit(200),
         supabase.from('forma_profile_avatars').select('user_id,avatar_path'),
+        supabase.rpc('forma_member_latest_activity'),
       ]);
 
       const timeout=new Promise((_,reject)=>setTimeout(()=>reject(new Error('timeout')),9000));
-      const [profileRes,leaderRes,previousRes,sessionsRes,plansRes,templatesRes,stepsRes,expeditionRes,bossRes,hookahRes,notificationsRes,avatarsRes]=await Promise.race([queries,timeout]);
+      const [profileRes,leaderRes,previousRes,sessionsRes,plansRes,templatesRes,stepsRes,expeditionRes,bossRes,hookahRes,notificationsRes,avatarsRes,memberLatestRes]=await Promise.race([queries,timeout]);
       progress.onProgress?.(68,'Собираем тренировки и статистику');
 
       if(profileRes.error)throw profileRes.error;
@@ -1335,10 +1336,16 @@ export default function App(){
       if(previousRes.error)throw previousRes.error;
 
       const avatarPaths=new Map((avatarsRes?.data||[]).map(a=>[a.user_id,a.avatar_path]));
+      const recentActivities=new Map((memberLatestRes?.data||[]).map(a=>[a.user_id,a]));
       const publicAvatar=path=>path?supabase.storage.from('forma-avatars').getPublicUrl(path).data?.publicUrl:null;
-      const leaderboard=(leaderRes.data||[]).map(member=>({
-        ...member,avatar_path:avatarPaths.get(member.id)||null,avatar_url:publicAvatar(avatarPaths.get(member.id))
-      }));
+      const leaderboard=(leaderRes.data||[]).map(member=>{
+        const a=recentActivities.get(member.id);
+        const gap=a?.activity_date==null?null:daysBetween(a.activity_date,localDateKey());
+        const when=gap==null?'':gap===0?'сегодня':gap===1?'вчера':gap>=0?gap+' дн. назад':formatDate(a.activity_date);
+        return {...member,avatar_path:avatarPaths.get(member.id)||null,
+          avatar_url:publicAvatar(avatarPaths.get(member.id)),
+          last_activity_label:a?(activityMeta(a.activity_type)?.label||a.activity_type)+' · '+when:null};
+      });
       const me=leaderboard.find(x=>x.id===userId);
       if(profileRes.data)setProfile({...profileRes.data,avatar_path:avatarPaths.get(userId)||null,
         avatar_url:publicAvatar(avatarPaths.get(userId)),points:me?.points||0,rank:me?.rank||null,seriesCount:Number(me?.series_count)||0});
