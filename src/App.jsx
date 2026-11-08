@@ -1984,8 +1984,10 @@ function AboutScreen({onWhy}){
   const features=[
     ['gym','Тренировки','Силовые планы и история нагрузок'],
     ['bike','Активности','Вело, бег, походы, GPS и другое'],
-    ['stats','Статистика','Реальный прогресс и серия'],
-    ['members','Сообщество','Рейтинг, участники и сезоны']
+    ['stats','Статистика','Результаты, динамика, серии и цели'],
+    ['members','Сообщество','Единомышленники и лидерборд'],
+    ['goals','Цели','Физическая форма, активность и дисциплина'],
+    ['plan','Планирование','Календарь и контроль нагрузки']
   ];
   return <main className="tab-screen about-screen about-tab-screen forma-about">
     <section className="forma-about-hero">
@@ -1993,7 +1995,7 @@ function AboutScreen({onWhy}){
       <h1>Больше, чем просто тренировки</h1>
       <p>Двигайся, фиксируй активность и наблюдай свой прогресс.</p>
     </section>
-    <div className="forma-about-features">{features.map(([id,title,detail])=><article className="glass-card" key={id}><span className="forma-about-feature-icon">{id==='stats'?'▥':id==='members'?'♧':<ActivityGlyph type={id}/>}</span><div><strong>{title}</strong><small>{detail}</small></div></article>)}</div>
+    <div className="forma-about-features">{features.map(([id,title,detail])=><article className="glass-card" key={id}><span className="forma-about-feature-icon">{id==='stats'?'▥':id==='members'?'♧':id==='goals'?'◎':id==='plan'?'▣':<ActivityGlyph type={id}/>}</span><div><strong>{title}</strong><small>{detail}</small></div></article>)}</div>
     <button type="button" className="gradient-button forma-why-link" onClick={onWhy}><span>//</span><span><strong>Философия FORMA</strong><small>Для чего существует приложение</small></span><b>›</b></button>
     <section className="download-card glass-card">
       <h2>Установить FORMA</h2>
