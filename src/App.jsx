@@ -1336,19 +1336,25 @@ export default function App(){
         supabase.from('boss_users').select('user_id,hookah_started_on,hookah_program_started_on').eq('user_id',userId).maybeSingle(),
         supabase.from('hookah_events').select('id,event_date,smoked_at,is_bonus').eq('user_id',userId).order('smoked_at',{ascending:true}),
         supabase.from('admin_notifications').select('id,type,title,member_name,member_email,created_at,read_at').eq('recipient_user_id',userId).order('created_at',{ascending:false}).limit(200),
+        supabase.from('forma_profile_avatars').select('user_id,avatar_path'),
       ]);
 
       const timeout=new Promise((_,reject)=>setTimeout(()=>reject(new Error('timeout')),9000));
-      const [profileRes,leaderRes,previousRes,sessionsRes,plansRes,templatesRes,stepsRes,expeditionRes,bossRes,hookahRes,notificationsRes]=await Promise.race([queries,timeout]);
+      const [profileRes,leaderRes,previousRes,sessionsRes,plansRes,templatesRes,stepsRes,expeditionRes,bossRes,hookahRes,notificationsRes,avatarsRes]=await Promise.race([queries,timeout]);
       progress.onProgress?.(68,'Собираем тренировки и статистику');
 
       if(profileRes.error)throw profileRes.error;
       if(leaderRes.error)throw leaderRes.error;
       if(previousRes.error)throw previousRes.error;
 
-      const leaderboard=leaderRes.data||[];
+      const avatarPaths=new Map((avatarsRes?.data||[]).map(a=>[a.user_id,a.avatar_path]));
+      const publicAvatar=path=>path?supabase.storage.from('forma-avatars').getPublicUrl(path).data?.publicUrl:null;
+      const leaderboard=(leaderRes.data||[]).map(member=>({
+        ...member,avatar_path:avatarPaths.get(member.id)||null,avatar_url:publicAvatar(avatarPaths.get(member.id))
+      }));
       const me=leaderboard.find(x=>x.id===userId);
-      if(profileRes.data)setProfile({...profileRes.data,points:me?.points||0,rank:me?.rank||null,seriesCount:Number(me?.series_count)||0});
+      if(profileRes.data)setProfile({...profileRes.data,avatar_path:avatarPaths.get(userId)||null,
+        avatar_url:publicAvatar(avatarPaths.get(userId)),points:me?.points||0,rank:me?.rank||null,seriesCount:Number(me?.series_count)||0});
       setMembers(leaderboard);
       setPreviousTop5(previousRes.data||[]);
       const loadedSessions=(sessionsRes.data||[]).map(mapSession);
@@ -1693,7 +1699,7 @@ export default function App(){
     {screen==='hike'&&<HikeTraining dateKey={draftDateKey} setDateKey={setDraftDateKey} sessions={numberedSessions} onBack={()=>goBack('add-training')} onHistory={()=>navigate('hike-history')} onSave={saveSession}/>}
     {screen==='hike-history'&&<HikeHistory sessions={numberedSessions.filter(s=>s.type==='hike'&&isHistorySession(s))} onBack={()=>goBack('hike')}/>}
     {screen==='about'&&<AboutScreen onWhy={()=>navigate('why')}/>}
-    {screen==='profile'&&<ProfileScreen profile={profile} email={authSession.user.email} isBoss={isBoss} onBack={()=>goBack('home')} onNameChanged={data=>{setProfile(p=>({...p,name:data.name,name_changed_at:data.name_changed_at}));setMembers(rows=>rows.map(m=>m.id===authSession.user.id?{...m,name:data.name}:m));}} onWeightChanged={weight=>setProfile(p=>({...p,body_weight_kg:weight}))}/>}
+    {screen==='profile'&&<ProfileScreen profile={profile} email={authSession.user.email} isBoss={isBoss} onBack={()=>goBack('home')} onNameChanged={data=>{setProfile(p=>({...p,name:data.name,name_changed_at:data.name_changed_at}));setMembers(rows=>rows.map(m=>m.id===authSession.user.id?{...m,name:data.name}:m));}} onWeightChanged={weight=>setProfile(p=>({...p,body_weight_kg:weight}))} onAvatarChanged={data=>{setProfile(p=>({...p,...data}));setMembers(rows=>rows.map(m=>m.id===authSession.user.id?{...m,...data}:m));}}/>}
     {trainerOpen&&<TrainerModal onClose={()=>setTrainerOpen(false)} onWorkout={()=>{setTrainerOpen(false);navigate('coach-workout');}}/>}
     {screen==='coach-workout'&&<TrainerWorkout userId={authSession.user.id} onClose={()=>goBack('gym')} onSave={saveSession}/>}
     {screen==='why'&&<WhyScreen onBack={()=>goBack('home')}/>} 
@@ -1929,13 +1935,52 @@ function AdminUsersPanel(){
   </section>;
 }
 
-function ProfileScreen({profile,email,isBoss,onBack,onNameChanged,onWeightChanged}){
+function ProfileAvatarEditor({profile,onChanged}){
+ const [saving,setSaving]=useState(false),[error,setError]=useState(''),[success,setSuccess]=useState('');
+ const uid=profile?.id;
+ async function upload(e){
+   const file=e.target.files?.[0];e.target.value='';
+   if(!file||!uid)return;
+   setError('');setSuccess('');
+   if(!['image/jpeg','image/png','image/webp'].includes(file.type)||file.size>8*1024*1024){setError('Выберите JPG, PNG или WebP до 8 МБ.');return;}
+   setSaving(true);
+   try{
+     const bitmap=await createImageBitmap(file);
+     const side=Math.min(bitmap.width,bitmap.height);
+     const canvas=document.createElement('canvas');canvas.width=320;canvas.height=320;
+     const ctx=canvas.getContext('2d');
+     if(!ctx)throw new Error('Браузер не поддерживает обработку изображений.');
+     ctx.drawImage(bitmap,(bitmap.width-side)/2,(bitmap.height-side)/2,side,side,0,0,320,320);
+     bitmap.close?.();
+     const blob=await new Promise((resolve,reject)=>canvas.toBlob(x=>x?resolve(x):reject(new Error('Не удалось преобразовать фото.')),'image/webp',.82));
+     if(blob.size>2*1024*1024)throw new Error('Фотография превышает допустимый размер.');
+     const path=uid+'/avatar-'+crypto.randomUUID()+'.webp';
+     const storage=supabase.storage.from('forma-avatars');
+     const uploaded=await storage.upload(path,blob,{contentType:'image/webp',upsert:false});
+     if(uploaded.error)throw uploaded.error;
+     const {error:saveError}=await supabase.from('forma_profile_avatars').upsert({user_id:uid,avatar_path:path,updated_at:new Date().toISOString()});
+     if(saveError){await storage.remove([path]).catch(()=>{});throw saveError;}
+     const {data}=storage.getPublicUrl(path);
+     onChanged?.({avatar_path:path,avatar_url:data.publicUrl});
+     if(profile.avatar_path&&profile.avatar_path!==path)storage.remove([profile.avatar_path]).catch(()=>{});
+     setSuccess('Фото обновлено. Участники увидят его в рейтинге.');
+   }catch(err){setError(err.message||'Не удалось загрузить фото.');}
+   finally{setSaving(false);}
+ }
+ return <section className="forma-avatar-editor glass-card">
+   <span className="forma-avatar-display">{profile?.avatar_url?<img src={profile.avatar_url} alt="Фото профиля"/>:profile?.name?.trim()?.[0]?.toUpperCase()||'У'}</span>
+   <div><strong>Фотография профиля</strong><p>Круглая аватарка в профиле и рейтинге</p><label className="forma-avatar-upload">{saving?'Загружаем…':'Изменить фото'}<input type="file" accept="image/png,image/jpeg,image/webp" onChange={upload} disabled={saving} aria-label="Изменить фотографию профиля"/></label>
+   {error&&<small role="alert" className="error-line">{error}</small>}{success&&<small role="status" className="success-line">{success}</small>}</div>
+ </section>;
+}
+function ProfileScreen({profile,email,isBoss,onBack,onNameChanged,onWeightChanged,onAvatarChanged}){
  const [weight,setWeight]=useState(profile?.body_weight_kg==null?'':String(profile.body_weight_kg));
  const [weightNotice,setWeightNotice]=useState(''),[password,setPassword]=useState(''),[passwordNotice,setPasswordNotice]=useState('');
  async function saveWeight(e){e.preventDefault();const value=Number(String(weight).replace(',','.'));if(!Number.isFinite(value)||value<20||value>400){setWeightNotice('Укажи вес от 20 до 400 кг.');return;}
  const {error}=await supabase.rpc('set_body_weight_kg',{p_weight:value});setWeightNotice(error?'Не удалось сохранить вес.':'Вес сохранён.');if(!error)onWeightChanged(value);}
  async function savePassword(e){e.preventDefault();if(password.length<8){setPasswordNotice('Минимум 8 символов.');return;}const {error}=await supabase.auth.updateUser({password});setPasswordNotice(error?'Не удалось сменить пароль.':'Пароль обновлён.');if(!error)setPassword('');}
  return <main className="tab-screen about-screen"><button className="back-button" onClick={onBack}>‹</button><h1>Мой профиль</h1>
+ <ProfileAvatarEditor profile={profile} onChanged={onAvatarChanged}/>
  <ProfileName profile={profile} onChanged={onNameChanged}/>
  <section className="glass-card" style={{padding:16,marginBottom:12}}><h2>Контакты</h2><p>{email||'Почта не указана'}</p><small>Для изменения почты используйте подтверждение через настройки аккаунта.</small></section>
  <form className="glass-card" onSubmit={saveWeight} style={{padding:16,marginBottom:12}}><h2>Вес тела</h2><label>Собственный вес, кг <input type="number" min="20" max="400" step="0.1" value={weight} onChange={e=>setWeight(e.target.value)} style={{width:'100%',boxSizing:'border-box',padding:10}}/></label><button type="submit" className="secondary-button">Сохранить вес</button>{weightNotice&&<p role="status">{weightNotice}</p>}</form>
