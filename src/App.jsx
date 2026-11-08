@@ -18,6 +18,20 @@ import { LocalNotifications } from '@capacitor/local-notifications';
 import { Share } from '@capacitor/share';
 
 const APP_VERSION = '2.1';
+const FORMA_ACTIVITIES = [
+  {id:'gym',label:'Тренажёрка',caption:'Силовая тренировка'},
+  {id:'bike',label:'Вело',caption:'Езда на велосипеде'},
+  {id:'hike',label:'Поход',caption:'Активный туризм'},
+  {id:'run',label:'Бег',caption:'Пробежка и интервалы'},
+  {id:'crossfit',label:'CrossFit',caption:'Высокоинтенсивный тренинг'},
+  {id:'flaneuring',label:'Фланирование',caption:'Прогулка и активное движение'},
+  {id:'workout',label:'Воркаут',caption:'Тренировки с весом тела'},
+  {id:'combat',label:'Единоборства',caption:'Бокс, ММА и другие'}
+];
+const QUICK_DEFAULT = ['gym','bike'];
+function cleanQuickActivities(ids){
+  return Array.isArray(ids)?[...new Set(ids.filter(id=>FORMA_ACTIVITIES.some(x=>x.id===id)))]:QUICK_DEFAULT;
+}
 const ANDROID_APK_URL = 'https://github.com/4uvakinvv-hue/fit-tracker/releases/download/android-current/forma-android.apk';
 const IOS_INSTALL_URL = 'https://4uvakinvv-hue.github.io/fit-tracker/';
 const AUTH_RECOVERY_REDIRECT_URL = 'https://4uvakinvv-hue.github.io/fit-tracker/';
@@ -597,19 +611,21 @@ function ActivityGlyph({type,className=''}) {
 
 function Brand({compact=false}){
   return <div className={`logo-lockup ${compact?'compact':''}`}>
-    <img className="brand-app-icon" src={`${import.meta.env.BASE_URL}icon.svg`} alt=""/>
-    <span>Форма</span>
+    <span className="forma-brand-stripes" aria-hidden="true">//</span>
+    <span className="forma-brand-word">FORMA</span>
   </div>;
 }
 
 function SplashScreen({progress=8,stage='Запуск приложения'}){
   const value=Math.max(0,Math.min(100,Math.round(Number(progress)||0)));
   return <main className="splash-screen splash-v18">
-    <img className="splash-v18-image" src={`${import.meta.env.BASE_URL}splash-v1.8.jpg`} alt="Форма"/>
+    <div className="forma-splash-brand"><Brand/><strong>Тренируйся. Живи. Развивайся.</strong></div>
+    <img className="splash-v18-image" src={`${import.meta.env.BASE_URL}splash-v1.8.jpg`} alt="Спортсмен FORMA"/>
     <div className="splash-v18-overlay"/>
     <div className="splash-v18-progress">
+      <strong>{stage==='Запуск приложения'?'Подключаемся к базе':stage}</strong>
       <div className="splash-v18-track" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow={value}><i style={{width:value+'%'}}/></div>
-      <strong>{stage}</strong>
+      <span>БОЛЬШЕ, ЧЕМ ПРОСТО ТРЕНИРОВКИ</span>
     </div>
   </main>;
 }
@@ -882,6 +898,30 @@ export default function App(){
   const gpsPendingSyncLock=useRef(false);
   const [stepsDiagnostics,setStepsDiagnostics]=useState(null);
   const [screen,setScreen]=useState('home');
+  const [quickActivityIds,setQuickActivityIds]=useState(QUICK_DEFAULT);
+  const [outdoorStartMode,setOutdoorStartMode]=useState('bike');
+  useEffect(()=>{
+    const uid=authSession?.user?.id;
+    if(!uid)return;
+    let active=true;
+    const key='forma:quick-activities:'+uid;
+    try{const stored=localStorage.getItem(key);if(stored)setQuickActivityIds(cleanQuickActivities(JSON.parse(stored)));else setQuickActivityIds(QUICK_DEFAULT);}catch{setQuickActivityIds(QUICK_DEFAULT);}
+    supabase.from('forma_preferences').select('quick_activities').eq('user_id',uid).maybeSingle().then(({data,error})=>{
+      if(active&&!error&&data?.quick_activities){
+        const saved=cleanQuickActivities(data.quick_activities);
+        setQuickActivityIds(saved);
+        try{localStorage.setItem(key,JSON.stringify(saved));}catch{}
+      }
+    }).catch(()=>{});
+    return ()=>{active=false;};
+  },[authSession?.user?.id]);
+  function toggleQuickActivity(id){
+    if(!FORMA_ACTIVITIES.some(a=>a.id===id)||!authSession?.user?.id)return;
+    const next=quickActivityIds.includes(id)?quickActivityIds.filter(x=>x!==id):[...quickActivityIds,id];
+    setQuickActivityIds(next);
+    try{localStorage.setItem('forma:quick-activities:'+authSession.user.id,JSON.stringify(next));}catch{}
+    supabase.from('forma_preferences').upsert({user_id:authSession.user.id,quick_activities:next,updated_at:new Date().toISOString()}).then(({error})=>{if(error)console.warn('Quick activities only saved locally',error.message);}).catch(()=>{});
+  }
   const [selectedDateKey,setSelectedDateKey]=useState(localDateKey());
   const [draftDateKey,setDraftDateKey]=useState(localDateKey());
   const [loading,setLoading]=useState(false);
@@ -1375,8 +1415,14 @@ export default function App(){
   }
 
   async function chooseType(type){
-    if(type==='outdoor'){navigate('outdoor');return;}
+    if(type==='outdoor'||['bike','run','moto','flaneuring'].includes(type)){
+      setOutdoorStartMode(type==='outdoor'?'bike':type);navigate('outdoor');return;
+    }
     await savePlan(draftDateKey,type,'','planned');navigate(type);
+  }
+  async function openQuickActivity(type){
+    setDraftDateKey(selectedDateKey||localDateKey());
+    await chooseType(type);
   }
 
   async function syncPendingFlaneuring(sessionOverride=authSession){
@@ -1622,18 +1668,18 @@ export default function App(){
   if(!authSession)return <AuthScreen initialNotice={authNotice}/>;
   if(loadError)return <main className="onboarding dark-screen"><Brand/><h1>Связь с базой</h1><p className="soft-text">{loadError}</p><div className="glass-card onboarding-form"><button className="gradient-button" onClick={loadData}>Повторить</button></div></main>;
 
-  return <div className={`app-shell-dark season-${seasonKey()} screen-${screen}`}>
-    {screen==='home'&&<Home onOpenProfile={()=>navigate('profile')} schedule={schedule} sessions={numberedSessions} profile={profile} dailySteps={dailySteps} expeditionDays={expeditionDays} saveNotice={saveNotice} isBoss={isBoss} adminNotifications={adminNotifications} onTrainer={requestTrainer} onMarkNotificationsRead={markNotificationsRead} hookahEvents={hookahEvents} hookahProgramStartedOn={hookahProgramStartedOn} canUndoHookah={!!undoHookahId} onHookah={addHookah} onBonusHookah={addBonusHookah} onUndoHookah={undoHookah} stepsStatus={stepsStatus} stepsSyncing={stepsSyncing} onEnableSteps={()=>syncSteps(true,authSession,{fullHistory:true,reason:'manual'})} onOpenSteps={()=>navigate('steps-history')} onOpenFeed={()=>navigate('feed')} selectedDateKey={selectedDateKey} setSelectedDateKey={setSelectedDateKey} onSavePlan={savePlan} onDeletePlan={deletePlan} onProposal={sendProposal} onOpenWorkout={openAdd}/>} 
+  return <div className={`app-shell-dark forma-design-v1 season-${seasonKey()} screen-${screen}`}>
+    {screen==='home'&&<Home onOpenProfile={()=>navigate('profile')} schedule={schedule} sessions={numberedSessions} profile={profile} dailySteps={dailySteps} expeditionDays={expeditionDays} saveNotice={saveNotice} isBoss={isBoss} adminNotifications={adminNotifications} onTrainer={requestTrainer} onMarkNotificationsRead={markNotificationsRead} hookahEvents={hookahEvents} hookahProgramStartedOn={hookahProgramStartedOn} canUndoHookah={!!undoHookahId} onHookah={addHookah} onBonusHookah={addBonusHookah} onUndoHookah={undoHookah} stepsStatus={stepsStatus} stepsSyncing={stepsSyncing} onEnableSteps={()=>syncSteps(true,authSession,{fullHistory:true,reason:'manual'})} onOpenSteps={()=>navigate('steps-history')} onOpenFeed={()=>navigate('feed')} selectedDateKey={selectedDateKey} setSelectedDateKey={setSelectedDateKey} onSavePlan={savePlan} onDeletePlan={deletePlan} onProposal={sendProposal} onOpenWorkout={openAdd} quickActivityIds={quickActivityIds} onQuickActivity={openQuickActivity}/>} 
     {screen==='history'&&<History sessions={numberedSessions} onDelete={deleteSession} onUpdate={updateSession}/>}
     {screen.startsWith('history-')&&screen!=='steps-history'&&<History sessions={numberedSessions} onDelete={deleteSession} onUpdate={updateSession} filterType={screen.slice(8)}/>} 
     {screen==='steps-history'&&<StepsHistoryV17 dailySteps={dailySteps} stepsStatus={stepsStatus} stepsSyncing={stepsSyncing} diagnostics={stepsDiagnostics} onSync={()=>syncSteps(true,authSession,{fullHistory:true,reason:'manual'})} onSettings={()=>Health.openHealthConnectSettings().catch(()=>setStepsStatus('error'))} onBack={()=>goBack('home')}/>}
     {screen==='stats'&&<StatisticsV17 sessions={numberedSessions} dailySteps={dailySteps} isBoss={isBoss} hookahEvents={hookahEvents} hookahStartedOn={hookahStartedOn} hookahProgramStartedOn={hookahProgramStartedOn} profile={profile} memberCount={members.length} onOpenMembers={()=>navigate('members')} onOpenHistory={type=>navigate('history-'+type)} onOpenSteps={()=>navigate('steps-history')}/>} 
     {screen==='members'&&<MembersV17 members={members} profile={profile} previousTop5={previousTop5}/>} 
     {screen==='feed'&&<FeedScreen profile={profile}/>} 
-    {screen==='add-training'&&<AddTraining dateKey={draftDateKey} setDateKey={setDraftDateKey} onProposal={sendProposal} onBack={()=>goBack('home')} onChoose={chooseType}/>}
+    {screen==='add-training'&&<AddTraining dateKey={draftDateKey} setDateKey={setDraftDateKey} onProposal={sendProposal} onBack={()=>goBack('home')} onChoose={chooseType} quickActivityIds={quickActivityIds} onToggleQuick={toggleQuickActivity}/>}
     {screen==='gym'&&<GymTraining userId={authSession.user.id} onTrainerWorkout={()=>navigate('coach-workout')} dateKey={draftDateKey} setDateKey={setDraftDateKey} sessions={numberedSessions} gymTemplates={gymTemplates} onSaveTemplate={saveTemplate} onBack={()=>goBack('add-training')} onHistory={()=>navigate('gym-history')} onSave={saveSession} onTrainerRequest={requestTrainer}/>}
     {screen==='gym-history'&&<GymHistory sessions={numberedSessions.filter(s=>s.type==='gym'&&isHistorySession(s))} onBack={()=>goBack('gym')}/>}
-    {screen==='outdoor'&&<OutdoorTraining dateKey={draftDateKey} setDateKey={setDraftDateKey} sessions={numberedSessions} onBack={()=>goBack('add-training')} onSave={saveSession} onSaveExpedition={saveExpedition}/>} 
+    {screen==='outdoor'&&<OutdoorTraining initialMode={outdoorStartMode} dateKey={draftDateKey} setDateKey={setDraftDateKey} sessions={numberedSessions} onBack={()=>goBack('add-training')} onSave={saveSession} onSaveExpedition={saveExpedition}/>} 
     {screen==='crossfit'&&<CrossFitTraining dateKey={draftDateKey} setDateKey={setDraftDateKey} onBack={()=>goBack('add-training')} onSave={saveSession}/>} 
     {screen==='workout'&&<WorkoutTraining dateKey={draftDateKey} setDateKey={setDraftDateKey} sessions={numberedSessions} onBack={()=>goBack('add-training')} onHistory={()=>navigate('workout-history')} onSave={saveSession}/>}
     {screen==='workout-history'&&<WorkoutHistory sessions={numberedSessions.filter(s=>s.type==='workout'&&isHistorySession(s))} onBack={()=>goBack('workout')}/>}
@@ -1641,7 +1687,7 @@ export default function App(){
     {screen==='combat-history'&&<CombatHistory sessions={numberedSessions.filter(s=>s.type==='combat'&&isHistorySession(s))} onBack={()=>goBack('combat')}/>}
     {screen==='hike'&&<HikeTraining dateKey={draftDateKey} setDateKey={setDraftDateKey} sessions={numberedSessions} onBack={()=>goBack('add-training')} onHistory={()=>navigate('hike-history')} onSave={saveSession}/>}
     {screen==='hike-history'&&<HikeHistory sessions={numberedSessions.filter(s=>s.type==='hike'&&isHistorySession(s))} onBack={()=>goBack('hike')}/>}
-    {screen==='about'&&<AboutScreen/>}
+    {screen==='about'&&<AboutScreen onWhy={()=>navigate('why')}/>}
     {screen==='profile'&&<ProfileScreen profile={profile} email={authSession.user.email} isBoss={isBoss} onBack={()=>goBack('home')} onNameChanged={data=>{setProfile(p=>({...p,name:data.name,name_changed_at:data.name_changed_at}));setMembers(rows=>rows.map(m=>m.id===authSession.user.id?{...m,name:data.name}:m));}} onWeightChanged={weight=>setProfile(p=>({...p,body_weight_kg:weight}))}/>}
     {trainerOpen&&<TrainerModal onClose={()=>setTrainerOpen(false)} onWorkout={()=>{setTrainerOpen(false);navigate('coach-workout');}}/>}
     {screen==='coach-workout'&&<TrainerWorkout userId={authSession.user.id} onClose={()=>goBack('gym')} onSave={saveSession}/>}
@@ -1660,7 +1706,7 @@ function BottomNav({screen,onNavigate}){
   </nav>;
 }
 
-function Home({onOpenProfile,schedule,sessions,profile,dailySteps,expeditionDays,saveNotice,isBoss,adminNotifications,onTrainer,onMarkNotificationsRead,hookahEvents,hookahProgramStartedOn,canUndoHookah,onHookah,onBonusHookah,onUndoHookah,stepsStatus,stepsSyncing,onEnableSteps,onOpenSteps,onOpenFeed,selectedDateKey,setSelectedDateKey,onSavePlan,onDeletePlan,onProposal,onOpenWorkout}){
+function Home({onOpenProfile,schedule,sessions,profile,dailySteps,expeditionDays,saveNotice,isBoss,adminNotifications,onTrainer,onMarkNotificationsRead,hookahEvents,hookahProgramStartedOn,canUndoHookah,onHookah,onBonusHookah,onUndoHookah,stepsStatus,stepsSyncing,onEnableSteps,onOpenSteps,onOpenFeed,selectedDateKey,setSelectedDateKey,onSavePlan,onDeletePlan,onProposal,onOpenWorkout,quickActivityIds,onQuickActivity}){
   const [pointsOpen,setPointsOpen]=useState(false);
   const [notificationsOpen,setNotificationsOpen]=useState(false);
   const events=pointEvents(sessions,dailySteps,hookahEvents,expeditionDays).slice(-10).reverse();
@@ -1681,86 +1727,46 @@ function Home({onOpenProfile,schedule,sessions,profile,dailySteps,expeditionDays
   const stepAverageSource=stepHistory.length>=30?stepHistory.slice(0,30):stepHistory;
   const averageSteps30=stepAverageSource.length?Math.round(stepAverageSource.reduce((sum,x)=>sum+Number(x.steps||0),0)/stepAverageSource.length):0;
 
-  return <main className="main-screen home-no-scroll">
-    <header className="topbar home-topbar">
-      <div className="home-brand-block">
-        <div className="brand-admin-row">
-          <Brand compact/>
-          <div className="home-notification-actions">
-            <FeedBell onOpen={onOpenFeed}/>
-            {isBoss&&<button className="admin-bell" onClick={async()=>{setNotificationsOpen(true);await onMarkNotificationsRead();}} aria-label="Уведомления администратора">
-              <span>🛡</span>{unreadNotifications>0&&<b>{unreadNotifications>9?'9+':unreadNotifications}</b>}
-            </button>}
-          </div>
-        </div>
-        <button type="button" className="home-profile-link" onClick={onOpenProfile} aria-label="Мой профиль и настройки">
-          <span className="home-profile-avatar" aria-hidden="true">{profile?.name?.trim()?.[0]?.toUpperCase()||'У'}</span>
-          <span className="home-profile-copy"><small>Мой профиль</small><strong>{profile?.name||'Пользователь'}</strong></span>
-          <span className="home-profile-arrow" aria-hidden="true">›</span>
-        </button>
-        <div className="season-title-row">
-          <span>Сезон</span>
-          <strong>{season.name.toUpperCase()}</strong>
-          <i className="season-leaf-icon" aria-hidden="true"/>
-        </div>
-        <p className="season-motto">Движение. Дисциплина. Результат.</p>
-      </div>
-
-      <div className="score-wrap">
-        <button className="score-card season-score-card" onClick={()=>setPointsOpen(true)}>
-          <div className="score-main-row">
-            <span className="score-star">★</span>
-            <strong>Баллы: {profile?.points||0}</strong>
-            <b>›</b>
-          </div>
-          <div className="score-day-row">
-            <span>День {season.day} из {season.total}</span>
-            <i className="season-leaf-icon small" aria-hidden="true"/>
-          </div>
-          <span className="season-progress-track"><i style={{width:`${seasonProgress}%`}}/></span>
-        </button>
-        <small>{scoreHint(sessions,dailySteps,expeditionDays)}</small>
+  const selectedQuick=FORMA_ACTIVITIES.filter(a=>quickActivityIds.includes(a.id));
+  const todaySteps=(dailySteps||[]).find(x=>x.date===todayKey)?.steps;
+  return <main className="main-screen home-no-scroll forma-home">
+    <header className="forma-home-head">
+      <Brand compact/>
+      <div className="forma-home-actions">
+        <FeedBell onOpen={onOpenFeed}/>
+        {isBoss&&<button className="admin-bell" onClick={async()=>{setNotificationsOpen(true);await onMarkNotificationsRead();}} aria-label="Уведомления администратора">◎{unreadNotifications>0&&<b>{unreadNotifications}</b>}</button>}
+        <button type="button" className="forma-profile-button" onClick={onOpenProfile}><span className="home-profile-avatar">{profile?.name?.trim()?.[0]?.toUpperCase()||'У'}</span><span>Профиль</span></button>
       </div>
     </header>
-
-    
-    <div className="home-quick-row">
-      {isBoss&&<section className="hookah-quick-card">
-        <div className="hookah-money"><small>Сегодня можно заработать</small><strong>{todayMoney.toLocaleString('ru-RU')} ₽</strong><em>{todayPlan.label} · доступно {todayPlan.slots}</em></div>
-        <div className="hookah-seven"><small>За 7 дней</small><strong>{sevenHookahs} из {sevenSlots}</strong></div>
-        {bonusState.eligible&&<button className="hookah-bonus-button" onClick={onBonusHookah}><strong>Бонусный кальян</strong><small>Заработан за неделю · 0 ₽ · 0 баллов</small></button>}
-        <button className="hookah-button" onClick={onHookah}>Выкуренный кальян</button>
-        {canUndoHookah&&<button className="hookah-undo" onClick={onUndoHookah}>Отменить последнее</button>}
-      </section>}
-      <button
-        className={`today-steps-chip ${stepsStatus}`}
-        onClick={['permission','error'].includes(stepsStatus)?onEnableSteps:onOpenSteps}
-        disabled={stepsSyncing}
-      >
-        <span className="steps-foot">👣</span>
-        <span>
-          <strong>{['ready','web'].includes(stepsStatus)
-            ?(dailySteps.find(x=>x.date===localDateKey())?.steps?.toLocaleString('ru-RU')??'Нет данных')
-            :stepsSyncing?'Синхронизация…':stepsStatus==='stale'?'Нет свежих данных':'Шаги за сегодня'}</strong>
-          <small>{
-            stepsStatus==='ready'?'шаги из Health Connect'
-            :stepsStatus==='web'?'история из Android-приложения'
-            :stepsStatus==='stale'?'проверить источник шагов'
-            :stepsStatus==='unavailable'?'Нет системного источника шагов'
-            :'Подключить автоматический шагомер'
-          }</small>
-          {averageSteps30>0&&<em>среднее: {averageSteps30.toLocaleString('ru-RU')} / день</em>}
-        </span>
+    <section className="forma-season-hero">
+      <div className="forma-season-copy">
+        <small className="forma-green-mark">// Сезон · {season.name}</small>
+        <h1>День сезона {season.day} из {season.total}</h1>
+        <div className="forma-season-progress"><i style={{width:seasonProgress+'%'}}/></div>
+        <strong>{Math.round(seasonProgress)}%</strong>
+        <button type="button" className="forma-points-pill" onClick={()=>setPointsOpen(true)}>◎ Баллы <b>{Number(profile?.points||0).toLocaleString('ru-RU')}</b></button>
+      </div>
+      <div className="forma-athlete-image" role="img" aria-label="Атлет FORMA"/>
+    </section>
+    <section className="forma-quick-section">
+      <div className="forma-section-label"><h2>Быстрый выбор</h2><button type="button" onClick={onOpenWorkout}>Настроить ›</button></div>
+      <div className="forma-quick-grid">
+        {selectedQuick.map(a=><button key={a.id} type="button" className={'forma-quick-card forma-photo-'+a.id} onClick={()=>onQuickActivity(a.id)}><span className="forma-quick-photo"/><span className="forma-quick-label"><ActivityGlyph type={a.id}/>{a.label}</span></button>)}
+        {!selectedQuick.length&&<button type="button" className="forma-quick-empty" onClick={onOpenWorkout}>Выбрать любимые активности ›</button>}
+      </div>
+      <button type="button" className="gradient-button forma-add-activity" onClick={onOpenWorkout}><span>＋</span> Добавить активность <b>›</b></button>
+    </section>
+    <div className="forma-home-summary">
+      <button type="button" className="forma-summary-tile" onClick={['permission','error'].includes(stepsStatus)?onEnableSteps:onOpenSteps} disabled={stepsSyncing}>
+        <small>Шаги сегодня</small><strong>{todaySteps==null?'—':Number(todaySteps).toLocaleString('ru-RU')}</strong><em>{stepsSyncing?'Обновляем…':'По данным устройства'}</em>
       </button>
+      <div className="forma-summary-tile forma-series">
+        <small>Серия</small><strong>{Math.min(streak,6)} из 6</strong>
+        <div className="forma-series-dots">{Array.from({length:6},(_,i)=><i key={i} className={i<streak?'complete':''}/>)}</div>
+      </div>
     </div>
-
     <DateWheelV17 schedule={schedule} dailySteps={dailySteps} selectedDateKey={selectedDateKey} setSelectedDateKey={setSelectedDateKey}/>
-    <StreakStrip streak={streak} state={streakInfo}/>
-
-    <button className="gradient-button workout-cta" onClick={onOpenWorkout}><span>＋</span>Добавить тренировку<b>›</b></button>
-    <p className="helper-text">Выбранная дата: {formatDate(selectedDateKey)}.</p>
     {saveNotice&&<div className="save-toast">✓ {saveNotice}</div>}
-
     {notificationsOpen&&<div className="modal-backdrop" onClick={()=>setNotificationsOpen(false)}>
       <section className="admin-notifications-modal" onClick={e=>e.stopPropagation()}>
         <header>
@@ -2024,45 +2030,37 @@ function DateWheel({schedule,dailySteps,selectedDateKey,setSelectedDateKey}){
   </section>;
 }
 
-function AddTraining({dateKey,setDateKey,onProposal,onBack,onChoose}){
+function AddTraining({dateKey,setDateKey,onProposal,onBack,onChoose,quickActivityIds=[],onToggleQuick}){
   const [otherOpen,setOtherOpen]=useState(false);
   const [text,setText]=useState('');
   const [sent,setSent]=useState(false);
-
+  const [sending,setSending]=useState(false);
+  const [error,setError]=useState('');
   async function submit(){
-    if(!text.trim())return;
-    await onProposal(text.trim());
-    setText('');setSent(true);
+    if(!text.trim()||sending)return;
+    setSending(true);setError('');
+    try{await onProposal(text.trim());setSent(true);}catch(e){setError(e.message||'Не удалось отправить предложение.');}
+    finally{setSending(false);}
   }
-
-  return <main className="sub-screen add-training-screen">
-    <ScreenBack onBack={onBack}/>
-    <p className="eyebrow-dark">Новая запись</p>
-    <h1>Добавить тренировку</h1>
-
-    <label className="date-control add-date-compact">
-      <span>Дата</span>
-      <input type="date" value={dateKey} onChange={e=>setDateKey(e.target.value)}/>
-    </label>
-
-    <div className="activity-grid add-grid compact-activity-grid">
-      {ACTIVITIES.map(a=><button key={a.id} className={`activity-choice ${a.accent}`} onClick={()=>onChoose(a.id)}>
-        <ActivityGlyph type={a.id} className={a.accent}/>
-        <strong>{a.label}</strong>
-      </button>)}
-      <button className="activity-choice other-choice" onClick={()=>{setOtherOpen(true);setSent(false);}}>
-        <span>＋</span><strong>Другое</strong>
-      </button>
+  return <main className="sub-screen add-training-screen forma-activity-screen">
+    <ScreenBack onBack={onBack} title="Добавить активность"/>
+    <p className="forma-activity-subtitle">Выбери формат активности</p>
+    <label className="date-control add-date-compact"><span>Дата</span><input type="date" value={dateKey} onChange={e=>setDateKey(e.target.value)}/></label>
+    <div className="forma-activity-grid">
+      {FORMA_ACTIVITIES.map(a=><div key={a.id} className={'forma-activity-card forma-photo-'+a.id}>
+        <button className="forma-activity-select" type="button" onClick={()=>onChoose(a.id)} aria-label={'Выбрать '+a.label}><span className="forma-activity-photo"/><span className="forma-activity-description"><ActivityGlyph type={a.id}/><span><strong>{a.label}</strong><small>{a.caption}</small></span></span></button>
+        <button className={'forma-star '+(quickActivityIds.includes(a.id)?'selected':'')} type="button" aria-pressed={quickActivityIds.includes(a.id)} aria-label={(quickActivityIds.includes(a.id)?'Убрать из быстрого выбора: ':'В быстрый выбор: ')+a.label} onClick={()=>onToggleQuick(a.id)}>{quickActivityIds.includes(a.id)?'★':'☆'}</button>
+      </div>)}
     </div>
-
-    {otherOpen&&<div className="modal-backdrop" onClick={()=>setOtherOpen(false)}>
-      <section className="other-modal glass-card" onClick={e=>e.stopPropagation()}>
-        <header><h2>Предложить активность</h2><button onClick={()=>setOtherOpen(false)}>×</button></header>
-        <label className="dark-field"><span>Название активности</span><input value={text} onChange={e=>{setText(e.target.value);setSent(false);}} placeholder="Например: плавание" autoFocus/></label>
-        <button className="secondary-dark" onClick={submit}>Отправить на модерацию</button>
-        {sent&&<p className="success-line">Отправлено админу на согласование.</p>}
-      </section>
-    </div>}
+    <button type="button" className="gradient-button forma-other-button" onClick={()=>{setOtherOpen(true);setSent(false);setError('');}}>Другая активность <b>›</b></button>
+    {otherOpen&&<div className="modal-backdrop" onClick={()=>setOtherOpen(false)}><section className="other-modal glass-card" role="dialog" aria-modal="true" aria-label="Предложить активность" onClick={e=>e.stopPropagation()}>
+      <header><h2>Другая активность</h2><button type="button" aria-label="Закрыть" onClick={()=>setOtherOpen(false)}>×</button></header>
+      <p>Предложи название новой активности. Она появится в общем каталоге только после согласования.</p>
+      <label className="dark-field"><span>Название активности</span><input value={text} onChange={e=>{setText(e.target.value);setSent(false);}} placeholder="Например: плавание" autoFocus maxLength={180}/></label>
+      <button className="secondary-dark" type="button" disabled={sending||!text.trim()} onClick={submit}>{sending?'Отправляем…':'Предложить владельцу'}</button>
+      {error&&<p role="alert" className="error-line">{error}</p>}
+      {sent&&<p role="status" className="success-line">Предложение отправлено на рассмотрение.</p>}
+    </section></div>}
   </main>;
 }
 
@@ -2373,9 +2371,9 @@ function expeditionDays(points=[]){
   return [...map.values()].sort((x,y)=>x.date.localeCompare(y.date));
 }
 
-function OutdoorTraining({dateKey,setDateKey,sessions,onBack,onSave,onSaveExpedition}){
+function OutdoorTraining({initialMode='bike',dateKey,setDateKey,sessions,onBack,onSave,onSaveExpedition}){
   const initialDraft=loadExpeditionDraft();
-  const [mode,setMode]=useState(initialDraft?'hike':'bike');
+  const [mode,setMode]=useState(initialDraft?'hike':initialMode);
   const [manualOpen,setManualOpen]=useState(false);
   const [title,setTitle]=useState(initialDraft?.title||'');
   const [distance,setDistance]=useState('');
