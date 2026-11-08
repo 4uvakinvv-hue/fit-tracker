@@ -28,15 +28,13 @@ export default function GymTraining({userId,dateKey,setDateKey,sessions,gymTempl
   }catch(e){setError(e.message||'Не удалось сохранить тренировку. Черновик остаётся на устройстве.');}finally{savingRef.current=false;setSaving(false);}}
  const total=Math.round(tonnage([...data.baseRows,...data.extraRows])).toLocaleString('ru-RU');
  return <main className="sub-screen gym-screen"><div className="screen-back-row"><button className="back-button" onClick={onBack}>‹</button><strong>Тренировка</strong></div>
-  <section className="gym-coach-top" style={{display:'grid',gap:8,margin:'12px 0 18px'}}><button type="button" className="gradient-button coach-workout-entry" style={{width:'100%',minHeight:52,fontSize:16,fontWeight:800}} onClick={openCoach}>Тренировка от тренера <b>›</b></button>{coachAccess==='active'&&<small>Подписка активна — твой индивидуальный план доступен</small>}{coachAccess==='checking'&&<small>Проверяем доступ к тренеру…</small>}{coachMessage&&<p role="status" className="soft-text">{coachMessage}</p>}</section>
-  <label className="date-control compact-date"><span>Дата</span><input type="date" value={dateKey} onChange={e=>setDateKey(e.target.value)} disabled={saving}/></label>
-  <div className="gym-tabs">{GROUPS.map(g=><button key={g.id} className={group===g.id?'active':''} disabled={saving} onClick={()=>changeGroup(g.id)}><span>{g.icon}</span>{g.label}</button>)}</div>
+  <section className="gym-coach-top forma-gym-banner"><button type="button" className="gradient-button coach-workout-entry" onClick={openCoach}><span>// FORMA</span>Тренировка от тренера <b>›</b></button>{coachAccess==='active'&&<small>Подписка активна — индивидуальный план доступен</small>}{coachAccess==='checking'&&<small>Проверяем доступ к тренеру…</small>}{coachMessage&&<p role="status" className="soft-text">{coachMessage}</p>}</section>
+  <div className="gym-tabs">{GROUPS.map(g=><button key={g.id} className={group===g.id?'active':''} disabled={saving} onClick={()=>changeGroup(g.id)}>{g.label}</button>)}</div>
   <p className="gym-draft-status" role="status">{notice}. В историю попадёт только после сохранения тренировки.</p>
-  <ExerciseBlock title={group==='custom'?'Упражнения':'База'} rows={data.baseRows} group={group==='custom'?'all':group} kind="baseRows" onChange={update} extraNames={extraNames}/>
-  {group!=='custom'&&<ExerciseBlock title="Доп" rows={data.extraRows} group="accessory" kind="extraRows" onChange={update} extraNames={extraNames}/>}
   <div className="tonnage-summary"><span>Тоннаж тренировки</span><strong>{total} кг</strong></div>
+  <ExerciseBlock title="Тренировка целиком" rows={[...data.baseRows.map((r,index)=>({...r,sourceKind:'baseRows',sourceIndex:index})),...data.extraRows.map((r,index)=>({...r,sourceKind:'extraRows',sourceIndex:index}))].slice(0,8)} group={group==='custom'?'all':group} kind="baseRows" onChange={update} extraNames={extraNames}/>
   {error&&<p className="error-line" role="alert">{error}</p>}
-  <button className="gradient-button save-training gym-save-primary" onClick={save} disabled={saving}>{saving?'Сохраняем…':dateKey>todayMoscow()?'Запланировать тренировку':'Сохранить тренировку'}<b>›</b></button>
+  <div className="forma-gym-save-row"><label className="date-control compact-date"><span>Дата</span><input type="date" value={dateKey} onChange={e=>setDateKey(e.target.value)} disabled={saving}/></label><button className="gradient-button save-training gym-save-primary" onClick={save} disabled={saving}>{saving?'Сохраняем…':dateKey>todayMoscow()?'Запланировать тренировку':'Сохранить тренировку'}<b>›</b></button></div>
   <div className="gym-coach-actions"><button className="gym-quiet-link" onClick={onTrainerRequest}>Заказать тренера</button></div>
   <button className="gym-history-link" onClick={onHistory}>Предыдущие тренировки<span>›</span></button>
  </main>;
@@ -46,11 +44,11 @@ function ExerciseBlock({title,rows,group,kind,onChange,extraNames}){
  return <section className="exercise-block mint"><header><div><h2>{title}</h2><p>Каталог с поиском и вариантами выполнения</p></div><span>{rows.length} упражнений</span></header>
   <div className="exercise-head"><span>Упражнение</span><span>Подх.</span><span>Повт.</span><span>Вес</span><span></span></div>
   <div className="exercise-rows">{rows.map((r,i)=><div className="exercise-row-wrap" key={i}><div className="exercise-row">
-   <ExercisePicker value={r.exercise} group={group} extra={extraNames} onChange={v=>onChange(kind,i,'exercise',v)}/>
-   <input aria-label={`${r.exercise||'Упражнение'}: подходы`} inputMode="numeric" value={r.sets} onChange={e=>onChange(kind,i,'sets',e.target.value)} placeholder="3"/>
-   <input aria-label={`${r.exercise||'Упражнение'}: повторения`} inputMode="numeric" value={r.reps} onChange={e=>onChange(kind,i,'reps',e.target.value)} placeholder="10"/>
-   <div className="weight-input"><input aria-label={`${r.exercise||'Упражнение'}: вес`} inputMode="decimal" value={r.weight} onChange={e=>onChange(kind,i,'weight',e.target.value)} placeholder="0"/><small>кг</small></div>
+   <ExercisePicker value={r.exercise} group={group} extra={extraNames} onChange={v=>onChange(r.sourceKind||kind,r.sourceIndex??i,'exercise',v)}/>
+   <input aria-label={`${r.exercise||'Упражнение'}: подходы`} inputMode="numeric" value={r.sets} onChange={e=>onChange(r.sourceKind||kind,r.sourceIndex??i,'sets',e.target.value)} placeholder="3"/>
+   <input aria-label={`${r.exercise||'Упражнение'}: повторения`} inputMode="numeric" value={r.reps} onChange={e=>onChange(r.sourceKind||kind,r.sourceIndex??i,'reps',e.target.value)} placeholder="10"/>
+   <div className="weight-input"><input aria-label={`${r.exercise||'Упражнение'}: вес`} inputMode="decimal" value={r.weight} onChange={e=>onChange(r.sourceKind||kind,r.sourceIndex??i,'weight',e.target.value)} placeholder="0"/></div>
    <button className={`exercise-note-button ${r.comment?'has-note':''}`} aria-label="Комментарий" onClick={()=>setOpenComment(openComment===i?null:i)}>▤</button>
-  </div>{openComment===i&&<div className="exercise-comment-row"><input value={r.comment||''} onChange={e=>onChange(kind,i,'comment',e.target.value)} placeholder="Комментарий к упражнению"/><button onClick={()=>setOpenComment(null)}>Готово</button></div>}</div>)}</div>
+  </div>{openComment===i&&<div className="exercise-comment-row"><input value={r.comment||''} onChange={e=>onChange(r.sourceKind||kind,r.sourceIndex??i,'comment',e.target.value)} placeholder="Комментарий к упражнению"/><button onClick={()=>setOpenComment(null)}>Готово</button></div>}</div>)}</div>
  </section>;
 }
