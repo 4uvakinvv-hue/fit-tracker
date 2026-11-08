@@ -39,11 +39,24 @@ export default function GymTraining({userId,dateKey,setDateKey,sessions,gymTempl
   <button className="gym-history-link" onClick={onHistory}>Предыдущие тренировки<span>›</span></button>
  </main>;
 }
+function exercisePreview(name=''){
+ const n=String(name).toLowerCase();
+ if(!n)return '';
+ if(/жим.*штанг.*лёж|жим.*лёж.*штанг/.test(n))return '0';
+ if(/жим.*гантел.*наклон/.test(n))return '1';
+ if(/разводк.*кроссовер/.test(n))return '2';
+ if(/^отжимани/.test(n))return '3';
+ if(/жим.*тренажёр|жим.*тренажер/.test(n))return '4';
+ if(/пуловер/.test(n))return '5';
+ return '';
+}
+
 function ExerciseBlock({title,rows,group,kind,onChange,extraNames}){
  const [openComment,setOpenComment]=useState(null);
  return <section className="exercise-block mint"><header><div><h2>{title}</h2><p>Каталог с поиском и вариантами выполнения</p></div><span>{rows.length} упражнений</span></header>
   <div className="exercise-head"><span>Упражнение</span><span>Подх.</span><span>Повт.</span><span>Вес</span><span></span></div>
   <div className="exercise-rows">{rows.map((r,i)=><div className="exercise-row-wrap" key={i}><div className="exercise-row">
+   <span className="forma-exercise-preview" data-preview={exercisePreview(r.exercise)} aria-hidden="true">{exercisePreview(r.exercise)?'':'◈'}</span>
    <ExercisePicker value={r.exercise} group={group} extra={extraNames} onChange={v=>onChange(r.sourceKind||kind,r.sourceIndex??i,'exercise',v)}/>
    <input aria-label={`${r.exercise||'Упражнение'}: подходы`} inputMode="numeric" value={r.sets} onChange={e=>onChange(r.sourceKind||kind,r.sourceIndex??i,'sets',e.target.value)} placeholder="3"/>
    <input aria-label={`${r.exercise||'Упражнение'}: повторения`} inputMode="numeric" value={r.reps} onChange={e=>onChange(r.sourceKind||kind,r.sourceIndex??i,'reps',e.target.value)} placeholder="10"/>
