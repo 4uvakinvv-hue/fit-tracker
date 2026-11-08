@@ -1926,46 +1926,32 @@ function ProfileScreen({profile,email,isBoss,onBack,onNameChanged,onWeightChange
  {isBoss&&<AdminUsersPanel/>}
  </main>;
 }
-function AboutScreen(){
+function AboutScreen({onWhy}){
   const [iosHelp,setIosHelp]=useState(false);
-
-  function openAndroid(){
-    window.open(ANDROID_APK_URL,'_blank','noopener,noreferrer');
-  }
-
-  function openIos(){
-    setIosHelp(true);
-    window.open(IOS_INSTALL_URL,'_blank','noopener,noreferrer');
-  }
-
-  return <main className="tab-screen about-screen about-tab-screen">
-    <p className="eyebrow-dark">Форма</p>
-    <h1>О приложении</h1>
-
-    <section className="download-card glass-card">
-      <h2>Установить «Форму»</h2>
-      <p>Выберите своё устройство.</p>
-
-      <button className="platform-download android-download" onClick={openAndroid}>
-        <span className="platform-icon">A</span>
-        <span><strong>Android</strong><small>Скачать актуальный установочный APK</small></span>
-        <b>↓</b>
-      </button>
-
-      <button className="platform-download ios-download" onClick={openIos}>
-        <span className="platform-icon apple-mark">●</span>
-        <span><strong>iPhone / iOS</strong><small>Установить через Safari без App Store</small></span>
-        <b>›</b>
-      </button>
-
-      {iosHelp&&<div className="ios-install-help">
-        <strong>На iPhone:</strong>
-        <span>откройте ссылку в Safari → «Поделиться» → «На экран Домой» → «Добавить».</span>
-      </div>}
+  function openAndroid(){window.open(ANDROID_APK_URL,'_blank','noopener,noreferrer');}
+  function openIos(){setIosHelp(true);window.open(IOS_INSTALL_URL,'_blank','noopener,noreferrer');}
+  const features=[
+    ['gym','Тренировки','Силовые планы и история нагрузок'],
+    ['bike','Активности','Вело, бег, походы, GPS и другое'],
+    ['stats','Статистика','Реальный прогресс и серия'],
+    ['members','Сообщество','Рейтинг, участники и сезоны']
+  ];
+  return <main className="tab-screen about-screen about-tab-screen forma-about">
+    <section className="forma-about-hero">
+      <Brand/>
+      <h1>Больше, чем просто тренировки</h1>
+      <p>Двигайся, фиксируй активность и наблюдай свой прогресс.</p>
     </section>
-
-    <p className="about-version-label">Форма · версия {APP_VERSION}</p>
-
+    <div className="forma-about-features">{features.map(([id,title,detail])=><article className="glass-card" key={id}><span className="forma-about-feature-icon">{id==='stats'?'▥':id==='members'?'♧':<ActivityGlyph type={id}/>}</span><div><strong>{title}</strong><small>{detail}</small></div></article>)}</div>
+    <button type="button" className="gradient-button forma-why-link" onClick={onWhy}><span>//</span><span><strong>Философия FORMA</strong><small>Для чего существует приложение</small></span><b>›</b></button>
+    <section className="download-card glass-card">
+      <h2>Установить FORMA</h2>
+      <p>Выбери своё устройство.</p>
+      <button className="platform-download android-download" onClick={openAndroid}><span className="platform-icon">A</span><span><strong>Android</strong><small>Скачать актуальный APK</small></span><b>↓</b></button>
+      <button className="platform-download ios-download" onClick={openIos}><span className="platform-icon apple-mark">●</span><span><strong>iPhone / iOS</strong><small>Установить через Safari</small></span><b>›</b></button>
+      {iosHelp&&<div className="ios-install-help"><strong>На iPhone:</strong><span>Safari → «Поделиться» → «На экран Домой» → «Добавить».</span></div>}
+    </section>
+    <p className="about-version-label">FORMA · версия {APP_VERSION}</p>
   </main>;
 }
 
