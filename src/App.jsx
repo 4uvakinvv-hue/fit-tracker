@@ -1421,7 +1421,15 @@ export default function App(){
     await savePlan(draftDateKey,type,'','planned');navigate(type);
   }
   async function openQuickActivity(type){
-    setDraftDateKey(selectedDateKey||localDateKey());
+    const date=selectedDateKey||localDateKey();
+    setDraftDateKey(date);
+    if(type==='gym'||type==='workout'||type==='combat'||type==='crossfit'||type==='hike'){
+      await savePlan(date,type,'','planned');
+      navigate(type);return;
+    }
+    if(['bike','run','flaneuring','moto'].includes(type)){
+      setOutdoorStartMode(type);navigate('outdoor');return;
+    }
     await chooseType(type);
   }
 
@@ -1765,7 +1773,7 @@ function Home({onOpenProfile,schedule,sessions,profile,dailySteps,expeditionDays
         <div className="forma-series-dots">{Array.from({length:6},(_,i)=><i key={i} className={i<streak?'complete':''}/>)}</div>
       </div>
     </div>
-    <DateWheelV17 schedule={schedule} dailySteps={dailySteps} selectedDateKey={selectedDateKey} setSelectedDateKey={setSelectedDateKey}/>
+    <FormaWeekCalendar schedule={schedule} dailySteps={dailySteps} selectedDateKey={selectedDateKey} setSelectedDateKey={setSelectedDateKey}/>
     {saveNotice&&<div className="save-toast">✓ {saveNotice}</div>}
     {notificationsOpen&&<div className="modal-backdrop" onClick={()=>setNotificationsOpen(false)}>
       <section className="admin-notifications-modal" onClick={e=>e.stopPropagation()}>
@@ -1799,6 +1807,19 @@ function Home({onOpenProfile,schedule,sessions,profile,dailySteps,expeditionDays
       </section>
     </div>}
   </main>;
+}
+
+function FormaWeekCalendar({schedule,dailySteps,selectedDateKey,setSelectedDateKey}){
+  const weekStart=mondayOf(dateFromKey(selectedDateKey));
+  const days=Array.from({length:7},(_,i)=>localDateKey(addDays(weekStart,i)));
+  const today=localDateKey();
+  return <section className="forma-week-calendar" aria-label="Календарь недели">
+    <div className="forma-week-heading"><span>Выбранная дата: <strong>{formatDate(selectedDateKey,{day:'numeric',month:'long'})}</strong></span><button type="button" onClick={()=>setSelectedDateKey(today)}>Сегодня</button></div>
+    <div className="forma-week-days">{days.map((key,i)=>{
+      const completed=schedule?.[key]?.status==='completed'||Number((dailySteps||[]).find(d=>d.date===key)?.steps||0)>=15000;
+      return <button type="button" key={key} onClick={()=>setSelectedDateKey(key)} aria-pressed={key===selectedDateKey} className={(key===selectedDateKey?'selected ':'')+(completed?'completed':'')}><span>{['Пн','Вт','Ср','Чт','Пт','Сб','Вс'][i]}</span><strong>{Number(key.slice(-2))}</strong><i/></button>;
+    })}</div>
+  </section>;
 }
 
 function StreakStrip({streak=0,state=null}){
