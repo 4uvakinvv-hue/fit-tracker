@@ -19,7 +19,6 @@ import { LocalNotifications } from '@capacitor/local-notifications';
 import { Share } from '@capacitor/share';
 
 const APP_VERSION = '2.1';
-const APP_VERSION = '2.1';
 const ANDROID_APK_URL = 'https://github.com/4uvakinvv-hue/fit-tracker/releases/download/android-current/forma-android.apk';
 const IOS_INSTALL_URL = 'https://4uvakinvv-hue.github.io/fit-tracker/';
 const AUTH_RECOVERY_REDIRECT_URL = 'https://4uvakinvv-hue.github.io/fit-tracker/';
