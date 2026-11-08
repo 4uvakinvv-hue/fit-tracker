@@ -618,14 +618,11 @@ function Brand({compact=false}){
 
 function SplashScreen({progress=8,stage='Запуск приложения'}){
   const value=Math.max(0,Math.min(100,Math.round(Number(progress)||0)));
-  return <main className="splash-screen splash-v18">
-    <div className="forma-splash-brand"><Brand/><strong>Тренируйся. Живи. Развивайся.</strong></div>
-    <img className="splash-v18-image" src={`${import.meta.env.BASE_URL}splash-v1.8.jpg`} alt="Спортсмен FORMA"/>
-    <div className="splash-v18-overlay"/>
-    <div className="splash-v18-progress">
+  return <main className="forma-splash" aria-label="Загрузка FORMA">
+    <img className="forma-splash-image" src={String(import.meta.env.BASE_URL)+'forma-design/splash.webp'} alt="FORMA — Тренируйся. Живи. Развивайся."/>
+    <div className="forma-splash-live">
       <strong>{stage==='Запуск приложения'?'Подключаемся к базе':stage}</strong>
-      <div className="splash-v18-track" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow={value}><i style={{width:value+'%'}}/></div>
-      <span>БОЛЬШЕ, ЧЕМ ПРОСТО ТРЕНИРОВКИ</span>
+      <div className="forma-splash-live-track" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow={value}><i style={{width:value+'%'}}/></div>
     </div>
   </main>;
 }
