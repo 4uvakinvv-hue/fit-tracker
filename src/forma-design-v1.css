@@ -100,7 +100,7 @@ input,select,textarea{color-scheme:light}
 .forma-season-hero{flex:0 1 clamp(124px,25dvh,196px);min-height:112px;overflow:hidden;position:relative;
   display:flex;align-items:center;padding:clamp(12px,3.8vw,20px);
   background:linear-gradient(120deg,rgba(17,29,27,.92) 0%,rgba(25,42,36,.86) 62%,rgba(21,35,32,.26)),
-    url('/fit-tracker/splash-v1.8.jpg') 79% 37%/cover no-repeat;
+    url('/splash-v1.8.jpg') 79% 37%/cover no-repeat;
   color:white;border-radius:22px;border:2px solid rgba(255,255,255,.74);
   box-shadow:5px 7px 15px rgba(81,60,43,.24),-4px -4px 12px white,inset 0 1px rgba(255,255,255,.5)}
 .forma-season-copy{z-index:2;position:relative;width:63%;min-width:190px;display:grid;justify-items:start;gap:5px}
@@ -122,7 +122,7 @@ input,select,textarea{color-scheme:light}
 .forma-quick-card{flex:0 0 clamp(94px,28vw,154px);height:clamp(82px,16dvh,128px);padding:0;position:relative;overflow:hidden;
   border-radius:17px;background:#eadccf;border:2px solid #fff;
   box-shadow:3px 4px 8px rgba(116,92,70,.2),-3px -3px 8px white;display:flex;flex-direction:column}
-.forma-quick-photo{flex:1;min-height:0;background:linear-gradient(120deg,rgba(13,29,25,.1),rgba(44,74,64,.12)),url('/fit-tracker/splash-v1.8.jpg') center 42%/cover}
+.forma-quick-photo{flex:1;min-height:0;background:linear-gradient(120deg,rgba(13,29,25,.1),rgba(44,74,64,.12)),url('/splash-v1.8.jpg') center 42%/cover}
 .forma-quick-label{display:flex;align-items:center;justify-content:center;gap:5px;background:#fff9f3;color:#255b48;
   font-size:clamp(9px,2.8vw,11px);font-weight:850;min-height:27px;white-space:nowrap}
 .forma-quick-label .activity-svg{width:17px;height:17px}
@@ -160,7 +160,7 @@ input,select,textarea{color-scheme:light}
   box-shadow:4px 6px 12px rgba(107,88,68,.2),-4px -4px 11px #fff;overflow:hidden}
 .forma-activity-select{padding:0;background:transparent;color:#202b25;width:100%;height:100%;display:flex;flex-direction:column;overflow:hidden;text-align:left}
 .forma-activity-photo{display:block;flex:1;min-height:0;width:100%;
-  background:linear-gradient(120deg,rgba(19,37,32,.08),rgba(56,77,58,.08)),url('/fit-tracker/splash-v1.8.jpg') center 36%/cover}
+  background:linear-gradient(120deg,rgba(19,37,32,.08),rgba(56,77,58,.08)),url('/splash-v1.8.jpg') center 36%/cover}
 .forma-photo-bike .forma-activity-photo,.forma-photo-bike .forma-quick-photo{background-position:63% 55%}
 .forma-photo-hike .forma-activity-photo{background-position:74% 20%}
 .forma-photo-run .forma-activity-photo{background-position:50% 18%}
@@ -237,7 +237,7 @@ input,select,textarea{color-scheme:light}
 .forma-about-hero,.forma-members-hero{
   min-height:clamp(145px,25dvh,235px);border-radius:25px;overflow:hidden;padding:20px;
   background:linear-gradient(90deg,rgba(12,29,26,.88),rgba(15,47,34,.48)),
-    url('/fit-tracker/splash-v1.8.jpg') 80% 35% / cover;
+    url('/splash-v1.8.jpg') 80% 35% / cover;
   border:2px solid white;box-shadow:4px 6px 16px #d9c9bb,-4px -4px 10px white;
   color:#fff;display:flex;flex-direction:column;justify-content:center;
 }
@@ -279,7 +279,7 @@ input,select,textarea{color-scheme:light}
 .forma-stats-season-copy .forma-season-progress{height:11px;background:#dae8dc;width:100%}
 .forma-stats-season-value{font-size:12px;color:#e9fff2}
 .forma-stats-season-copy em{font-size:10px;font-style:normal;color:#b9e9d5}
-.forma-stats-athlete{background:url('/fit-tracker/splash-v1.8.jpg') 51% 34%/auto 190% no-repeat}
+.forma-stats-athlete{background:url('/splash-v1.8.jpg') 51% 34%/auto 190% no-repeat}
 .forma-metrics-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;margin:11px 0}
 .forma-metrics-grid>button,.forma-metrics-grid>article{padding:12px;display:grid;gap:3px;text-align:left;min-height:76px;
   border:1px solid #e9d9cb;border-radius:17px;background:linear-gradient(140deg,#fffdf9,#f0e4d9);
@@ -356,7 +356,7 @@ input,select,textarea{color-scheme:light}
 .forma-design-v1 .forma-gym-banner .coach-workout-entry{width:100%;min-height:68px;display:flex;align-items:center;justify-content:space-between;gap:8px;
   padding:11px 15px;font-size:clamp(12px,4vw,16px);border-radius:21px;
   background:linear-gradient(100deg,rgba(7,51,39,.9),rgba(4,95,74,.62)),
-    url('/fit-tracker/splash-v1.8.jpg') center 50%/cover!important;}
+    url('/splash-v1.8.jpg') center 50%/cover!important;}
 .forma-gym-banner .coach-workout-entry>span{font-size:11px;color:#a8ffe1;white-space:nowrap}
 .forma-gym-banner .coach-workout-entry>b{font-size:22px}
 .forma-gym-save-row{display:grid;grid-template-columns:minmax(116px,38%) minmax(0,1fr);gap:8px;align-items:end}
@@ -372,3 +372,21 @@ input,select,textarea{color-scheme:light}
  .forma-stats-chart{padding:9px}.forma-chart-bars{height:110px}
  .forma-podium-place{padding:7px 2px}.forma-podium-place strong{font-size:9px}
 }
+
+/* Compact non-scrolling seven-day calendar */
+.forma-week-calendar{flex:1 0 auto;min-height:77px;max-height:97px;
+ padding:7px 10px;background:linear-gradient(140deg,#fffdf8,#f1e5d9);border-radius:19px;
+ border:1px solid #e8d9cb;box-shadow:3px 5px 10px #e2d0c2,-3px -3px 8px white;display:flex;flex-direction:column;gap:6px}
+.forma-week-heading{display:flex;justify-content:space-between;align-items:center;gap:6px;font-size:10px;color:#5f7266;line-height:1.1;white-space:nowrap}
+.forma-week-heading strong{color:#283a2e;font-size:10px}
+.forma-week-heading button{font-size:10px;color:#147c5e;background:transparent;padding:3px}
+.forma-week-days{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:3px;flex:1;min-height:0}
+.forma-week-days button{display:flex;align-items:center;flex-direction:column;justify-content:space-around;
+ border-radius:12px;min-width:0;background:linear-gradient(130deg,#f9f2e9,#fff);color:#61786b;padding:3px 0}
+.forma-week-days button span{font-size:9px}.forma-week-days button strong{font-size:13px;color:#29392e}
+.forma-week-days button i{height:3px;width:3px;border-radius:50%;background:transparent}
+.forma-week-days button.completed i{background:#0aa57e}
+.forma-week-days button.selected{background:linear-gradient(150deg,#54deb1,#058d6e)!important;color:#fff!important;box-shadow:0 3px 6px #a3d3bd}
+.forma-week-days button.selected strong{color:#fff}
+.forma-week-days button.selected i{background:#d4ffe9}
+@media(max-height:680px){.forma-week-calendar{min-height:65px;max-height:78px;padding:5px 7px;gap:3px}.forma-week-days button strong{font-size:11px}}
