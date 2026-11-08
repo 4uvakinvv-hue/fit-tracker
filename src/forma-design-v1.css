@@ -390,3 +390,72 @@ input,select,textarea{color-scheme:light}
 .forma-week-days button.selected strong{color:#fff}
 .forma-week-days button.selected i{background:#d4ffe9}
 @media(max-height:680px){.forma-week-calendar{min-height:65px;max-height:78px;padding:5px 7px;gap:3px}.forma-week-days button strong{font-size:11px}}
+
+/* Authentic imagery cropped from the seven approved FORMA Design v1.0 PNGs.
+   /forma-design/*.webp are local app assets, never external placeholders. */
+.forma-design-v1 .forma-season-hero{
+  background:linear-gradient(90deg,rgba(10,27,23,.94) 0%,rgba(10,28,23,.70) 45%,rgba(8,27,19,.04) 100%),
+   url('/forma-design/hero.webp') 70% 42%/cover no-repeat!important;
+}
+.forma-design-v1 .forma-about-hero{
+  background:linear-gradient(90deg,rgba(15,29,27,.92) 0%,rgba(10,33,29,.58) 51%,rgba(12,23,18,.04) 100%),
+    url('/forma-design/about.webp') 66% 44%/cover no-repeat!important;
+}
+.forma-design-v1 .forma-members-hero{
+  background:linear-gradient(90deg,rgba(15,29,27,.85) 0%,rgba(10,33,29,.48) 47%,rgba(12,23,18,.03) 100%),
+    url('/forma-design/community.webp') 66% 44%/cover no-repeat!important;
+}
+.forma-design-v1 .forma-stats-athlete{background:url('/forma-design/hero.webp') 88% 48%/auto 144% no-repeat!important}
+.forma-design-v1 .forma-gym-banner .coach-workout-entry{
+  background:linear-gradient(90deg,rgba(7,54,41,.93),rgba(4,93,68,.66) 60%,rgba(1,67,48,.12)),
+     url('/forma-design/coach.webp') 68% 51%/cover!important;
+}
+.forma-activity-card .forma-activity-photo,.forma-quick-card .forma-quick-photo{
+  background-image:url('/forma-design/activities.webp')!important;
+  background-repeat:no-repeat!important;
+  background-size:200% 400%!important;
+}
+.forma-photo-gym .forma-activity-photo,.forma-photo-gym .forma-quick-photo{background-position:0% 0%!important}
+.forma-photo-bike .forma-activity-photo,.forma-photo-bike .forma-quick-photo{background-position:100% 0%!important}
+.forma-photo-hike .forma-activity-photo,.forma-photo-hike .forma-quick-photo{background-position:0% 33.333%!important}
+.forma-photo-run .forma-activity-photo,.forma-photo-run .forma-quick-photo{background-position:100% 33.333%!important}
+.forma-photo-crossfit .forma-activity-photo,.forma-photo-crossfit .forma-quick-photo{background-position:0% 66.667%!important}
+.forma-photo-flaneuring .forma-activity-photo,.forma-photo-flaneuring .forma-quick-photo{background-position:100% 66.667%!important}
+.forma-photo-workout .forma-activity-photo,.forma-photo-workout .forma-quick-photo{background-position:0% 100%!important}
+.forma-photo-combat .forma-activity-photo,.forma-photo-combat .forma-quick-photo{background-position:100% 100%!important}
+/* Six exercise photos from the original workout reference; unmatched names use a neutral preview. */
+.forma-exercise-preview{width:27px;height:32px;display:grid;place-items:center;border-radius:8px;
+  flex-shrink:0;background:linear-gradient(140deg,#e0ffef,#7fdaad);font-size:16px;color:#168361}
+.forma-exercise-preview[data-preview]:not([data-preview=""]){
+  background:url('/forma-design/exercises.webp') no-repeat;
+  background-size:300% 200%;
+}
+.forma-exercise-preview[data-preview="0"]{background-position:0% 0%}
+.forma-exercise-preview[data-preview="1"]{background-position:50% 0%}
+.forma-exercise-preview[data-preview="2"]{background-position:100% 0%}
+.forma-exercise-preview[data-preview="3"]{background-position:0% 100%}
+.forma-exercise-preview[data-preview="4"]{background-position:50% 100%}
+.forma-exercise-preview[data-preview="5"]{background-position:100% 100%}
+.forma-design-v1 .exercise-head{grid-template-columns:27px minmax(0,1fr) 40px 40px 40px 23px!important;gap:3px}
+.forma-design-v1 .exercise-head:before{content:""}
+.forma-design-v1 .exercise-row{grid-template-columns:27px minmax(0,1fr) 40px 40px 40px 23px!important;gap:3px}
+.forma-design-v1 .exercise-row input{padding:3px!important;font-size:10px}
+.forma-design-v1 .exercise-select-button{padding:3px!important;font-size:10px}
+.forma-splash{
+  height:100dvh!important;width:100vw!important;overflow:hidden;position:relative;display:flex;align-items:center;justify-content:center;
+  background:#f6e8d9!important;padding:0!important;color:#23362c!important;
+}
+.forma-splash-image{width:100%;height:100%;max-width:650px;object-fit:cover;object-position:center}
+.forma-splash-live{
+  position:absolute;left:50%;bottom:5.4%;transform:translateX(-50%);
+  width:min(85%,500px);padding:10px 15px;border-radius:23px;background:rgba(252,238,224,.97);
+  box-shadow:0 5px 17px rgba(103,79,56,.14);
+  color:#20382c;display:grid;gap:8px;text-align:center;
+}
+.forma-splash-live strong{font-size:clamp(11px,3.1vw,15px)}
+.forma-splash-live-track{height:10px;background:#ecdaca;border-radius:30px;border:2px solid #fff;overflow:hidden;box-shadow:inset 2px 2px 5px #ccb3a0}
+.forma-splash-live-track i{display:block;height:100%;background:linear-gradient(90deg,#78efae,#03bd78);border-radius:30px;transition:width .18s ease}
+@media(max-width:350px){
+  .forma-design-v1 .exercise-head,.forma-design-v1 .exercise-row{grid-template-columns:23px minmax(0,1fr) 34px 34px 34px 20px!important}
+  .forma-exercise-preview{width:23px;height:29px}.forma-design-v1 .exercise-select-button{font-size:9px}
+}
