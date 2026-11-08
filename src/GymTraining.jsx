@@ -18,7 +18,7 @@ export default function GymTraining({userId,dateKey,setDateKey,sessions,gymTempl
  useEffect(()=>{if(current.current.key===key)return;const next=load();current.current={key,data:next};setData(next);setError('');setNotice(readDraft(localStorage,key)?'Черновик восстановлен':'Изменения сохраняются автоматически');},[key]);
  function update(kind,index,field,value){const next={...current.current.data,[kind]:current.current.data[kind].map((r,i)=>i===index?{...r,[field]:value}:r)};current.current={key,data:next};setData(next);try{writeDraft(localStorage,key,next);localStorage.setItem(`forma:gym-selection:${userId}`,JSON.stringify({date:dateKey,group}));setNotice('Черновик сохранён на этом устройстве');setError('');}catch{setError('Не удалось сохранить черновик на устройстве. Не закрывай экран до сохранения тренировки.');}}
  function changeGroup(id){setGroup(id);try{localStorage.setItem(`forma:gym-selection:${userId}`,JSON.stringify({date:dateKey,group:id}));}catch{}}
- async function save(){if(savingRef.current)return;const snapshot=current.current.data,saveKey=current.current.key;const rows=[...snapshot.baseRows,...snapshot.extraRows];if(!rows.some(r=>r.exercise)){setError('Выбери хотя бы одно упражнение.');return;}const invalid=validateResults(rows);if(invalid){setError(invalid);return;}savingRef.current=true;setSaving(true);setError('');try{
+ async function save(){if(savingRef.current)return;const snapshot=current.current.data,saveKey=current.current.key;const rows=[...snapshot.baseRows,...snapshot.extraRows];if(!rows.some(r=>r.exercise)){setError('Выбери хотя бы одно упражнение.');return;}if(rows.filter(r=>r.exercise).length>8){setError('Можно сохранить не более 8 упражнений. Открой дополнительные упражнения старого шаблона и очисти лишние.');return;}const invalid=validateResults(rows);if(invalid){setError(invalid);return;}savingRef.current=true;setSaving(true);setError('');try{
    // Persist the same ID before the first request, so a retry cannot duplicate a session.
    writeDraft(localStorage,saveKey,snapshot);
    const baseRows=normalizeResults(snapshot.baseRows),extraRows=normalizeResults(snapshot.extraRows);
@@ -26,13 +26,18 @@ export default function GymTraining({userId,dateKey,setDateKey,sessions,gymTempl
    await onSave({draftId:snapshot.id,type:'gym',date:dateKey,gymGroup:group,baseRows,extraRows,title:GROUPS.find(g=>g.id===group)?.label||'Тренажёрка'});
    localStorage.removeItem(saveKey);setNotice('Тренировка сохранена');
   }catch(e){setError(e.message||'Не удалось сохранить тренировку. Черновик остаётся на устройстве.');}finally{savingRef.current=false;setSaving(false);}}
+ const indexedRows=[...data.baseRows.map((r,index)=>({...r,sourceKind:'baseRows',sourceIndex:index})),...data.extraRows.map((r,index)=>({...r,sourceKind:'extraRows',sourceIndex:index}))];
+ const orderedRows=[...indexedRows.filter(r=>r.exercise),...indexedRows.filter(r=>!r.exercise)];
+ const visibleRows=orderedRows.slice(0,8);
+ const overflowRows=orderedRows.slice(8).filter(r=>r.exercise);
  const total=Math.round(tonnage([...data.baseRows,...data.extraRows])).toLocaleString('ru-RU');
  return <main className="sub-screen gym-screen"><div className="screen-back-row"><button className="back-button" onClick={onBack}>‹</button><strong>Тренировка</strong></div>
   <section className="gym-coach-top forma-gym-banner"><button type="button" className="gradient-button coach-workout-entry" onClick={openCoach}><span>// FORMA</span>Тренировка от тренера <b>›</b></button>{coachAccess==='active'&&<small>Подписка активна — индивидуальный план доступен</small>}{coachAccess==='checking'&&<small>Проверяем доступ к тренеру…</small>}{coachMessage&&<p role="status" className="soft-text">{coachMessage}</p>}</section>
   <div className="gym-tabs">{GROUPS.map(g=><button key={g.id} className={group===g.id?'active':''} disabled={saving} onClick={()=>changeGroup(g.id)}>{g.label}</button>)}</div>
   <p className="gym-draft-status" role="status">{notice}. В историю попадёт только после сохранения тренировки.</p>
   <div className="tonnage-summary"><span>Тоннаж тренировки</span><strong>{total} кг</strong></div>
-  <ExerciseBlock title="Тренировка целиком" rows={[...data.baseRows.map((r,index)=>({...r,sourceKind:'baseRows',sourceIndex:index})),...data.extraRows.map((r,index)=>({...r,sourceKind:'extraRows',sourceIndex:index}))].slice(0,8)} group={group==='custom'?'all':group} kind="baseRows" onChange={update} extraNames={extraNames}/>
+  <ExerciseBlock title="Тренировка целиком" rows={visibleRows} group={group==='custom'?'all':group} kind="baseRows" onChange={update} extraNames={extraNames}/>
+  {overflowRows.length>0&&<details className="forma-legacy-overflow"><summary>В старом шаблоне ещё {overflowRows.length} упражнения · открой, чтобы сократить до 8</summary><ExerciseBlock title="Дополнительные упражнения старого шаблона" rows={overflowRows} group="all" kind="baseRows" onChange={update} extraNames={extraNames}/></details>}
   {error&&<p className="error-line" role="alert">{error}</p>}
   <div className="forma-gym-save-row"><label className="date-control compact-date"><span>Дата</span><input type="date" value={dateKey} onChange={e=>setDateKey(e.target.value)} disabled={saving}/></label><button className="gradient-button save-training gym-save-primary" onClick={save} disabled={saving}>{saving?'Сохраняем…':dateKey>todayMoscow()?'Запланировать тренировку':'Сохранить тренировку'}<b>›</b></button></div>
   <div className="gym-coach-actions"><button className="gym-quiet-link" onClick={onTrainerRequest}>Заказать тренера</button></div>
