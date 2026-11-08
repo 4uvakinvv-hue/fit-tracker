@@ -3129,19 +3129,12 @@ function StatisticsV17({sessions,dailySteps,profile,memberCount,onOpenMembers,on
 
 function MembersV17({members,profile,previousTop5}){
   const season=seasonMeta();
-  const leaderboardRef=useRef(null);
+  const [mode,setMode]=useState('leaderboard');
   const [openId,setOpenId]=useState(null);
   const [events,setEvents]=useState({});
   const [loadingId,setLoadingId]=useState(null);
-  const previousTheme=season.previousName==='лето'?'summer':season.previousName==='зима'?'winter':season.previousName==='весна'?'spring':'autumn';
   const previousVisible=(previousTop5||[]).filter(item=>Number(item.points)>0||item.name===profile?.name);
-
-  useEffect(()=>{
-    const list=leaderboardRef.current;if(!list)return;
-    const timer=requestAnimationFrame(()=>{const me=list.querySelector('.leader-row.me');if(!me)return;list.scrollTop=Math.max(0,me.offsetTop-list.clientHeight/2+me.offsetHeight/2);});
-    return ()=>cancelAnimationFrame(timer);
-  },[members.length,profile?.id]);
-
+  const top=[members?.[1],members?.[0],members?.[2]];
   async function toggle(member){
     if(openId===member.id){setOpenId(null);return;}
     setOpenId(member.id);
@@ -3154,19 +3147,26 @@ function MembersV17({members,profile,previousTop5}){
     }catch(err){console.error('Forma member events failed',err);setEvents(cur=>({...cur,[member.id]:[]}));}
     finally{setLoadingId(null);}
   }
-
-  return <main className="tab-screen members-screen members-v17">
-    <div className="members-head"><div><p className="eyebrow-dark">Рейтинг</p><h1>Участники</h1></div><strong>{members.length}</strong></div>
-    <section className="season-card"><strong>Сезон {season.name}</strong><span>День {season.day} из {season.total}</span></section>
-    <p className="members-caption">Нажми на участника, чтобы увидеть его последние 10 начислений баллов.</p>
-    <div className="leaderboard-scroll" ref={leaderboardRef}><div className="leaderboard">{members.map(m=><div className="leader-item-v17" key={m.id}>
+  function Avatar({member}){
+    const name=member?.name?.trim()||'Участник';
+    const url=member?.avatar_url;
+    return <span className="member-avatar">{url?<img src={url} alt="" onError={e=>{e.currentTarget.hidden=true;e.currentTarget.parentElement?.classList.add('fallback');}}/>:null}<span>{name[0].toUpperCase()}</span></span>;
+  }
+  return <main className="tab-screen members-screen forma-members">
+    <section className="forma-members-hero"><p>Сообщество FORMA</p><h1>Участники</h1><span>Вместе двигаться интереснее</span></section>
+    <div className="forma-community-tabs" role="group" aria-label="Список сообщества"><button type="button" aria-pressed={mode==='leaderboard'} className={mode==='leaderboard'?'active':''} onClick={()=>setMode('leaderboard')}>Лидерборд</button><button type="button" aria-pressed={mode==='all'} className={mode==='all'?'active':''} onClick={()=>setMode('all')}>Все участники</button></div>
+    {mode==='leaderboard'&&<><p className="forma-members-season">Сезон {season.name} · День {season.day} из {season.total}</p>
+    <section className="forma-podium" aria-label="Три лидера сезона">
+      {top.map((member,i)=>member?<button type="button" onClick={()=>toggle(member)} key={member.id} className={'forma-podium-place place-'+(i===1?1:i===0?2:3)}><span className="forma-podium-medal">{i===1?'Ⅰ':i===0?'Ⅱ':'Ⅲ'}</span><Avatar member={member}/><strong>{member.name||'Участник'}</strong><span>{Number(member.points)||0} баллов</span><b>{i===1?'1':i===0?'2':'3'}</b></button>:<div className="forma-podium-place empty" key={i}/>)}
+    </section></>}
+    <div className="forma-members-list-head"><h2>{mode==='leaderboard'?'Рейтинг сезона':'Все участники'}</h2><small>{members.length} участников</small></div>
+    <div className="leaderboard-scroll forma-leaderboard" aria-label="Участники рейтинга"><div className="leaderboard">{members.map(m=><div className="leader-item-v17" key={m.id}>
       <button type="button" className={'leader-row '+(m.id===profile?.id?'me':'')} onClick={()=>toggle(m)}>
-        <span className="rank-place">{m.rank}</span><span className="member-avatar">{m.name?.trim()?.[0]?.toUpperCase()||'У'}</span><div><strong>{m.name}{m.id===profile?.id?' · вы':''}</strong><small>{m.rank===1?'Лидер сезона':'Место №'+m.rank}</small><em>Серий: {Number(m.series_count)||0}</em></div><b>★ {m.points||0}</b><i>{openId===m.id?'⌃':'⌄'}</i>
+        <span className="rank-place">{m.rank}</span><Avatar member={m}/><div><strong>{m.name}{m.id===profile?.id?' · вы':''}</strong><small>{m.last_activity_label||'Место №'+m.rank}</small></div><b>★ {m.points||0}</b><i>{openId===m.id?'⌃':'⌄'}</i>
       </button>
       {openId===m.id&&<div className="member-events-v17">{loadingId===m.id?<small>Загружаю начисления…</small>:!(events[m.id]||[]).length?<small>Начислений в этом сезоне пока нет.</small>:(events[m.id]||[]).map((event,index)=><div key={event.event_date+'-'+index}><span><strong>{formatDate(event.event_date,{day:'numeric',month:'short'})}</strong><small>{event.reason}</small></span><b className={Number(event.delta)>=0?'plus':'minus'}>{Number(event.delta)>=0?'+':''}{event.delta}</b></div>)}</div>}
     </div>)}</div></div>
-    <section className={'previous-season previous-season-'+previousTheme}><header><small>Прошлый сезон</small><h2>Топ-5 · {season.previousName}</h2></header>{!previousVisible.length&&<div className="empty-state compact-empty">В прошлом сезоне пока нет данных.</div>}<div className="previous-season-list">{previousVisible.map(item=><div className={'previous-row '+(item.name===profile?.name?'me':'')} key={item.rank+'-'+item.name}><span>{item.rank}</span><span className="previous-avatar">{item.name?.trim()?.[0]?.toUpperCase()||'У'}</span><strong>{item.name}{item.name===profile?.name?' · вы':''}<em>Серий: {Number(item.series_count)||0}</em></strong><b>★ {item.points}</b></div>)}</div></section>
-    <p className="inactive-rule">Аккаунты не удаляются. Если 45 дней нет активного дня, спортивная часть рейтинга становится 0. 15 000+ шагов считаются активным днём. Персональные штрафы могут уменьшать итоговый балл ниже нуля.</p>
+    <section className="previous-season"><header><small>Прошлый сезон</small><h2>Топ-5 · {season.previousName}</h2></header>{!previousVisible.length&&<div className="empty-state compact-empty">В прошлом сезоне пока нет данных.</div>}<div className="previous-season-list">{previousVisible.map(item=><div className={'previous-row '+(item.name===profile?.name?'me':'')} key={item.rank+'-'+item.name}><span>{item.rank}</span><span className="previous-avatar">{item.name?.trim()?.[0]?.toUpperCase()||'У'}</span><strong>{item.name}{item.name===profile?.name?' · вы':''}<em>Серий: {Number(item.series_count)||0}</em></strong><b>★ {item.points}</b></div>)}</div></section>
   </main>;
 }
 
