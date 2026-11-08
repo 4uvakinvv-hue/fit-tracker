@@ -1678,7 +1678,7 @@ export default function App(){
     {screen==='history'&&<History sessions={numberedSessions} onDelete={deleteSession} onUpdate={updateSession}/>}
     {screen.startsWith('history-')&&screen!=='steps-history'&&<History sessions={numberedSessions} onDelete={deleteSession} onUpdate={updateSession} filterType={screen.slice(8)}/>} 
     {screen==='steps-history'&&<StepsHistoryV17 dailySteps={dailySteps} stepsStatus={stepsStatus} stepsSyncing={stepsSyncing} diagnostics={stepsDiagnostics} onSync={()=>syncSteps(true,authSession,{fullHistory:true,reason:'manual'})} onSettings={()=>Health.openHealthConnectSettings().catch(()=>setStepsStatus('error'))} onBack={()=>goBack('home')}/>}
-    {screen==='stats'&&<StatisticsV17 sessions={numberedSessions} dailySteps={dailySteps} isBoss={isBoss} hookahEvents={hookahEvents} hookahStartedOn={hookahStartedOn} hookahProgramStartedOn={hookahProgramStartedOn} profile={profile} memberCount={members.length} onOpenMembers={()=>navigate('members')} onOpenHistory={type=>navigate('history-'+type)} onOpenSteps={()=>navigate('steps-history')}/>} 
+    {screen==='stats'&&<StatisticsV17 sessions={numberedSessions} dailySteps={dailySteps} expeditionDays={expeditionDays} isBoss={isBoss} hookahEvents={hookahEvents} hookahStartedOn={hookahStartedOn} hookahProgramStartedOn={hookahProgramStartedOn} profile={profile} memberCount={members.length} onOpenMembers={()=>navigate('members')} onOpenHistory={type=>navigate('history-'+type)} onOpenSteps={()=>navigate('steps-history')}/>} 
     {screen==='members'&&<MembersV17 members={members} profile={profile} previousTop5={previousTop5}/>} 
     {screen==='feed'&&<FeedScreen profile={profile}/>} 
     {screen==='add-training'&&<AddTraining dateKey={draftDateKey} setDateKey={setDraftDateKey} onProposal={sendProposal} onBack={()=>goBack('home')} onChoose={chooseType} quickActivityIds={quickActivityIds} onToggleQuick={toggleQuickActivity}/>}
@@ -2078,13 +2078,19 @@ function DateWheel({schedule,dailySteps,selectedDateKey,setSelectedDateKey}){
 function AddTraining({dateKey,setDateKey,onProposal,onBack,onChoose,quickActivityIds=[],onToggleQuick}){
   const [otherOpen,setOtherOpen]=useState(false);
   const [text,setText]=useState('');
+  const [indicators,setIndicators]=useState('');
   const [sent,setSent]=useState(false);
   const [sending,setSending]=useState(false);
   const [error,setError]=useState('');
   async function submit(){
     if(!text.trim()||sending)return;
     setSending(true);setError('');
-    try{await onProposal(text.trim());setSent(true);}catch(e){setError(e.message||'Не удалось отправить предложение.');}
+    try{
+      // Existing activity_proposals stores just title: keep names and requested metrics
+      // together until the owner approves a dedicated activity data contract.
+      const description=indicators.trim()?text.trim()+' · Показатели: '+indicators.trim():text.trim();
+      await onProposal(description);setSent(true);setText('');setIndicators('');
+    }catch(e){setError(e.message||'Не удалось отправить предложение.');}
     finally{setSending(false);}
   }
   return <main className="sub-screen add-training-screen forma-activity-screen">
@@ -2101,7 +2107,8 @@ function AddTraining({dateKey,setDateKey,onProposal,onBack,onChoose,quickActivit
     {otherOpen&&<div className="modal-backdrop" onClick={()=>setOtherOpen(false)}><section className="other-modal glass-card" role="dialog" aria-modal="true" aria-label="Предложить активность" onClick={e=>e.stopPropagation()}>
       <header><h2>Другая активность</h2><button type="button" aria-label="Закрыть" onClick={()=>setOtherOpen(false)}>×</button></header>
       <p>Предложи название новой активности. Она появится в общем каталоге только после согласования.</p>
-      <label className="dark-field"><span>Название активности</span><input value={text} onChange={e=>{setText(e.target.value);setSent(false);}} placeholder="Например: плавание" autoFocus maxLength={180}/></label>
+      <label className="dark-field"><span>Название активности</span><input value={text} onChange={e=>{setText(e.target.value);setSent(false);}} placeholder="Например: плавание" autoFocus maxLength={120}/></label>
+      <label className="dark-field"><span>Какие показатели учитывать?</span><textarea value={indicators} onChange={e=>{setIndicators(e.target.value);setSent(false);}} placeholder="Например: время, дистанция, количество подходов" maxLength={300} rows={3}/></label>
       <button className="secondary-dark" type="button" disabled={sending||!text.trim()} onClick={submit}>{sending?'Отправляем…':'Предложить владельцу'}</button>
       {error&&<p role="alert" className="error-line">{error}</p>}
       {sent&&<p role="status" className="success-line">Предложение отправлено на рассмотрение.</p>}
@@ -3128,7 +3135,7 @@ function HookahHistoryFullscreen({hookahEvents,hookahStartedOn,hookahProgramStar
   </div>;
 }
 
-function StatisticsV17({sessions,dailySteps,profile,memberCount,onOpenMembers,onOpenHistory,onOpenSteps}){
+function StatisticsV17({sessions,dailySteps,expeditionDays,profile,memberCount,onOpenMembers,onOpenHistory,onOpenSteps}){
   const [period,setPeriod]=useState('month');
   const [graphType,setGraphType]=useState('all');
   const [selectedBar,setSelectedBar]=useState(null);
@@ -3159,7 +3166,7 @@ function StatisticsV17({sessions,dailySteps,profile,memberCount,onOpenMembers,on
   let deg=0;
   const segments=distribution.map((item,i)=>{const from=deg;deg+=item.count/Math.max(actual.length,1)*360;return palette[i%palette.length]+' '+from+'deg '+deg+'deg';});
   const seasonPercent=Math.max(0,Math.min(100,Math.round(season.day/season.total*100)));
-  const streak=streakState(sessions,dailySteps).day;
+  const streak=streakState(sessions,dailySteps,expeditionDays).day;
   return <main className="tab-screen stats-screen forma-stats">
     <header className="forma-tab-heading"><p className="eyebrow-dark">Твой прогресс</p><h1>Статистика</h1></header>
     <div className="forma-period-tabs" role="group" aria-label="Период статистики">{[['week','Неделя'],['month','Месяц'],['year','Год']].map(([id,label])=><button key={id} type="button" className={period===id?'active':''} aria-pressed={period===id} onClick={()=>{setPeriod(id);setSelectedBar(null);}}>{label}</button>)}</div>
