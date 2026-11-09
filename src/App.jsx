@@ -606,10 +606,12 @@ function Brand({compact=false}){
 function SplashScreen({progress=8,stage='Запуск приложения'}){
   const value=Math.max(0,Math.min(100,Math.round(Number(progress)||0)));
   return <main className="forma-splash" aria-label="Загрузка FORMA">
+    <div className="forma-splash-stage">
     <img className="forma-splash-image" src={String(import.meta.env.BASE_URL)+'forma-design/splash.webp'} alt="FORMA — Тренируйся. Живи. Развивайся."/>
     <div className="forma-splash-live">
       <strong>{stage==='Запуск приложения'?'Подключаемся к базе':stage}</strong>
       <div className="forma-splash-live-track" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow={value}><i style={{width:value+'%'}}/></div>
+    </div>
     </div>
   </main>;
 }
@@ -724,7 +726,7 @@ function AuthScreen({initialNotice=''}) {
   }
 
   if(pendingEmail){
-    return <main className={`onboarding dark-screen auth-screen season-${seasonKey()}`}>
+    return <main className={`onboarding forma-design-v1 dark-screen auth-screen season-${seasonKey()}`}>
       <Brand/>
       <p className="brand-subtitle season-brand-label">Регистрация</p>
       <section className="glass-card auth-state-card auth-email-state">
@@ -746,7 +748,7 @@ function AuthScreen({initialNotice=''}) {
   }
 
   if(forgotOpen&&recoverySent){
-    return <main className={`onboarding dark-screen auth-screen season-${seasonKey()}`}>
+    return <main className={`onboarding forma-design-v1 dark-screen auth-screen season-${seasonKey()}`}>
       <Brand/>
       <p className="brand-subtitle season-brand-label">Восстановление доступа</p>
       <section className="glass-card auth-state-card auth-email-state">
@@ -767,7 +769,7 @@ function AuthScreen({initialNotice=''}) {
     </main>;
   }
 
-  return <main className={`onboarding dark-screen auth-screen season-${seasonKey()}`}>
+  return <main className={`onboarding forma-design-v1 dark-screen auth-screen season-${seasonKey()}`}>
     <Brand/>
     <p className="brand-subtitle season-brand-label">Сезон {seasonMeta().name.toUpperCase()}</p>
     <h1>{forgotOpen?'Восстановление доступа':'Вход'}</h1>
@@ -830,7 +832,7 @@ function PasswordRecoveryScreen({session,onComplete,onExpired}){
   }
 
   if(!session?.user){
-    return <main className={`onboarding dark-screen auth-screen recovery-screen season-${seasonKey()}`}>
+    return <main className={`onboarding forma-design-v1 dark-screen auth-screen recovery-screen season-${seasonKey()}`}>
       <Brand/>
       <p className="brand-subtitle season-brand-label">Восстановление доступа</p>
       <h1>Ссылка устарела</h1>
@@ -841,7 +843,7 @@ function PasswordRecoveryScreen({session,onComplete,onExpired}){
     </main>;
   }
 
-  return <main className={`onboarding dark-screen auth-screen recovery-screen season-${seasonKey()}`}>
+  return <main className={`onboarding forma-design-v1 dark-screen auth-screen recovery-screen season-${seasonKey()}`}>
     <Brand/>
     <p className="brand-subtitle season-brand-label">Восстановление доступа</p>
     <h1>Новый пароль</h1>
@@ -1671,7 +1673,7 @@ export default function App(){
   if(booting||(authSession&&loading&&!passwordRecovery))return <SplashScreen progress={bootProgress} stage={bootStage}/>;
   if(passwordRecovery)return <PasswordRecoveryScreen session={authSession} onComplete={message=>{setPasswordRecovery(false);setAuthNotice(message);}} onExpired={()=>{setPasswordRecovery(false);setAuthNotice('Введите e-mail и запросите новую ссылку для восстановления.');}}/>;
   if(!authSession)return <AuthScreen initialNotice={authNotice}/>;
-  if(loadError)return <main className="onboarding dark-screen"><Brand/><h1>Связь с базой</h1><p className="soft-text">{loadError}</p><div className="glass-card onboarding-form"><button className="gradient-button" onClick={loadData}>Повторить</button></div></main>;
+  if(loadError)return <main className="onboarding forma-design-v1 dark-screen"><Brand/><h1>Связь с базой</h1><p className="soft-text">{loadError}</p><div className="glass-card onboarding-form"><button className="gradient-button" onClick={loadData}>Повторить</button></div></main>;
 
   return <div className={`app-shell-dark forma-design-v1 season-${seasonKey()} screen-${screen}`}>
     {screen==='home'&&<Home onOpenProfile={()=>navigate('profile')} schedule={schedule} sessions={numberedSessions} profile={profile} dailySteps={dailySteps} expeditionDays={expeditionDays} saveNotice={saveNotice} isBoss={isBoss} adminNotifications={adminNotifications} onTrainer={requestTrainer} onMarkNotificationsRead={markNotificationsRead} hookahEvents={hookahEvents} hookahProgramStartedOn={hookahProgramStartedOn} canUndoHookah={!!undoHookahId} onHookah={addHookah} onBonusHookah={addBonusHookah} onUndoHookah={undoHookah} stepsStatus={stepsStatus} stepsSyncing={stepsSyncing} onEnableSteps={()=>syncSteps(true,authSession,{fullHistory:true,reason:'manual'})} onOpenSteps={()=>navigate('steps-history')} onOpenFeed={()=>navigate('feed')} selectedDateKey={selectedDateKey} setSelectedDateKey={setSelectedDateKey} onSavePlan={savePlan} onDeletePlan={deletePlan} onProposal={sendProposal} onOpenWorkout={openAdd} quickActivityIds={quickActivityIds} onQuickActivity={openQuickActivity}/>} 
@@ -1746,7 +1748,7 @@ function Home({onOpenProfile,schedule,sessions,profile,dailySteps,expeditionDays
     <section className="forma-season-hero">
       <div className="forma-season-copy">
         <small className="forma-green-mark">// Сезон · {season.name}</small>
-        <h1>День сезона {season.day} из {season.total}</h1>
+        <h1>День сезона <span style={{whiteSpace:'nowrap'}}>{season.day} из {season.total}</span></h1>
         <div className="forma-season-progress"><i style={{width:seasonProgress+'%'}}/></div>
         <strong>{Math.round(seasonProgress)}%</strong>
         <button type="button" className="forma-points-pill" onClick={()=>setPointsOpen(true)}>◎ Баллы <b>{Number(profile?.points||0).toLocaleString('ru-RU')}</b></button>

@@ -481,3 +481,87 @@ input,select,textarea{color-scheme:light}
   box-shadow:inset 0 1px rgba(255,255,255,.6),0 3px 8px #abccbb}
 .forma-avatar-upload input{position:absolute;width:1px;height:1px;overflow:hidden;opacity:0}
 .forma-avatar-editor .error-line,.forma-avatar-editor .success-line{display:block;margin:6px 0;font-size:10px}
+
+/* ===== Release fixes 09.11.2026: auth/onboarding in the light theme ===== */
+.onboarding.forma-design-v1{
+  --season-primary:#079f78;--season-secondary:#55dfac;--season-muted:#71736d;--season-border:rgba(151,132,111,.22);
+  background:#f7eee6!important;color:#292d29!important;min-height:100dvh;
+}
+.onboarding.forma-design-v1 h1{color:#242b27!important}
+.onboarding.forma-design-v1 .soft-text,.onboarding.forma-design-v1 .registration-explainer span{color:#6b6f69!important}
+.onboarding.forma-design-v1 .registration-explainer strong{color:#242b27!important}
+.onboarding.forma-design-v1 .season-brand-label,.onboarding.forma-design-v1 .brand-subtitle{color:#0a8f6c!important}
+.onboarding.forma-design-v1 .dark-field span{color:#5d625d!important}
+.onboarding.forma-design-v1 .dark-field input,.onboarding.forma-design-v1 .dark-field select{
+  background:#fffaf5!important;color:#242b27!important;border:1px solid rgba(165,151,136,.4)!important;border-radius:16px;
+  box-shadow:inset 2px 3px 6px rgba(126,100,77,.14),inset -2px -2px 5px #fff!important;
+}
+.onboarding.forma-design-v1 .dark-field input::placeholder{color:#9a9a92!important;opacity:1}
+.onboarding.forma-design-v1 .forgot-password-link{color:#0a8f6c!important;background:none!important;box-shadow:none!important}
+.onboarding.forma-design-v1 .register-entry{
+  background:linear-gradient(145deg,#fffdf9,#f3e8de)!important;border:1px solid rgba(165,151,136,.22)!important;
+  box-shadow:inset 1px 2px 2px #fff,4px 6px 13px rgba(126,100,77,.13),-3px -3px 9px rgba(255,255,255,.9);
+}
+.onboarding.forma-design-v1 .register-entry span{color:#6b6f69!important;font-size:13px}
+.onboarding.forma-design-v1 .register-entry button{background:#e3f5ee!important;color:#087a5c!important;border:1px solid #bfe6d9!important}
+.onboarding.forma-design-v1 .auth-secondary-button{
+  background:linear-gradient(145deg,#fffdf9,#f3e8de)!important;color:#087a5c!important;border:1px solid rgba(165,151,136,.3)!important;
+  border-radius:999px;box-shadow:inset 1px 2px 2px #fff,3px 5px 11px rgba(126,100,77,.12)!important;
+}
+.onboarding.forma-design-v1 .auth-message,.onboarding.forma-design-v1 .auth-global-message{
+  color:#4b524c!important;background:#fffaf5!important;border:1px solid rgba(165,151,136,.3)!important;
+}
+.onboarding.forma-design-v1 .auth-state-card{color:#292d29!important}
+.onboarding.forma-design-v1 .build-version{color:#77786f!important}
+.onboarding.forma-design-v1 a{color:#087a5c!important}
+
+/* ===== Release fixes: leaderboard rows, "me" row, previous season in the light theme ===== */
+.forma-leaderboard .leaderboard{grid-template-columns:minmax(0,1fr)}
+.forma-members .leader-row,.members-screen.forma-members .leader-row{width:100%!important;justify-self:stretch}
+.members-screen.forma-members .leader-row strong{font-size:13px!important}
+.members-screen.forma-members .leader-row small{font-size:10px!important}
+.members-screen.forma-members .leader-row>b{font-size:13px!important}
+.members-screen.forma-members .leader-row.me{
+  background:linear-gradient(145deg,#e6f8f0,#c9efe0)!important;border:1px solid #6bdcba!important;
+  box-shadow:inset 1px 2px 2px #fff,4px 6px 13px rgba(9,130,100,.18)!important;
+}
+.forma-members .previous-season,.forma-members .previous-season *{color:#292d29}
+.forma-members .previous-season header small{color:#71736d!important}
+.forma-members .previous-season .empty-state,.forma-members .previous-season .compact-empty{
+  background:#f0e6dc!important;color:#6b6f69!important;border:1px solid rgba(165,151,136,.25)!important;border-radius:14px;
+}
+
+/* ===== Release fixes: wrapping and nav ===== */
+.forma-design-v1 .season-card h2,.forma-design-v1 .home-hero h2,.forma-design-v1 .hero-card h2{text-wrap:balance}
+.forma-design-v1 .bottom-nav button{white-space:nowrap;font-size:clamp(8px,2.2vw,10px);letter-spacing:-.01em}
+
+/* ===== Release fixes: splash — one stage, live panel covers the baked-in panel ===== */
+.forma-splash-stage{position:relative;height:100dvh;aspect-ratio:560/1000;flex:none;max-height:100dvh}
+.forma-splash-stage .forma-splash-image{width:100%;height:100%;max-width:none;object-fit:fill;display:block}
+.forma-splash-stage .forma-splash-live{
+  left:50%;right:auto;width:min(88vw,450px);transform:translateX(-50%);top:81.6%;bottom:auto;height:12.6%;
+  display:flex;flex-direction:column;justify-content:center;gap:12px;padding:0 20px;box-sizing:border-box;
+  background:#fbefe3;border-radius:26px;box-shadow:0 0 0 8px #fbefe3,0 5px 17px rgba(103,79,56,.14);
+}
+
+.forma-members .leader-row>div{text-align:left}
+
+/* Statistics: season card must never collapse (was 4px high in a flex column) */
+.forma-stats-season{flex:none!important;min-height:112px;height:auto}
+.forma-stats-season-copy{min-height:112px;align-content:center}
+
+/* Compact phones: hero must show eyebrow, progress and points without clipping */
+@media(max-height:760px){.forma-design-v1 .forma-season-hero{min-height:142px!important;flex-basis:142px!important;padding-top:12px;padding-bottom:12px}}
+@media(max-height:650px){.forma-design-v1 .forma-season-hero{min-height:136px!important;flex-basis:136px!important}
+  .forma-design-v1 .forma-season-copy{gap:3px}}
+
+/* Feed + shared empty states in the light theme */
+.forma-design-v1 .empty-state,.forma-design-v1 .compact-empty{
+  background:#f0e6dc!important;color:#6b6f69!important;border:1px solid rgba(165,151,136,.25)!important;
+  border-radius:16px;box-shadow:inset 1px 2px 2px rgba(255,255,255,.8)!important;
+}
+.forma-design-v1 .feed-head>button{
+  background:linear-gradient(145deg,#fffdf9,#f3e8de)!important;color:#087a5c!important;
+  border:1px solid rgba(165,151,136,.3)!important;border-radius:16px;
+  box-shadow:inset 1px 2px 2px #fff,3px 5px 11px rgba(126,100,77,.14)!important;
+}
