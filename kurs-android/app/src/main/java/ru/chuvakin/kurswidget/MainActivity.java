@@ -51,7 +51,8 @@ public final class MainActivity extends Activity {
                 String[] initial = {
                     "07:30–08:30 — FORMA: выпустить редизайн без иконок",
                     "Комплектатор: отдельный чат и описание структуры",
-                    "МПК: самопрезентации для застройщика и дизайнера",
+                    "МПК: самопрезентация для застройщика",
+                    "МПК: самопрезентация для дизайнера",
                     "Армен МКС2: написать и договориться о кофе",
                     "Дизайнер от Армена: позвонить и обсудить МПК",
                     "Соманаев: узнать конкретный срок выплаты",
@@ -65,6 +66,8 @@ public final class MainActivity extends Activity {
             catch(Exception ex) { return new JSONArray(); }
         }
         boolean changed = false;
+        JSONArray migrated = migrateLegacyAndCompact(a);
+        if(migrated != a) {a=migrated;changed=true;}
         String today=LocalDate.now().toString();
         for(int i=0;i<a.length();i++) {
             JSONObject o = a.optJSONObject(i);
@@ -75,6 +78,50 @@ public final class MainActivity extends Activity {
         }
         if(changed)save(c,a);
         return a;
+    }
+    // Preserve completion state and IDs while splitting the previously combined MПК item.
+    // Shorter labels give larger text room on a single Galaxy home screen.
+    static JSONArray migrateLegacyAndCompact(JSONArray source) {
+        JSONArray result=new JSONArray();
+        boolean changed=false;
+        for(int i=0;i<source.length();i++){
+            JSONObject o=source.optJSONObject(i);
+            if(o==null)continue;
+            String label=o.optString("text","");
+            try {
+                if(label.equals("МПК: самопрезентации для застройщика и дизайнера")
+                    || label.equals("МПК: две самопрезентации — для застройщика и дизайнера")) {
+                    o.put("text","МПК: презентация застройщику");
+                    result.put(o);
+                    JSONObject second=new JSONObject(o.toString());
+                    second.put("id",UUID.randomUUID().toString());
+                    second.put("text","МПК: презентация дизайнеру");
+                    result.put(second);
+                    changed=true;
+                    continue;
+                }
+                String compact=label;
+                if(label.equals("07:30–08:30 — FORMA: выпустить редизайн без иконок"))
+                    compact="07:30–08:30 · FORMA: релиз без иконок";
+                else if(label.equals("Комплектатор: отдельный чат и описание структуры"))
+                    compact="Комплектатор: описать структуру";
+                else if(label.equals("МПК: самопрезентация для застройщика"))
+                    compact="МПК: презентация застройщику";
+                else if(label.equals("МПК: самопрезентация для дизайнера"))
+                    compact="МПК: презентация дизайнеру";
+                else if(label.equals("Армен МКС2: написать и договориться о кофе"))
+                    compact="Армен МКС2: договориться о кофе";
+                else if(label.equals("Дизайнер от Армена: позвонить и обсудить МПК"))
+                    compact="Дизайнер от Армена: позвонить";
+                else if(label.equals("Соманаев: узнать конкретный срок выплаты"))
+                    compact="Соманаев: узнать срок выплаты";
+                else if(label.equals("Ксюша: подобрать мототренировку на Мацесте"))
+                    compact="Ксюша: мототренировка на Мацесте";
+                if(!compact.equals(label)){o.put("text",compact);changed=true;}
+            }catch(Exception ignored){}
+            result.put(o);
+        }
+        return changed?result:source;
     }
     static void put(JSONArray a,String text,String day) {
         try { JSONObject o=new JSONObject();o.put("id",UUID.randomUUID().toString());
@@ -192,12 +239,12 @@ public final class MainActivity extends Activity {
     }
     static TextView text(Context c,String value,int size) {
         TextView t=new TextView(c); t.setText(value);t.setTextSize(size);
-        t.setTextColor(0xFF23392E);t.setPadding(0,10,0,10);return t;
+        t.setTextColor(0xFF23392E);t.setPadding(0,6,0,6);return t;
     }
     void build() {
         ScrollView sc=new ScrollView(this);
         root=new LinearLayout(this);root.setOrientation(LinearLayout.VERTICAL);
-        root.setPadding(24,20,24,24);root.setBackgroundColor(0xFFF6F8F4);sc.addView(root);
+        root.setPadding(20,16,20,20);root.setBackgroundColor(0xFFF6F8F4);sc.addView(root);
         TextView head=text(this,"КУРС · План на сегодня",24);root.addView(head);
         JSONArray a=today(this);
         int cnt=0;for(int i=0;i<a.length();i++){JSONObject o=a.optJSONObject(i);if(o!=null && o.optBoolean("done"))cnt++;}
@@ -206,7 +253,7 @@ public final class MainActivity extends Activity {
             JSONObject o=a.optJSONObject(i);if(o==null)continue;
             String id=o.optString("id");
             LinearLayout row=new LinearLayout(this);row.setOrientation(LinearLayout.HORIZONTAL);
-            CheckBox cb=new CheckBox(this);cb.setText(o.optString("text"));cb.setTextColor(0xFF23392E);cb.setTextSize(15);
+            CheckBox cb=new CheckBox(this);cb.setText(o.optString("text"));cb.setTextColor(0xFF23392E);cb.setTextSize(19);
             cb.setChecked(o.optBoolean("done"));
             cb.setLayoutParams(new LinearLayout.LayoutParams(0,-2,1));
             if(o.optBoolean("done"))cb.setPaintFlags(cb.getPaintFlags()|Paint.STRIKE_THRU_TEXT_FLAG);
