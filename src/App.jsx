@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { supabase } from './supabase.js';
+import {FORMA_ACTIVITIES,QUICK_DEFAULT,cleanQuickActivities} from './forma-design-contract.js';
 import TrainerModal from './TrainerModal.jsx';
 import GymTraining from './GymTraining.jsx';
 import TrainerWorkout from './TrainerWorkout.jsx';
@@ -597,19 +598,20 @@ function ActivityGlyph({type,className=''}) {
 
 function Brand({compact=false}){
   return <div className={`logo-lockup ${compact?'compact':''}`}>
-    <img className="brand-app-icon" src={`${import.meta.env.BASE_URL}icon.svg`} alt=""/>
-    <span>Форма</span>
+    <span className="forma-brand-stripes" aria-hidden="true">//</span>
+    <span className="forma-brand-word">FORMA</span>
   </div>;
 }
 
 function SplashScreen({progress=8,stage='Запуск приложения'}){
   const value=Math.max(0,Math.min(100,Math.round(Number(progress)||0)));
-  return <main className="splash-screen splash-v18">
-    <img className="splash-v18-image" src={`${import.meta.env.BASE_URL}splash-v1.8.jpg`} alt="Форма"/>
-    <div className="splash-v18-overlay"/>
-    <div className="splash-v18-progress">
-      <div className="splash-v18-track" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow={value}><i style={{width:value+'%'}}/></div>
-      <strong>{stage}</strong>
+  return <main className="forma-splash" aria-label="Загрузка FORMA">
+    <div className="forma-splash-stage">
+    <img className="forma-splash-image" src={String(import.meta.env.BASE_URL)+'forma-design/splash.webp'} alt="FORMA — Тренируйся. Живи. Развивайся."/>
+    <div className="forma-splash-live">
+      <strong>{stage==='Запуск приложения'?'Подключаемся к базе':stage}</strong>
+      <div className="forma-splash-live-track" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow={value}><i style={{width:value+'%'}}/></div>
+    </div>
     </div>
   </main>;
 }
@@ -724,7 +726,7 @@ function AuthScreen({initialNotice=''}) {
   }
 
   if(pendingEmail){
-    return <main className={`onboarding dark-screen auth-screen season-${seasonKey()}`}>
+    return <main className={`onboarding forma-design-v1 dark-screen auth-screen season-${seasonKey()}`}>
       <Brand/>
       <p className="brand-subtitle season-brand-label">Регистрация</p>
       <section className="glass-card auth-state-card auth-email-state">
@@ -746,7 +748,7 @@ function AuthScreen({initialNotice=''}) {
   }
 
   if(forgotOpen&&recoverySent){
-    return <main className={`onboarding dark-screen auth-screen season-${seasonKey()}`}>
+    return <main className={`onboarding forma-design-v1 dark-screen auth-screen season-${seasonKey()}`}>
       <Brand/>
       <p className="brand-subtitle season-brand-label">Восстановление доступа</p>
       <section className="glass-card auth-state-card auth-email-state">
@@ -767,7 +769,7 @@ function AuthScreen({initialNotice=''}) {
     </main>;
   }
 
-  return <main className={`onboarding dark-screen auth-screen season-${seasonKey()}`}>
+  return <main className={`onboarding forma-design-v1 dark-screen auth-screen season-${seasonKey()}`}>
     <Brand/>
     <p className="brand-subtitle season-brand-label">Сезон {seasonMeta().name.toUpperCase()}</p>
     <h1>{forgotOpen?'Восстановление доступа':'Вход'}</h1>
@@ -830,7 +832,7 @@ function PasswordRecoveryScreen({session,onComplete,onExpired}){
   }
 
   if(!session?.user){
-    return <main className={`onboarding dark-screen auth-screen recovery-screen season-${seasonKey()}`}>
+    return <main className={`onboarding forma-design-v1 dark-screen auth-screen recovery-screen season-${seasonKey()}`}>
       <Brand/>
       <p className="brand-subtitle season-brand-label">Восстановление доступа</p>
       <h1>Ссылка устарела</h1>
@@ -841,7 +843,7 @@ function PasswordRecoveryScreen({session,onComplete,onExpired}){
     </main>;
   }
 
-  return <main className={`onboarding dark-screen auth-screen recovery-screen season-${seasonKey()}`}>
+  return <main className={`onboarding forma-design-v1 dark-screen auth-screen recovery-screen season-${seasonKey()}`}>
     <Brand/>
     <p className="brand-subtitle season-brand-label">Восстановление доступа</p>
     <h1>Новый пароль</h1>
@@ -882,6 +884,30 @@ export default function App(){
   const gpsPendingSyncLock=useRef(false);
   const [stepsDiagnostics,setStepsDiagnostics]=useState(null);
   const [screen,setScreen]=useState('home');
+  const [quickActivityIds,setQuickActivityIds]=useState(QUICK_DEFAULT);
+  const [outdoorStartMode,setOutdoorStartMode]=useState('bike');
+  useEffect(()=>{
+    const uid=authSession?.user?.id;
+    if(!uid)return;
+    let active=true;
+    const key='forma:quick-activities:'+uid;
+    try{const stored=localStorage.getItem(key);if(stored)setQuickActivityIds(cleanQuickActivities(JSON.parse(stored)));else setQuickActivityIds(QUICK_DEFAULT);}catch{setQuickActivityIds(QUICK_DEFAULT);}
+    supabase.from('forma_preferences').select('quick_activities').eq('user_id',uid).maybeSingle().then(({data,error})=>{
+      if(active&&!error&&data?.quick_activities){
+        const saved=cleanQuickActivities(data.quick_activities);
+        setQuickActivityIds(saved);
+        try{localStorage.setItem(key,JSON.stringify(saved));}catch{}
+      }
+    }).catch(()=>{});
+    return ()=>{active=false;};
+  },[authSession?.user?.id]);
+  function toggleQuickActivity(id){
+    if(!FORMA_ACTIVITIES.some(a=>a.id===id)||!authSession?.user?.id)return;
+    const next=quickActivityIds.includes(id)?quickActivityIds.filter(x=>x!==id):[...quickActivityIds,id];
+    setQuickActivityIds(next);
+    try{localStorage.setItem('forma:quick-activities:'+authSession.user.id,JSON.stringify(next));}catch{}
+    supabase.from('forma_preferences').upsert({user_id:authSession.user.id,quick_activities:next,updated_at:new Date().toISOString()}).then(({error})=>{if(error)console.warn('Quick activities only saved locally',error.message);}).catch(()=>{});
+  }
   const [selectedDateKey,setSelectedDateKey]=useState(localDateKey());
   const [draftDateKey,setDraftDateKey]=useState(localDateKey());
   const [loading,setLoading]=useState(false);
@@ -1299,19 +1325,32 @@ export default function App(){
         supabase.from('boss_users').select('user_id,hookah_started_on,hookah_program_started_on').eq('user_id',userId).maybeSingle(),
         supabase.from('hookah_events').select('id,event_date,smoked_at,is_bonus').eq('user_id',userId).order('smoked_at',{ascending:true}),
         supabase.from('admin_notifications').select('id,type,title,member_name,member_email,created_at,read_at').eq('recipient_user_id',userId).order('created_at',{ascending:false}).limit(200),
+        supabase.from('forma_profile_avatars').select('user_id,avatar_path'),
+        supabase.rpc('forma_member_latest_activity'),
       ]);
 
       const timeout=new Promise((_,reject)=>setTimeout(()=>reject(new Error('timeout')),9000));
-      const [profileRes,leaderRes,previousRes,sessionsRes,plansRes,templatesRes,stepsRes,expeditionRes,bossRes,hookahRes,notificationsRes]=await Promise.race([queries,timeout]);
+      const [profileRes,leaderRes,previousRes,sessionsRes,plansRes,templatesRes,stepsRes,expeditionRes,bossRes,hookahRes,notificationsRes,avatarsRes,memberLatestRes]=await Promise.race([queries,timeout]);
       progress.onProgress?.(68,'Собираем тренировки и статистику');
 
       if(profileRes.error)throw profileRes.error;
       if(leaderRes.error)throw leaderRes.error;
       if(previousRes.error)throw previousRes.error;
 
-      const leaderboard=leaderRes.data||[];
+      const avatarPaths=new Map((avatarsRes?.data||[]).map(a=>[a.user_id,a.avatar_path]));
+      const recentActivities=new Map((memberLatestRes?.data||[]).map(a=>[a.user_id,a]));
+      const publicAvatar=path=>path?supabase.storage.from('forma-avatars').getPublicUrl(path).data?.publicUrl:null;
+      const leaderboard=(leaderRes.data||[]).map(member=>{
+        const a=recentActivities.get(member.id);
+        const gap=a?.activity_date==null?null:daysBetween(a.activity_date,localDateKey());
+        const when=gap==null?'':gap===0?'сегодня':gap===1?'вчера':gap>=0?gap+' дн. назад':formatDate(a.activity_date);
+        return {...member,avatar_path:avatarPaths.get(member.id)||null,
+          avatar_url:publicAvatar(avatarPaths.get(member.id)),
+          last_activity_label:a?(activityMeta(a.activity_type)?.label||a.activity_type)+' · '+when:null};
+      });
       const me=leaderboard.find(x=>x.id===userId);
-      if(profileRes.data)setProfile({...profileRes.data,points:me?.points||0,rank:me?.rank||null,seriesCount:Number(me?.series_count)||0});
+      if(profileRes.data)setProfile({...profileRes.data,avatar_path:avatarPaths.get(userId)||null,
+        avatar_url:publicAvatar(avatarPaths.get(userId)),points:me?.points||0,rank:me?.rank||null,seriesCount:Number(me?.series_count)||0});
       setMembers(leaderboard);
       setPreviousTop5(previousRes.data||[]);
       const loadedSessions=(sessionsRes.data||[]).map(mapSession);
@@ -1375,8 +1414,22 @@ export default function App(){
   }
 
   async function chooseType(type){
-    if(type==='outdoor'){navigate('outdoor');return;}
+    if(type==='outdoor'||['bike','run','moto','flaneuring'].includes(type)){
+      setOutdoorStartMode(type==='outdoor'?'bike':type);navigate('outdoor');return;
+    }
     await savePlan(draftDateKey,type,'','planned');navigate(type);
+  }
+  async function openQuickActivity(type){
+    const date=selectedDateKey||localDateKey();
+    setDraftDateKey(date);
+    if(type==='gym'||type==='workout'||type==='combat'||type==='crossfit'||type==='hike'){
+      await savePlan(date,type,'','planned');
+      navigate(type);return;
+    }
+    if(['bike','run','flaneuring','moto'].includes(type)){
+      setOutdoorStartMode(type);navigate('outdoor');return;
+    }
+    await chooseType(type);
   }
 
   async function syncPendingFlaneuring(sessionOverride=authSession){
@@ -1620,20 +1673,20 @@ export default function App(){
   if(booting||(authSession&&loading&&!passwordRecovery))return <SplashScreen progress={bootProgress} stage={bootStage}/>;
   if(passwordRecovery)return <PasswordRecoveryScreen session={authSession} onComplete={message=>{setPasswordRecovery(false);setAuthNotice(message);}} onExpired={()=>{setPasswordRecovery(false);setAuthNotice('Введите e-mail и запросите новую ссылку для восстановления.');}}/>;
   if(!authSession)return <AuthScreen initialNotice={authNotice}/>;
-  if(loadError)return <main className="onboarding dark-screen"><Brand/><h1>Связь с базой</h1><p className="soft-text">{loadError}</p><div className="glass-card onboarding-form"><button className="gradient-button" onClick={loadData}>Повторить</button></div></main>;
+  if(loadError)return <main className="onboarding forma-design-v1 dark-screen"><Brand/><h1>Связь с базой</h1><p className="soft-text">{loadError}</p><div className="glass-card onboarding-form"><button className="gradient-button" onClick={loadData}>Повторить</button></div></main>;
 
-  return <div className={`app-shell-dark season-${seasonKey()} screen-${screen}`}>
-    {screen==='home'&&<Home onOpenProfile={()=>navigate('profile')} schedule={schedule} sessions={numberedSessions} profile={profile} dailySteps={dailySteps} expeditionDays={expeditionDays} saveNotice={saveNotice} isBoss={isBoss} adminNotifications={adminNotifications} onTrainer={requestTrainer} onMarkNotificationsRead={markNotificationsRead} hookahEvents={hookahEvents} hookahProgramStartedOn={hookahProgramStartedOn} canUndoHookah={!!undoHookahId} onHookah={addHookah} onBonusHookah={addBonusHookah} onUndoHookah={undoHookah} stepsStatus={stepsStatus} stepsSyncing={stepsSyncing} onEnableSteps={()=>syncSteps(true,authSession,{fullHistory:true,reason:'manual'})} onOpenSteps={()=>navigate('steps-history')} onOpenFeed={()=>navigate('feed')} selectedDateKey={selectedDateKey} setSelectedDateKey={setSelectedDateKey} onSavePlan={savePlan} onDeletePlan={deletePlan} onProposal={sendProposal} onOpenWorkout={openAdd}/>} 
+  return <div className={`app-shell-dark forma-design-v1 season-${seasonKey()} screen-${screen}`}>
+    {screen==='home'&&<Home onOpenProfile={()=>navigate('profile')} schedule={schedule} sessions={numberedSessions} profile={profile} dailySteps={dailySteps} expeditionDays={expeditionDays} saveNotice={saveNotice} isBoss={isBoss} adminNotifications={adminNotifications} onTrainer={requestTrainer} onMarkNotificationsRead={markNotificationsRead} hookahEvents={hookahEvents} hookahProgramStartedOn={hookahProgramStartedOn} canUndoHookah={!!undoHookahId} onHookah={addHookah} onBonusHookah={addBonusHookah} onUndoHookah={undoHookah} stepsStatus={stepsStatus} stepsSyncing={stepsSyncing} onEnableSteps={()=>syncSteps(true,authSession,{fullHistory:true,reason:'manual'})} onOpenSteps={()=>navigate('steps-history')} onOpenFeed={()=>navigate('feed')} selectedDateKey={selectedDateKey} setSelectedDateKey={setSelectedDateKey} onSavePlan={savePlan} onDeletePlan={deletePlan} onProposal={sendProposal} onOpenWorkout={openAdd} quickActivityIds={quickActivityIds} onQuickActivity={openQuickActivity}/>} 
     {screen==='history'&&<History sessions={numberedSessions} onDelete={deleteSession} onUpdate={updateSession}/>}
     {screen.startsWith('history-')&&screen!=='steps-history'&&<History sessions={numberedSessions} onDelete={deleteSession} onUpdate={updateSession} filterType={screen.slice(8)}/>} 
     {screen==='steps-history'&&<StepsHistoryV17 dailySteps={dailySteps} stepsStatus={stepsStatus} stepsSyncing={stepsSyncing} diagnostics={stepsDiagnostics} onSync={()=>syncSteps(true,authSession,{fullHistory:true,reason:'manual'})} onSettings={()=>Health.openHealthConnectSettings().catch(()=>setStepsStatus('error'))} onBack={()=>goBack('home')}/>}
-    {screen==='stats'&&<StatisticsV17 sessions={numberedSessions} dailySteps={dailySteps} isBoss={isBoss} hookahEvents={hookahEvents} hookahStartedOn={hookahStartedOn} hookahProgramStartedOn={hookahProgramStartedOn} profile={profile} memberCount={members.length} onOpenMembers={()=>navigate('members')} onOpenHistory={type=>navigate('history-'+type)} onOpenSteps={()=>navigate('steps-history')}/>} 
+    {screen==='stats'&&<StatisticsV17 sessions={numberedSessions} dailySteps={dailySteps} expeditionDays={expeditionDays} isBoss={isBoss} hookahEvents={hookahEvents} hookahStartedOn={hookahStartedOn} hookahProgramStartedOn={hookahProgramStartedOn} profile={profile} memberCount={members.length} onOpenMembers={()=>navigate('members')} onOpenHistory={type=>navigate('history-'+type)} onOpenSteps={()=>navigate('steps-history')}/>} 
     {screen==='members'&&<MembersV17 members={members} profile={profile} previousTop5={previousTop5}/>} 
     {screen==='feed'&&<FeedScreen profile={profile}/>} 
-    {screen==='add-training'&&<AddTraining dateKey={draftDateKey} setDateKey={setDraftDateKey} onProposal={sendProposal} onBack={()=>goBack('home')} onChoose={chooseType}/>}
+    {screen==='add-training'&&<AddTraining dateKey={draftDateKey} setDateKey={setDraftDateKey} onProposal={sendProposal} onBack={()=>goBack('home')} onChoose={chooseType} quickActivityIds={quickActivityIds} onToggleQuick={toggleQuickActivity}/>}
     {screen==='gym'&&<GymTraining userId={authSession.user.id} onTrainerWorkout={()=>navigate('coach-workout')} dateKey={draftDateKey} setDateKey={setDraftDateKey} sessions={numberedSessions} gymTemplates={gymTemplates} onSaveTemplate={saveTemplate} onBack={()=>goBack('add-training')} onHistory={()=>navigate('gym-history')} onSave={saveSession} onTrainerRequest={requestTrainer}/>}
     {screen==='gym-history'&&<GymHistory sessions={numberedSessions.filter(s=>s.type==='gym'&&isHistorySession(s))} onBack={()=>goBack('gym')}/>}
-    {screen==='outdoor'&&<OutdoorTraining dateKey={draftDateKey} setDateKey={setDraftDateKey} sessions={numberedSessions} onBack={()=>goBack('add-training')} onSave={saveSession} onSaveExpedition={saveExpedition}/>} 
+    {screen==='outdoor'&&<OutdoorTraining initialMode={outdoorStartMode} dateKey={draftDateKey} setDateKey={setDraftDateKey} sessions={numberedSessions} onBack={()=>goBack('add-training')} onSave={saveSession} onSaveExpedition={saveExpedition}/>} 
     {screen==='crossfit'&&<CrossFitTraining dateKey={draftDateKey} setDateKey={setDraftDateKey} onBack={()=>goBack('add-training')} onSave={saveSession}/>} 
     {screen==='workout'&&<WorkoutTraining dateKey={draftDateKey} setDateKey={setDraftDateKey} sessions={numberedSessions} onBack={()=>goBack('add-training')} onHistory={()=>navigate('workout-history')} onSave={saveSession}/>}
     {screen==='workout-history'&&<WorkoutHistory sessions={numberedSessions.filter(s=>s.type==='workout'&&isHistorySession(s))} onBack={()=>goBack('workout')}/>}
@@ -1641,8 +1694,8 @@ export default function App(){
     {screen==='combat-history'&&<CombatHistory sessions={numberedSessions.filter(s=>s.type==='combat'&&isHistorySession(s))} onBack={()=>goBack('combat')}/>}
     {screen==='hike'&&<HikeTraining dateKey={draftDateKey} setDateKey={setDraftDateKey} sessions={numberedSessions} onBack={()=>goBack('add-training')} onHistory={()=>navigate('hike-history')} onSave={saveSession}/>}
     {screen==='hike-history'&&<HikeHistory sessions={numberedSessions.filter(s=>s.type==='hike'&&isHistorySession(s))} onBack={()=>goBack('hike')}/>}
-    {screen==='about'&&<AboutScreen/>}
-    {screen==='profile'&&<ProfileScreen profile={profile} email={authSession.user.email} isBoss={isBoss} onBack={()=>goBack('home')} onNameChanged={data=>{setProfile(p=>({...p,name:data.name,name_changed_at:data.name_changed_at}));setMembers(rows=>rows.map(m=>m.id===authSession.user.id?{...m,name:data.name}:m));}} onWeightChanged={weight=>setProfile(p=>({...p,body_weight_kg:weight}))}/>}
+    {screen==='about'&&<AboutScreen onWhy={()=>navigate('why')}/>}
+    {screen==='profile'&&<ProfileScreen profile={profile} email={authSession.user.email} isBoss={isBoss} onBack={()=>goBack('home')} onNameChanged={data=>{setProfile(p=>({...p,name:data.name,name_changed_at:data.name_changed_at}));setMembers(rows=>rows.map(m=>m.id===authSession.user.id?{...m,name:data.name}:m));}} onWeightChanged={weight=>setProfile(p=>({...p,body_weight_kg:weight}))} onAvatarChanged={data=>{setProfile(p=>({...p,...data}));setMembers(rows=>rows.map(m=>m.id===authSession.user.id?{...m,...data}:m));}}/>}
     {trainerOpen&&<TrainerModal onClose={()=>setTrainerOpen(false)} onWorkout={()=>{setTrainerOpen(false);navigate('coach-workout');}}/>}
     {screen==='coach-workout'&&<TrainerWorkout userId={authSession.user.id} onClose={()=>goBack('gym')} onSave={saveSession}/>}
     {screen==='why'&&<WhyScreen onBack={()=>goBack('home')}/>} 
@@ -1660,7 +1713,7 @@ function BottomNav({screen,onNavigate}){
   </nav>;
 }
 
-function Home({onOpenProfile,schedule,sessions,profile,dailySteps,expeditionDays,saveNotice,isBoss,adminNotifications,onTrainer,onMarkNotificationsRead,hookahEvents,hookahProgramStartedOn,canUndoHookah,onHookah,onBonusHookah,onUndoHookah,stepsStatus,stepsSyncing,onEnableSteps,onOpenSteps,onOpenFeed,selectedDateKey,setSelectedDateKey,onSavePlan,onDeletePlan,onProposal,onOpenWorkout}){
+function Home({onOpenProfile,schedule,sessions,profile,dailySteps,expeditionDays,saveNotice,isBoss,adminNotifications,onTrainer,onMarkNotificationsRead,hookahEvents,hookahProgramStartedOn,canUndoHookah,onHookah,onBonusHookah,onUndoHookah,stepsStatus,stepsSyncing,onEnableSteps,onOpenSteps,onOpenFeed,selectedDateKey,setSelectedDateKey,onSavePlan,onDeletePlan,onProposal,onOpenWorkout,quickActivityIds,onQuickActivity}){
   const [pointsOpen,setPointsOpen]=useState(false);
   const [notificationsOpen,setNotificationsOpen]=useState(false);
   const events=pointEvents(sessions,dailySteps,hookahEvents,expeditionDays).slice(-10).reverse();
@@ -1681,86 +1734,46 @@ function Home({onOpenProfile,schedule,sessions,profile,dailySteps,expeditionDays
   const stepAverageSource=stepHistory.length>=30?stepHistory.slice(0,30):stepHistory;
   const averageSteps30=stepAverageSource.length?Math.round(stepAverageSource.reduce((sum,x)=>sum+Number(x.steps||0),0)/stepAverageSource.length):0;
 
-  return <main className="main-screen home-no-scroll">
-    <header className="topbar home-topbar">
-      <div className="home-brand-block">
-        <div className="brand-admin-row">
-          <Brand compact/>
-          <div className="home-notification-actions">
-            <FeedBell onOpen={onOpenFeed}/>
-            {isBoss&&<button className="admin-bell" onClick={async()=>{setNotificationsOpen(true);await onMarkNotificationsRead();}} aria-label="Уведомления администратора">
-              <span>🛡</span>{unreadNotifications>0&&<b>{unreadNotifications>9?'9+':unreadNotifications}</b>}
-            </button>}
-          </div>
-        </div>
-        <button type="button" className="home-profile-link" onClick={onOpenProfile} aria-label="Мой профиль и настройки">
-          <span className="home-profile-avatar" aria-hidden="true">{profile?.name?.trim()?.[0]?.toUpperCase()||'У'}</span>
-          <span className="home-profile-copy"><small>Мой профиль</small><strong>{profile?.name||'Пользователь'}</strong></span>
-          <span className="home-profile-arrow" aria-hidden="true">›</span>
-        </button>
-        <div className="season-title-row">
-          <span>Сезон</span>
-          <strong>{season.name.toUpperCase()}</strong>
-          <i className="season-leaf-icon" aria-hidden="true"/>
-        </div>
-        <p className="season-motto">Движение. Дисциплина. Результат.</p>
-      </div>
-
-      <div className="score-wrap">
-        <button className="score-card season-score-card" onClick={()=>setPointsOpen(true)}>
-          <div className="score-main-row">
-            <span className="score-star">★</span>
-            <strong>Баллы: {profile?.points||0}</strong>
-            <b>›</b>
-          </div>
-          <div className="score-day-row">
-            <span>День {season.day} из {season.total}</span>
-            <i className="season-leaf-icon small" aria-hidden="true"/>
-          </div>
-          <span className="season-progress-track"><i style={{width:`${seasonProgress}%`}}/></span>
-        </button>
-        <small>{scoreHint(sessions,dailySteps,expeditionDays)}</small>
+  const selectedQuick=FORMA_ACTIVITIES.filter(a=>quickActivityIds.includes(a.id));
+  const todaySteps=(dailySteps||[]).find(x=>x.date===todayKey)?.steps;
+  return <main className="main-screen home-no-scroll forma-home">
+    <header className="forma-home-head">
+      <Brand compact/>
+      <div className="forma-home-actions">
+        <FeedBell onOpen={onOpenFeed}/>
+        {isBoss&&<button className="admin-bell" onClick={async()=>{setNotificationsOpen(true);await onMarkNotificationsRead();}} aria-label="Уведомления администратора">◎{unreadNotifications>0&&<b>{unreadNotifications}</b>}</button>}
+        <button type="button" className="forma-profile-button" onClick={onOpenProfile}><span className="home-profile-avatar">{profile?.name?.trim()?.[0]?.toUpperCase()||'У'}</span><span>Профиль</span></button>
       </div>
     </header>
-
-    
-    <div className="home-quick-row">
-      {isBoss&&<section className="hookah-quick-card">
-        <div className="hookah-money"><small>Сегодня можно заработать</small><strong>{todayMoney.toLocaleString('ru-RU')} ₽</strong><em>{todayPlan.label} · доступно {todayPlan.slots}</em></div>
-        <div className="hookah-seven"><small>За 7 дней</small><strong>{sevenHookahs} из {sevenSlots}</strong></div>
-        {bonusState.eligible&&<button className="hookah-bonus-button" onClick={onBonusHookah}><strong>Бонусный кальян</strong><small>Заработан за неделю · 0 ₽ · 0 баллов</small></button>}
-        <button className="hookah-button" onClick={onHookah}>Выкуренный кальян</button>
-        {canUndoHookah&&<button className="hookah-undo" onClick={onUndoHookah}>Отменить последнее</button>}
-      </section>}
-      <button
-        className={`today-steps-chip ${stepsStatus}`}
-        onClick={['permission','error'].includes(stepsStatus)?onEnableSteps:onOpenSteps}
-        disabled={stepsSyncing}
-      >
-        <span className="steps-foot">👣</span>
-        <span>
-          <strong>{['ready','web'].includes(stepsStatus)
-            ?(dailySteps.find(x=>x.date===localDateKey())?.steps?.toLocaleString('ru-RU')??'Нет данных')
-            :stepsSyncing?'Синхронизация…':stepsStatus==='stale'?'Нет свежих данных':'Шаги за сегодня'}</strong>
-          <small>{
-            stepsStatus==='ready'?'шаги из Health Connect'
-            :stepsStatus==='web'?'история из Android-приложения'
-            :stepsStatus==='stale'?'проверить источник шагов'
-            :stepsStatus==='unavailable'?'Нет системного источника шагов'
-            :'Подключить автоматический шагомер'
-          }</small>
-          {averageSteps30>0&&<em>среднее: {averageSteps30.toLocaleString('ru-RU')} / день</em>}
-        </span>
+    <section className="forma-season-hero">
+      <div className="forma-season-copy">
+        <small className="forma-green-mark">// Сезон · {season.name}</small>
+        <h1>День сезона <span style={{whiteSpace:'nowrap'}}>{season.day} из {season.total}</span></h1>
+        <div className="forma-season-progress"><i style={{width:seasonProgress+'%'}}/></div>
+        <strong>{Math.round(seasonProgress)}%</strong>
+        <button type="button" className="forma-points-pill" onClick={()=>setPointsOpen(true)}>◎ Баллы <b>{Number(profile?.points||0).toLocaleString('ru-RU')}</b></button>
+      </div>
+      <div className="forma-athlete-image" role="img" aria-label="Атлет FORMA"/>
+    </section>
+    <section className="forma-quick-section">
+      <div className="forma-section-label"><h2>Быстрый выбор</h2><button type="button" onClick={onOpenWorkout}>Настроить ›</button></div>
+      <div className="forma-quick-grid">
+        {selectedQuick.map(a=><button key={a.id} type="button" className={'forma-quick-card forma-photo-'+a.id} onClick={()=>onQuickActivity(a.id)}><span className="forma-quick-photo"/><span className="forma-quick-label"><ActivityGlyph type={a.id}/>{a.label}</span></button>)}
+        {!selectedQuick.length&&<button type="button" className="forma-quick-empty" onClick={onOpenWorkout}>Выбрать любимые активности ›</button>}
+      </div>
+      <button type="button" className="gradient-button forma-add-activity" onClick={onOpenWorkout}><span>＋</span> Добавить активность <b>›</b></button>
+    </section>
+    <div className="forma-home-summary">
+      <button type="button" className="forma-summary-tile" onClick={['permission','error'].includes(stepsStatus)?onEnableSteps:onOpenSteps} disabled={stepsSyncing}>
+        <small>Шаги сегодня</small><strong>{todaySteps==null?'—':Number(todaySteps).toLocaleString('ru-RU')}</strong><em>{stepsSyncing?'Обновляем…':'По данным устройства'}</em>
       </button>
+      <div className="forma-summary-tile forma-series">
+        <small>Серия</small><strong>{Math.min(streak,6)} из 6</strong>
+        <div className="forma-series-dots">{Array.from({length:6},(_,i)=><i key={i} className={i<streak?'complete':''}/>)}</div>
+      </div>
     </div>
-
-    <DateWheelV17 schedule={schedule} dailySteps={dailySteps} selectedDateKey={selectedDateKey} setSelectedDateKey={setSelectedDateKey}/>
-    <StreakStrip streak={streak} state={streakInfo}/>
-
-    <button className="gradient-button workout-cta" onClick={onOpenWorkout}><span>＋</span>Добавить тренировку<b>›</b></button>
-    <p className="helper-text">Выбранная дата: {formatDate(selectedDateKey)}.</p>
+    <FormaWeekCalendar schedule={schedule} dailySteps={dailySteps} selectedDateKey={selectedDateKey} setSelectedDateKey={setSelectedDateKey}/>
     {saveNotice&&<div className="save-toast">✓ {saveNotice}</div>}
-
     {notificationsOpen&&<div className="modal-backdrop" onClick={()=>setNotificationsOpen(false)}>
       <section className="admin-notifications-modal" onClick={e=>e.stopPropagation()}>
         <header>
@@ -1793,6 +1806,19 @@ function Home({onOpenProfile,schedule,sessions,profile,dailySteps,expeditionDays
       </section>
     </div>}
   </main>;
+}
+
+function FormaWeekCalendar({schedule,dailySteps,selectedDateKey,setSelectedDateKey}){
+  const weekStart=mondayOf(dateFromKey(selectedDateKey));
+  const days=Array.from({length:7},(_,i)=>localDateKey(addDays(weekStart,i)));
+  const today=localDateKey();
+  return <section className="forma-week-calendar" aria-label="Календарь недели">
+    <div className="forma-week-heading"><span>Выбранная дата: <strong>{formatDate(selectedDateKey,{day:'numeric',month:'long'})}</strong></span><button type="button" onClick={()=>setSelectedDateKey(today)}>Сегодня</button></div>
+    <div className="forma-week-days">{days.map((key,i)=>{
+      const completed=schedule?.[key]?.status==='completed'||Number((dailySteps||[]).find(d=>d.date===key)?.steps||0)>=15000;
+      return <button type="button" key={key} onClick={()=>setSelectedDateKey(key)} aria-pressed={key===selectedDateKey} className={(key===selectedDateKey?'selected ':'')+(completed?'completed':'')}><span>{['Пн','Вт','Ср','Чт','Пт','Сб','Вс'][i]}</span><strong>{Number(key.slice(-2))}</strong><i/></button>;
+    })}</div>
+  </section>;
 }
 
 function StreakStrip({streak=0,state=null}){
@@ -1905,13 +1931,52 @@ function AdminUsersPanel(){
   </section>;
 }
 
-function ProfileScreen({profile,email,isBoss,onBack,onNameChanged,onWeightChanged}){
+function ProfileAvatarEditor({profile,onChanged}){
+ const [saving,setSaving]=useState(false),[error,setError]=useState(''),[success,setSuccess]=useState('');
+ const uid=profile?.id;
+ async function upload(e){
+   const file=e.target.files?.[0];e.target.value='';
+   if(!file||!uid)return;
+   setError('');setSuccess('');
+   if(!['image/jpeg','image/png','image/webp'].includes(file.type)||file.size>8*1024*1024){setError('Выберите JPG, PNG или WebP до 8 МБ.');return;}
+   setSaving(true);
+   try{
+     const bitmap=await createImageBitmap(file);
+     const side=Math.min(bitmap.width,bitmap.height);
+     const canvas=document.createElement('canvas');canvas.width=320;canvas.height=320;
+     const ctx=canvas.getContext('2d');
+     if(!ctx)throw new Error('Браузер не поддерживает обработку изображений.');
+     ctx.drawImage(bitmap,(bitmap.width-side)/2,(bitmap.height-side)/2,side,side,0,0,320,320);
+     bitmap.close?.();
+     const blob=await new Promise((resolve,reject)=>canvas.toBlob(x=>x?resolve(x):reject(new Error('Не удалось преобразовать фото.')),'image/webp',.82));
+     if(blob.size>2*1024*1024)throw new Error('Фотография превышает допустимый размер.');
+     const path=uid+'/avatar-'+crypto.randomUUID()+'.webp';
+     const storage=supabase.storage.from('forma-avatars');
+     const uploaded=await storage.upload(path,blob,{contentType:'image/webp',upsert:false});
+     if(uploaded.error)throw uploaded.error;
+     const {error:saveError}=await supabase.from('forma_profile_avatars').upsert({user_id:uid,avatar_path:path,updated_at:new Date().toISOString()});
+     if(saveError){await storage.remove([path]).catch(()=>{});throw saveError;}
+     const {data}=storage.getPublicUrl(path);
+     onChanged?.({avatar_path:path,avatar_url:data.publicUrl});
+     if(profile.avatar_path&&profile.avatar_path!==path)storage.remove([profile.avatar_path]).catch(()=>{});
+     setSuccess('Фото обновлено. Участники увидят его в рейтинге.');
+   }catch(err){setError(err.message||'Не удалось загрузить фото.');}
+   finally{setSaving(false);}
+ }
+ return <section className="forma-avatar-editor glass-card">
+   <span className="forma-avatar-display">{profile?.avatar_url?<img src={profile.avatar_url} alt="Фото профиля"/>:profile?.name?.trim()?.[0]?.toUpperCase()||'У'}</span>
+   <div><strong>Фотография профиля</strong><p>Круглая аватарка в профиле и рейтинге</p><label className="forma-avatar-upload">{saving?'Загружаем…':'Изменить фото'}<input type="file" accept="image/png,image/jpeg,image/webp" onChange={upload} disabled={saving} aria-label="Изменить фотографию профиля"/></label>
+   {error&&<small role="alert" className="error-line">{error}</small>}{success&&<small role="status" className="success-line">{success}</small>}</div>
+ </section>;
+}
+function ProfileScreen({profile,email,isBoss,onBack,onNameChanged,onWeightChanged,onAvatarChanged}){
  const [weight,setWeight]=useState(profile?.body_weight_kg==null?'':String(profile.body_weight_kg));
  const [weightNotice,setWeightNotice]=useState(''),[password,setPassword]=useState(''),[passwordNotice,setPasswordNotice]=useState('');
  async function saveWeight(e){e.preventDefault();const value=Number(String(weight).replace(',','.'));if(!Number.isFinite(value)||value<20||value>400){setWeightNotice('Укажи вес от 20 до 400 кг.');return;}
  const {error}=await supabase.rpc('set_body_weight_kg',{p_weight:value});setWeightNotice(error?'Не удалось сохранить вес.':'Вес сохранён.');if(!error)onWeightChanged(value);}
  async function savePassword(e){e.preventDefault();if(password.length<8){setPasswordNotice('Минимум 8 символов.');return;}const {error}=await supabase.auth.updateUser({password});setPasswordNotice(error?'Не удалось сменить пароль.':'Пароль обновлён.');if(!error)setPassword('');}
  return <main className="tab-screen about-screen"><button className="back-button" onClick={onBack}>‹</button><h1>Мой профиль</h1>
+ <ProfileAvatarEditor profile={profile} onChanged={onAvatarChanged}/>
  <ProfileName profile={profile} onChanged={onNameChanged}/>
  <section className="glass-card" style={{padding:16,marginBottom:12}}><h2>Контакты</h2><p>{email||'Почта не указана'}</p><small>Для изменения почты используйте подтверждение через настройки аккаунта.</small></section>
  <form className="glass-card" onSubmit={saveWeight} style={{padding:16,marginBottom:12}}><h2>Вес тела</h2><label>Собственный вес, кг <input type="number" min="20" max="400" step="0.1" value={weight} onChange={e=>setWeight(e.target.value)} style={{width:'100%',boxSizing:'border-box',padding:10}}/></label><button type="submit" className="secondary-button">Сохранить вес</button>{weightNotice&&<p role="status">{weightNotice}</p>}</form>
@@ -1920,46 +1985,34 @@ function ProfileScreen({profile,email,isBoss,onBack,onNameChanged,onWeightChange
  {isBoss&&<AdminUsersPanel/>}
  </main>;
 }
-function AboutScreen(){
+function AboutScreen({onWhy}){
   const [iosHelp,setIosHelp]=useState(false);
-
-  function openAndroid(){
-    window.open(ANDROID_APK_URL,'_blank','noopener,noreferrer');
-  }
-
-  function openIos(){
-    setIosHelp(true);
-    window.open(IOS_INSTALL_URL,'_blank','noopener,noreferrer');
-  }
-
-  return <main className="tab-screen about-screen about-tab-screen">
-    <p className="eyebrow-dark">Форма</p>
-    <h1>О приложении</h1>
-
-    <section className="download-card glass-card">
-      <h2>Установить «Форму»</h2>
-      <p>Выберите своё устройство.</p>
-
-      <button className="platform-download android-download" onClick={openAndroid}>
-        <span className="platform-icon">A</span>
-        <span><strong>Android</strong><small>Скачать актуальный установочный APK</small></span>
-        <b>↓</b>
-      </button>
-
-      <button className="platform-download ios-download" onClick={openIos}>
-        <span className="platform-icon apple-mark">●</span>
-        <span><strong>iPhone / iOS</strong><small>Установить через Safari без App Store</small></span>
-        <b>›</b>
-      </button>
-
-      {iosHelp&&<div className="ios-install-help">
-        <strong>На iPhone:</strong>
-        <span>откройте ссылку в Safari → «Поделиться» → «На экран Домой» → «Добавить».</span>
-      </div>}
+  function openAndroid(){window.open(ANDROID_APK_URL,'_blank','noopener,noreferrer');}
+  function openIos(){setIosHelp(true);window.open(IOS_INSTALL_URL,'_blank','noopener,noreferrer');}
+  const features=[
+    ['gym','Тренировки','Силовые планы и история нагрузок'],
+    ['bike','Активности','Вело, бег, походы, GPS и другое'],
+    ['stats','Статистика','Результаты, динамика, серии и цели'],
+    ['members','Сообщество','Единомышленники и лидерборд'],
+    ['goals','Цели','Физическая форма, активность и дисциплина'],
+    ['plan','Планирование','Календарь и контроль нагрузки']
+  ];
+  return <main className="tab-screen about-screen about-tab-screen forma-about">
+    <section className="forma-about-hero">
+      <Brand/>
+      <h1>Больше, чем просто тренировки</h1>
+      <p>Двигайся, фиксируй активность и наблюдай свой прогресс.</p>
     </section>
-
-    <p className="about-version-label">Форма · версия {APP_VERSION}</p>
-
+    <div className="forma-about-features">{features.map(([id,title,detail])=><article className="glass-card" key={id}><span className="forma-about-feature-icon">{id==='stats'?'▥':id==='members'?'♧':id==='goals'?'◎':id==='plan'?'▣':<ActivityGlyph type={id}/>}</span><div><strong>{title}</strong><small>{detail}</small></div></article>)}</div>
+    <button type="button" className="gradient-button forma-why-link" onClick={onWhy}><span>//</span><span><strong>Философия FORMA</strong><small>Для чего существует приложение</small></span><b>›</b></button>
+    <section className="download-card glass-card">
+      <h2>Установить FORMA</h2>
+      <p>Выбери своё устройство.</p>
+      <button className="platform-download android-download" onClick={openAndroid}><span className="platform-icon">A</span><span><strong>Android</strong><small>Скачать актуальный APK</small></span><b>↓</b></button>
+      <button className="platform-download ios-download" onClick={openIos}><span className="platform-icon apple-mark">●</span><span><strong>iPhone / iOS</strong><small>Установить через Safari</small></span><b>›</b></button>
+      {iosHelp&&<div className="ios-install-help"><strong>На iPhone:</strong><span>Safari → «Поделиться» → «На экран Домой» → «Добавить».</span></div>}
+    </section>
+    <p className="about-version-label">FORMA · версия {APP_VERSION}</p>
   </main>;
 }
 
@@ -2024,45 +2077,44 @@ function DateWheel({schedule,dailySteps,selectedDateKey,setSelectedDateKey}){
   </section>;
 }
 
-function AddTraining({dateKey,setDateKey,onProposal,onBack,onChoose}){
+function AddTraining({dateKey,setDateKey,onProposal,onBack,onChoose,quickActivityIds=[],onToggleQuick}){
   const [otherOpen,setOtherOpen]=useState(false);
   const [text,setText]=useState('');
+  const [indicators,setIndicators]=useState('');
   const [sent,setSent]=useState(false);
-
+  const [sending,setSending]=useState(false);
+  const [error,setError]=useState('');
   async function submit(){
-    if(!text.trim())return;
-    await onProposal(text.trim());
-    setText('');setSent(true);
+    if(!text.trim()||sending)return;
+    setSending(true);setError('');
+    try{
+      // Existing activity_proposals stores just title: keep names and requested metrics
+      // together until the owner approves a dedicated activity data contract.
+      const description=indicators.trim()?text.trim()+' · Показатели: '+indicators.trim():text.trim();
+      await onProposal(description);setSent(true);setText('');setIndicators('');
+    }catch(e){setError(e.message||'Не удалось отправить предложение.');}
+    finally{setSending(false);}
   }
-
-  return <main className="sub-screen add-training-screen">
-    <ScreenBack onBack={onBack}/>
-    <p className="eyebrow-dark">Новая запись</p>
-    <h1>Добавить тренировку</h1>
-
-    <label className="date-control add-date-compact">
-      <span>Дата</span>
-      <input type="date" value={dateKey} onChange={e=>setDateKey(e.target.value)}/>
-    </label>
-
-    <div className="activity-grid add-grid compact-activity-grid">
-      {ACTIVITIES.map(a=><button key={a.id} className={`activity-choice ${a.accent}`} onClick={()=>onChoose(a.id)}>
-        <ActivityGlyph type={a.id} className={a.accent}/>
-        <strong>{a.label}</strong>
-      </button>)}
-      <button className="activity-choice other-choice" onClick={()=>{setOtherOpen(true);setSent(false);}}>
-        <span>＋</span><strong>Другое</strong>
-      </button>
+  return <main className="sub-screen add-training-screen forma-activity-screen">
+    <ScreenBack onBack={onBack} title="Добавить активность"/>
+    <p className="forma-activity-subtitle">Выбери формат активности</p>
+    <label className="date-control add-date-compact"><span>Дата</span><input type="date" value={dateKey} onChange={e=>setDateKey(e.target.value)}/></label>
+    <div className="forma-activity-grid">
+      {FORMA_ACTIVITIES.map(a=><div key={a.id} className={'forma-activity-card forma-photo-'+a.id}>
+        <button className="forma-activity-select" type="button" onClick={()=>onChoose(a.id)} aria-label={'Выбрать '+a.label}><span className="forma-activity-photo"/><span className="forma-activity-description"><ActivityGlyph type={a.id}/><span><strong>{a.label}</strong><small>{a.caption}</small></span></span></button>
+        <button className={'forma-star '+(quickActivityIds.includes(a.id)?'selected':'')} type="button" aria-pressed={quickActivityIds.includes(a.id)} aria-label={(quickActivityIds.includes(a.id)?'Убрать из быстрого выбора: ':'В быстрый выбор: ')+a.label} onClick={()=>onToggleQuick(a.id)}>{quickActivityIds.includes(a.id)?'★':'☆'}</button>
+      </div>)}
     </div>
-
-    {otherOpen&&<div className="modal-backdrop" onClick={()=>setOtherOpen(false)}>
-      <section className="other-modal glass-card" onClick={e=>e.stopPropagation()}>
-        <header><h2>Предложить активность</h2><button onClick={()=>setOtherOpen(false)}>×</button></header>
-        <label className="dark-field"><span>Название активности</span><input value={text} onChange={e=>{setText(e.target.value);setSent(false);}} placeholder="Например: плавание" autoFocus/></label>
-        <button className="secondary-dark" onClick={submit}>Отправить на модерацию</button>
-        {sent&&<p className="success-line">Отправлено админу на согласование.</p>}
-      </section>
-    </div>}
+    <button type="button" className="gradient-button forma-other-button" onClick={()=>{setOtherOpen(true);setSent(false);setError('');}}>Другая активность <b>›</b></button>
+    {otherOpen&&<div className="modal-backdrop" onClick={()=>setOtherOpen(false)}><section className="other-modal glass-card" role="dialog" aria-modal="true" aria-label="Предложить активность" onClick={e=>e.stopPropagation()}>
+      <header><h2>Другая активность</h2><button type="button" aria-label="Закрыть" onClick={()=>setOtherOpen(false)}>×</button></header>
+      <p>Предложи название новой активности. Она появится в общем каталоге только после согласования.</p>
+      <label className="dark-field"><span>Название активности</span><input value={text} onChange={e=>{setText(e.target.value);setSent(false);}} placeholder="Например: плавание" autoFocus maxLength={120}/></label>
+      <label className="dark-field"><span>Какие показатели учитывать?</span><textarea value={indicators} onChange={e=>{setIndicators(e.target.value);setSent(false);}} placeholder="Например: время, дистанция, количество подходов" maxLength={300} rows={3}/></label>
+      <button className="secondary-dark" type="button" disabled={sending||!text.trim()} onClick={submit}>{sending?'Отправляем…':'Предложить владельцу'}</button>
+      {error&&<p role="alert" className="error-line">{error}</p>}
+      {sent&&<p role="status" className="success-line">Предложение отправлено на рассмотрение.</p>}
+    </section></div>}
   </main>;
 }
 
@@ -2373,9 +2425,9 @@ function expeditionDays(points=[]){
   return [...map.values()].sort((x,y)=>x.date.localeCompare(y.date));
 }
 
-function OutdoorTraining({dateKey,setDateKey,sessions,onBack,onSave,onSaveExpedition}){
+function OutdoorTraining({initialMode='bike',dateKey,setDateKey,sessions,onBack,onSave,onSaveExpedition}){
   const initialDraft=loadExpeditionDraft();
-  const [mode,setMode]=useState(initialDraft?'hike':'bike');
+  const [mode,setMode]=useState(initialDraft?'hike':initialMode);
   const [manualOpen,setManualOpen]=useState(false);
   const [title,setTitle]=useState(initialDraft?.title||'');
   const [distance,setDistance]=useState('');
@@ -3085,142 +3137,72 @@ function HookahHistoryFullscreen({hookahEvents,hookahStartedOn,hookahProgramStar
   </div>;
 }
 
-function StatisticsV17({sessions,dailySteps,isBoss,hookahEvents,hookahStartedOn,hookahProgramStartedOn,profile,memberCount,onOpenMembers,onOpenHistory,onOpenSteps}){
-  const [range,setRange]=useState('30d');
-  const [customStart,setCustomStart]=useState(localDateKey(addDays(new Date(),-30)));
-  const [customEnd,setCustomEnd]=useState(localDateKey());
-  const [hookahOpen,setHookahOpen]=useState(false);
-  const [withdrawals,setWithdrawals]=useState([]);
-  const [withdrawing,setWithdrawing]=useState(false);
+function StatisticsV17({sessions,dailySteps,expeditionDays,profile,memberCount,onOpenMembers,onOpenHistory,onOpenSteps}){
+  const [period,setPeriod]=useState('month');
+  const [graphType,setGraphType]=useState('all');
+  const [selectedBar,setSelectedBar]=useState(null);
   const season=seasonMeta();
-
-  useEffect(()=>{
-    let active=true;
-    if(!isBoss||!profile?.id){setWithdrawals([]);return ()=>{active=false;};}
-    supabase.from('hookah_withdrawals').select('id,amount,withdrawn_at').eq('user_id',profile.id).order('withdrawn_at',{ascending:false})
-      .then(({data,error})=>{if(!active)return;if(error)console.warn('Forma withdrawals load failed',error);else setWithdrawals(data||[]);});
-    return ()=>{active=false;};
-  },[isBoss,profile?.id]);
-
-  const today=new Date();
-  let start,end=localDateKey(today);
-  if(range==='prev-month'){
-    const first=new Date(today.getFullYear(),today.getMonth(),1,12);
-    start=localDateKey(addMonths(first,-1));end=localDateKey(addDays(first,-1));
-  }else if(range==='30d')start=localDateKey(addDays(today,-29));
-  else if(range==='6m')start=localDateKey(addMonths(today,-6));
-  else if(range==='1y')start=localDateKey(addYears(today,-1));
-  else{start=customStart;end=customEnd;}
-
-  const filtered=sessions.filter(x=>isStatsSession(x)&&x.date>=start&&x.date<=end);
-  const gymSessions=filtered.filter(x=>x.type==='gym');
-  const gym=gymSessions.length;
-  const tonnage=gymSessions.reduce((n,x)=>n+workoutTonnage(x.baseRows||[],x.extraRows||[]),0);
-  const avgTonnage=gym?tonnage/gym:0;
-  const bikeSessions=filtered.filter(x=>x.type==='bike');
-  const bike=bikeSessions.reduce((n,x)=>n+(Number(x.distance)||0),0);
-  const avgBike=bikeSessions.length?bike/bikeSessions.length:0;
-  const runSessions=filtered.filter(x=>x.type==='run');
-  const runDistance=runSessions.reduce((n,x)=>n+(Number(x.distance)||0),0);
-  const avgRun=runSessions.length?runDistance/runSessions.length:0;
-  const stepRows=(dailySteps||[]).filter(x=>x.date>=start&&x.date<=end);
-  const stepTotal=stepRows.reduce((n,x)=>n+(Number(x.steps)||0),0);
-  const avgSteps=stepRows.length?stepTotal/stepRows.length:0;
-  const workoutCount=filtered.filter(x=>x.type==='workout').length;
-  const combatCount=filtered.filter(x=>x.type==='combat').length;
-  const crossfitCount=filtered.filter(x=>x.type==='crossfit').length;
-  const motoSessions=filtered.filter(x=>x.type==='moto');
-  const motoDistance=motoSessions.reduce((n,x)=>n+(Number(x.distance)||0),0);
-  const avgMoto=motoSessions.length?motoDistance/motoSessions.length:0;
-  const flaneuringSessions=filtered.filter(x=>x.type==='flaneuring');
-  const flaneuringDistance=flaneuringSessions.reduce((n,x)=>n+(Number(x.distance)||0),0);
-  const flaneuringWalking=flaneuringSessions.reduce((n,x)=>n+(Number(x.walkingDistance)||0),0);
-  const flaneuringHours=flaneuringSessions.reduce((n,x)=>n+(Number(x.duration)||0),0)/3600;
-  const hikes=filtered.filter(x=>x.type==='hike');
-  const hikeCount=hikes.length;
-  const hikeDays=hikes.reduce((n,x)=>n+Math.max(Number(x.hikeDays)||1,1),0);
-  const hikeDistance=hikes.reduce((n,x)=>n+(Number(x.distance||x.hikeDistance)||0),0);
-
-  const todayKey=localDateKey();
-  const trackedStart=start<hookahStartedOn?hookahStartedOn:start;
-  const trackedEnd=end>todayKey?todayKey:end;
-  const hookahInRange=isBoss?ordinaryHookahEvents(hookahEvents).filter(h=>h.event_date>=trackedStart&&h.event_date<=trackedEnd):[];
-  const hookahCount=hookahInRange.length;
-  const hookahDays=trackedEnd>=trackedStart?daysBetween(trackedStart,trackedEnd)+1:0;
-  let hookahSlots=0;
-  if(hookahDays>0){for(let i=0;i<Math.min(hookahDays,5000);i++)hookahSlots+=hookahDayPlan(localDateKey(addDays(dateFromKey(trackedStart),i)),hookahProgramStartedOn).slots;}
-  const hookahWeeklyAvg=hookahDays?hookahCount*7/hookahDays:0;
-  const earningForDay=key=>hookahEarningForDay(hookahEvents,key,hookahProgramStartedOn);
-
-  const yesterdayKey=localDateKey(addDays(dateFromKey(todayKey),-1));
-  let lifetimeEarned=0;
-  if(isBoss&&hookahStartedOn&&hookahStartedOn<=yesterdayKey){
-    const maxDays=Math.min(daysBetween(hookahStartedOn,yesterdayKey)+1,5000);
-    for(let i=0;i<maxDays;i++) lifetimeEarned+=earningForDay(localDateKey(addDays(dateFromKey(hookahStartedOn),i)));
-  }
-  const withdrawnTotal=withdrawals.reduce((sum,row)=>sum+Number(row.amount||0),0);
-  const available=Math.max(0,lifetimeEarned-withdrawnTotal);
-
-  async function withdraw(){
-    if(!isBoss||!profile?.id||available<=0||withdrawing)return;
-    ensureAudioContext();setWithdrawing(true);
-    try{
-      const {data,error}=await supabase.from('hookah_withdrawals').insert({user_id:profile.id,amount:available}).select('id,amount,withdrawn_at').single();
-      if(error)throw error;
-      setWithdrawals(cur=>[data,...cur]);playCoinEffect();
-    }catch(err){console.error('Forma withdrawal save failed',err);window.alert('Не получилось зафиксировать вывод. Попробуй ещё раз.');}
-    finally{setWithdrawing(false);}
-  }
-
-  const ranges=[['prev-month','Прошедший месяц'],['30d','30 дней'],['6m','6 месяцев'],['1y','Год'],['custom','Свой диапазон']];
-  const compact=[];
-  if(bike>0)compact.push({key:'bike',type:'bike',accent:'amber',title:'Вело',value:bike.toLocaleString('ru-RU'),unit:'км',secondary:bikeSessions.length?'Среднее '+avgBike.toFixed(1)+' км / поездку':'',open:()=>onOpenHistory('bike')});
-  if(runDistance>0)compact.push({key:'run',type:'run',accent:'run',title:'Бег',value:runDistance.toLocaleString('ru-RU'),unit:'км',secondary:runSessions.length?'Среднее '+avgRun.toFixed(1)+' км / пробежку':'',open:()=>onOpenHistory('run')});
-  if(hikeCount>0)compact.push({key:'hike',type:'hike',accent:'hike',title:'ПВД / Поход',value:(hikeDistance||hikeCount).toLocaleString('ru-RU'),unit:hikeDistance?'км':'походов',secondary:hikeCount+' походов · '+hikeDays+' дн.',open:()=>onOpenHistory('hike')});
-  if(motoDistance>0)compact.push({key:'moto',type:'moto',accent:'moto',title:'Мото',value:motoDistance.toLocaleString('ru-RU'),unit:'км',secondary:motoSessions.length?'Среднее '+avgMoto.toFixed(1)+' км / поездку':'',open:()=>onOpenHistory('moto')});
-  if(flaneuringSessions.length>0)compact.push({key:'flaneuring',type:'flaneuring',accent:'flaneuring',title:'Фланирование',value:flaneuringWalking.toFixed(1),unit:'км пешком',secondary:flaneuringDistance.toFixed(1)+' км всего · '+flaneuringHours.toFixed(1)+' ч',open:()=>onOpenHistory('flaneuring')});
-  if(stepTotal>0)compact.push({key:'steps',type:'steps',accent:'green',title:'Шаги',value:stepTotal.toLocaleString('ru-RU'),unit:'шагов',secondary:stepRows.length?'Среднее '+Math.round(avgSteps).toLocaleString('ru-RU')+' / день':'',open:onOpenSteps});
-  if(workoutCount>0)compact.push({key:'workout',type:'workout',accent:'coral',title:'Воркаут',value:workoutCount.toLocaleString('ru-RU'),unit:'тренировок',secondary:'',open:()=>onOpenHistory('workout')});
-  if(combatCount>0)compact.push({key:'combat',type:'combat',accent:'combat',title:'Единоборства',value:combatCount.toLocaleString('ru-RU'),unit:'тренировок',secondary:'',open:()=>onOpenHistory('combat')});
-  if(crossfitCount>0)compact.push({key:'crossfit',type:'crossfit',accent:'crossfit',title:'CrossFit',value:crossfitCount.toLocaleString('ru-RU'),unit:'тренировок',secondary:'',open:()=>onOpenHistory('crossfit')});
-
-  return <main className="tab-screen stats-screen stats-v17">
-    <p className="eyebrow-dark">Сводка</p><h1>Статистика</h1>
-    <button className="rank-summary-card" onClick={onOpenMembers}><div><small>Сезон {season.name}. День {season.day} из {season.total}</small><strong>{profile?.points||0} баллов</strong></div><div><span>Рейтинг</span><b>{profile?.rank?'#'+profile.rank:'—'} <em>из {memberCount}</em></b></div><i>›</i></button>
-    <div className="range-tabs">{ranges.map(item=><button key={item[0]} className={range===item[0]?'active':''} onClick={()=>setRange(item[0])}>{item[1]}</button>)}</div>
-    {range==='custom'&&<div className="custom-range"><label><span>От</span><input type="date" value={customStart} onChange={e=>setCustomStart(e.target.value)}/></label><label><span>До</span><input type="date" value={customEnd} onChange={e=>setCustomEnd(e.target.value)}/></label></div>}
-    <p className="range-caption">{formatDate(start)} — {formatDate(end)}</p>
-
-    <div className="stats-grid-big stats-grid-v17">
-      {gym>0&&<button type="button" className="gym-stat-card-v17 stat-wide" onClick={()=>onOpenHistory('gym')}><span className="stat-icon"><ActivityGlyph type="gym" className="violet"/></span><span><small>Тренажёрка</small><strong>{gym} тренировок</strong><em>Тоннаж {formatKg(tonnage)} кг · среднее {formatKg(avgTonnage)} кг / трен.</em></span><b>›</b></button>}
-      {compact.map((card,index)=><V17StatCard key={card.key} {...card} onClick={card.open} wide={compact.length%2===1&&index===compact.length-1}/>)}
-      {Number(profile?.seriesCount||0)>0&&<article className="series-stat-card-v110"><small>Серии сезона</small><strong>{profile.seriesCount}</strong><em>закрыто полностью</em></article>}
-      {!gym&&!compact.length&&!isBoss&&<div className="empty-state stat-empty-v17">В выбранном периоде пока нет активности.</div>}
-      {isBoss&&<article className="hookah-stat-card hookah-stat-v17" onClick={()=>setHookahOpen(true)}>
-        <div className="hookah-stat-main-v17"><small>Кальян</small><strong>{hookahCount} из {hookahSlots}</strong><em>В среднем {hookahWeeklyAvg.toFixed(1)} / неделю · {hookahDayPlan(todayKey,hookahProgramStartedOn).label}</em></div>
-        <div className="hookah-fund-v17"><small>Фонд ерунды</small><strong>{available.toLocaleString('ru-RU')} ₽</strong><em>Доступно к выводу</em><button type="button" disabled={!available||withdrawing} onClick={e=>{e.stopPropagation();withdraw();}}>{withdrawing?'Фиксирую…':'Вывел деньги'}</button></div>
-        <b className="hookah-expand-v17">›</b>
-      </article>}
+  const today=localDateKey();
+  const offsets={week:6,month:29,year:364};
+  const start=localDateKey(addDays(new Date(),-offsets[period]));
+  const actual=(sessions||[]).filter(s=>isStatsSession(s)&&s.date>=start&&s.date<=today);
+  const gym=actual.filter(s=>s.type==='gym');
+  const km=actual.filter(s=>s.type==='bike').reduce((sum,s)=>sum+(Number(s.distance)||0),0);
+  const steps=(dailySteps||[]).filter(s=>s.date>=start&&s.date<=today).reduce((sum,s)=>sum+Math.max(0,Number(s.steps)||0),0);
+  const categories=[...new Set(actual.map(s=>s.type||'other'))];
+  const distribution=categories.map(type=>({type,label:activityMeta(type)?.label||type,count:actual.filter(s=>s.type===type).length})).sort((a,b)=>b.count-a.count);
+  const palette=['#0ba77e','#78d1b3','#e1bd73','#89abb7','#caabcf','#d7a7a1','#a2b56d','#75a6a1'];
+  const graphOptions=[{id:'all',label:'Все активности'},{id:'gym',label:'Тренировки'},...distribution.filter(d=>d.type!=='gym').map(d=>({id:d.type,label:d.label}))];
+  const graphRows=graphType==='all'?actual:actual.filter(s=>s.type===graphType);
+  const count=period==='week'?7:period==='month'?10:12;
+  const chartStart=dateFromKey(start),chartEnd=dateFromKey(today);
+  const span=Math.max(1,daysBetween(start,today)+1);
+  const chart=Array.from({length:count},(_,i)=>{
+    const first=localDateKey(addDays(chartStart,Math.floor(i*span/count)));
+    const last=i===count-1?today:localDateKey(addDays(chartStart,Math.floor((i+1)*span/count)-1));
+    return {id:i,first,last,label:period==='year'?new Intl.DateTimeFormat('ru-RU',{month:'short'}).format(dateFromKey(first)):formatDate(first,{day:'numeric',month:'short'}),items:graphRows.filter(s=>s.date>=first&&s.date<=last)};
+  });
+  const max=Math.max(1,...chart.map(x=>x.items.length));
+  const selected=chart.find(x=>x.id===selectedBar);
+  const angle=distribution.reduce((sum,item,i)=>sum+(item.count/Math.max(actual.length,1))*360,0);
+  let deg=0;
+  const segments=distribution.map((item,i)=>{const from=deg;deg+=item.count/Math.max(actual.length,1)*360;return palette[i%palette.length]+' '+from+'deg '+deg+'deg';});
+  const seasonPercent=Math.max(0,Math.min(100,Math.round(season.day/season.total*100)));
+  const streak=streakState(sessions,dailySteps,expeditionDays).day;
+  return <main className="tab-screen stats-screen forma-stats">
+    <header className="forma-tab-heading"><p className="eyebrow-dark">Твой прогресс</p><h1>Статистика</h1></header>
+    <div className="forma-period-tabs" role="group" aria-label="Период статистики">{[['week','Неделя'],['month','Месяц'],['year','Год']].map(([id,label])=><button key={id} type="button" className={period===id?'active':''} aria-pressed={period===id} onClick={()=>{setPeriod(id);setSelectedBar(null);}}>{label}</button>)}</div>
+    <button type="button" className="forma-stats-season" onClick={onOpenMembers}>
+      <span className="forma-stats-season-copy"><small>Сезон · {season.name}</small><strong>День {season.day} из {season.total}</strong><span className="forma-season-progress"><i style={{width:seasonPercent+'%'}}/></span><span className="forma-stats-season-value">{seasonPercent}% · {Number(profile?.points||0).toLocaleString('ru-RU')} баллов</span><em>Место: {profile?.rank?'№'+profile.rank:'—'} из {memberCount||0} ›</em></span>
+      <span className="forma-stats-athlete" aria-hidden="true"/>
+    </button>
+    <div className="forma-metrics-grid">
+      <button type="button" onClick={()=>onOpenHistory('gym')}><small>Тренировки</small><strong>{gym.length}</strong><span>За период</span></button>
+      <button type="button" onClick={()=>onOpenHistory('bike')}><small>Велосипед</small><strong>{km.toFixed(1)}</strong><span>км</span></button>
+      <button type="button" onClick={onOpenSteps}><small>Шаги</small><strong>{steps.toLocaleString('ru-RU')}</strong><span>За период</span></button>
+      <article><small>Серия</small><strong>{Math.min(streak,6)} / 6</strong><span>Активных дней</span></article>
     </div>
-    {hookahOpen&&<HookahHistoryFullscreen hookahEvents={hookahEvents} hookahStartedOn={hookahStartedOn} hookahProgramStartedOn={hookahProgramStartedOn} withdrawals={withdrawals} onClose={()=>setHookahOpen(false)}/>}
+    <section className="forma-stats-chart glass-card">
+      <header><h2>Активность</h2><select value={graphType} aria-label="Тип активности на графике" onChange={e=>{setGraphType(e.target.value);setSelectedBar(null);}}>{graphOptions.map(o=><option value={o.id} key={o.id}>{o.label}</option>)}</select></header>
+      <div className="forma-chart-bars">{chart.map(item=><button type="button" key={item.id} className={item.id===selectedBar?'selected':''} onClick={()=>setSelectedBar(item.id===selectedBar?null:item.id)} aria-label={formatDate(item.first)+' — '+formatDate(item.last)+': '+item.items.length+' активностей'}><span className="forma-chart-track"><i style={{height:Math.max(4,100*item.items.length/max)+'%'}}/></span><small>{item.label}</small></button>)}</div>
+      {selected&&<div className="forma-chart-details"><strong>{formatDate(selected.first)} — {formatDate(selected.last)} · {selected.items.length}</strong>{selected.items.map(s=><button type="button" key={s.id} onClick={()=>onOpenHistory(s.type)}>{formatDate(s.date,{day:'numeric',month:'short'})} · {activityLabel(s)} <b>›</b></button>)}{!selected.items.length&&<span>Выполненных активностей нет.</span>}</div>}
+    </section>
+    <section className="forma-distribution glass-card">
+      <h2>Распределение</h2>
+      <div className="forma-distribution-body"><div className="forma-donut" style={{background:distribution.length?'conic-gradient('+segments.join(',')+')':'#e9ddd2'}}><span><strong>{actual.length}</strong><small>активностей</small></span></div><div className="forma-donut-legend">{distribution.map((d,i)=><button type="button" key={d.type} onClick={()=>onOpenHistory(d.type)}><i style={{background:palette[i%palette.length]}}/>{d.label}<strong>{d.count} · {Math.round(d.count/Math.max(1,actual.length)*100)}%</strong></button>)}{!distribution.length&&<p>Пока нет сохранённых активностей.</p>}</div></div>
+    </section>
+    <p className="forma-stats-summary">{formatDate(start)} — {formatDate(today)} · Только завершённые активности</p>
   </main>;
 }
 
 function MembersV17({members,profile,previousTop5}){
   const season=seasonMeta();
-  const leaderboardRef=useRef(null);
+  const [mode,setMode]=useState('leaderboard');
   const [openId,setOpenId]=useState(null);
   const [events,setEvents]=useState({});
   const [loadingId,setLoadingId]=useState(null);
-  const previousTheme=season.previousName==='лето'?'summer':season.previousName==='зима'?'winter':season.previousName==='весна'?'spring':'autumn';
   const previousVisible=(previousTop5||[]).filter(item=>Number(item.points)>0||item.name===profile?.name);
-
-  useEffect(()=>{
-    const list=leaderboardRef.current;if(!list)return;
-    const timer=requestAnimationFrame(()=>{const me=list.querySelector('.leader-row.me');if(!me)return;list.scrollTop=Math.max(0,me.offsetTop-list.clientHeight/2+me.offsetHeight/2);});
-    return ()=>cancelAnimationFrame(timer);
-  },[members.length,profile?.id]);
-
+  const top=[members?.[1],members?.[0],members?.[2]];
   async function toggle(member){
     if(openId===member.id){setOpenId(null);return;}
     setOpenId(member.id);
@@ -3233,19 +3215,26 @@ function MembersV17({members,profile,previousTop5}){
     }catch(err){console.error('Forma member events failed',err);setEvents(cur=>({...cur,[member.id]:[]}));}
     finally{setLoadingId(null);}
   }
-
-  return <main className="tab-screen members-screen members-v17">
-    <div className="members-head"><div><p className="eyebrow-dark">Рейтинг</p><h1>Участники</h1></div><strong>{members.length}</strong></div>
-    <section className="season-card"><strong>Сезон {season.name}</strong><span>День {season.day} из {season.total}</span></section>
-    <p className="members-caption">Нажми на участника, чтобы увидеть его последние 10 начислений баллов.</p>
-    <div className="leaderboard-scroll" ref={leaderboardRef}><div className="leaderboard">{members.map(m=><div className="leader-item-v17" key={m.id}>
+  function Avatar({member}){
+    const name=member?.name?.trim()||'Участник';
+    const url=member?.avatar_url;
+    return <span className="member-avatar">{url?<img src={url} alt="" onError={e=>{e.currentTarget.hidden=true;e.currentTarget.parentElement?.classList.add('fallback');}}/>:null}<span>{name[0].toUpperCase()}</span></span>;
+  }
+  return <main className="tab-screen members-screen forma-members">
+    <section className="forma-members-hero"><p>Сообщество FORMA</p><h1>Участники</h1><span>Вместе двигаться интереснее</span></section>
+    <div className="forma-community-tabs" role="group" aria-label="Список сообщества"><button type="button" aria-pressed={mode==='leaderboard'} className={mode==='leaderboard'?'active':''} onClick={()=>setMode('leaderboard')}>Лидерборд</button><button type="button" aria-pressed={mode==='all'} className={mode==='all'?'active':''} onClick={()=>setMode('all')}>Все участники</button></div>
+    {mode==='leaderboard'&&<><p className="forma-members-season">Сезон {season.name} · День {season.day} из {season.total}</p>
+    <section className="forma-podium" aria-label="Три лидера сезона">
+      {top.map((member,i)=>member?<button type="button" onClick={()=>toggle(member)} key={member.id} className={'forma-podium-place place-'+(i===1?1:i===0?2:3)}><span className="forma-podium-medal">{i===1?'Ⅰ':i===0?'Ⅱ':'Ⅲ'}</span><Avatar member={member}/><strong>{member.name||'Участник'}</strong><span>{Number(member.points)||0} баллов</span><b>{i===1?'1':i===0?'2':'3'}</b></button>:<div className="forma-podium-place empty" key={i}/>)}
+    </section></>}
+    <div className="forma-members-list-head"><h2>{mode==='leaderboard'?'Рейтинг сезона':'Все участники'}</h2><small>{members.length} участников</small></div>
+    <div className="leaderboard-scroll forma-leaderboard" aria-label="Участники рейтинга"><div className="leaderboard">{members.map(m=><div className="leader-item-v17" key={m.id}>
       <button type="button" className={'leader-row '+(m.id===profile?.id?'me':'')} onClick={()=>toggle(m)}>
-        <span className="rank-place">{m.rank}</span><span className="member-avatar">{m.name?.trim()?.[0]?.toUpperCase()||'У'}</span><div><strong>{m.name}{m.id===profile?.id?' · вы':''}</strong><small>{m.rank===1?'Лидер сезона':'Место №'+m.rank}</small><em>Серий: {Number(m.series_count)||0}</em></div><b>★ {m.points||0}</b><i>{openId===m.id?'⌃':'⌄'}</i>
+        <span className="rank-place">{m.rank}</span><Avatar member={m}/><div><strong>{m.name}{m.id===profile?.id?' · вы':''}</strong><small>{m.last_activity_label||'Место №'+m.rank}</small></div><b>★ {m.points||0}</b><i>{openId===m.id?'⌃':'⌄'}</i>
       </button>
       {openId===m.id&&<div className="member-events-v17">{loadingId===m.id?<small>Загружаю начисления…</small>:!(events[m.id]||[]).length?<small>Начислений в этом сезоне пока нет.</small>:(events[m.id]||[]).map((event,index)=><div key={event.event_date+'-'+index}><span><strong>{formatDate(event.event_date,{day:'numeric',month:'short'})}</strong><small>{event.reason}</small></span><b className={Number(event.delta)>=0?'plus':'minus'}>{Number(event.delta)>=0?'+':''}{event.delta}</b></div>)}</div>}
     </div>)}</div></div>
-    <section className={'previous-season previous-season-'+previousTheme}><header><small>Прошлый сезон</small><h2>Топ-5 · {season.previousName}</h2></header>{!previousVisible.length&&<div className="empty-state compact-empty">В прошлом сезоне пока нет данных.</div>}<div className="previous-season-list">{previousVisible.map(item=><div className={'previous-row '+(item.name===profile?.name?'me':'')} key={item.rank+'-'+item.name}><span>{item.rank}</span><span className="previous-avatar">{item.name?.trim()?.[0]?.toUpperCase()||'У'}</span><strong>{item.name}{item.name===profile?.name?' · вы':''}<em>Серий: {Number(item.series_count)||0}</em></strong><b>★ {item.points}</b></div>)}</div></section>
-    <p className="inactive-rule">Аккаунты не удаляются. Если 45 дней нет активного дня, спортивная часть рейтинга становится 0. 15 000+ шагов считаются активным днём. Персональные штрафы могут уменьшать итоговый балл ниже нуля.</p>
+    <section className="previous-season"><header><small>Прошлый сезон</small><h2>Топ-5 · {season.previousName}</h2></header>{!previousVisible.length&&<div className="empty-state compact-empty">В прошлом сезоне пока нет данных.</div>}<div className="previous-season-list">{previousVisible.map(item=><div className={'previous-row '+(item.name===profile?.name?'me':'')} key={item.rank+'-'+item.name}><span>{item.rank}</span><span className="previous-avatar">{item.name?.trim()?.[0]?.toUpperCase()||'У'}</span><strong>{item.name}{item.name===profile?.name?' · вы':''}<em>Серий: {Number(item.series_count)||0}</em></strong><b>★ {item.points}</b></div>)}</div></section>
   </main>;
 }
 
