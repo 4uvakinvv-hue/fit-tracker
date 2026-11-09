@@ -1,17 +1,206 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="vertical" android:padding="16dp" android:background="@drawable/widget_bg">
- <TextView android:id="@+id/title" android:layout_width="match_parent" android:layout_height="34dp" android:text="КУРС · ПЛАН НА СЕГОДНЯ" android:textStyle="bold" android:textSize="18sp" android:textColor="#23392E"/>
- <TextView android:id="@+id/date" android:layout_width="match_parent" android:layout_height="24dp" android:text="Сегодня" android:textSize="12sp" android:textColor="#607365"/>
- <TextView android:id="@+id/progress" android:layout_width="match_parent" android:layout_height="32dp" android:text="Выполнено: 0 из 7" android:textSize="14sp" android:textColor="#35795F"/>
- <TextView android:id="@+id/t0" android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:textColor="#23392E" android:textSize="14sp" android:maxLines="2" android:ellipsize="end" android:gravity="center_vertical" android:paddingLeft="4dp" android:paddingRight="4dp" android:text="☐   Задача"/>
-<TextView android:id="@+id/t1" android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:textColor="#23392E" android:textSize="14sp" android:maxLines="2" android:ellipsize="end" android:gravity="center_vertical" android:paddingLeft="4dp" android:paddingRight="4dp" android:text="☐   Задача"/>
-<TextView android:id="@+id/t2" android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:textColor="#23392E" android:textSize="14sp" android:maxLines="2" android:ellipsize="end" android:gravity="center_vertical" android:paddingLeft="4dp" android:paddingRight="4dp" android:text="☐   Задача"/>
-<TextView android:id="@+id/t3" android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:textColor="#23392E" android:textSize="14sp" android:maxLines="2" android:ellipsize="end" android:gravity="center_vertical" android:paddingLeft="4dp" android:paddingRight="4dp" android:text="☐   Задача"/>
-<TextView android:id="@+id/t4" android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:textColor="#23392E" android:textSize="14sp" android:maxLines="2" android:ellipsize="end" android:gravity="center_vertical" android:paddingLeft="4dp" android:paddingRight="4dp" android:text="☐   Задача"/>
-<TextView android:id="@+id/t5" android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:textColor="#23392E" android:textSize="14sp" android:maxLines="2" android:ellipsize="end" android:gravity="center_vertical" android:paddingLeft="4dp" android:paddingRight="4dp" android:text="☐   Задача"/>
-<TextView android:id="@+id/t6" android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:textColor="#23392E" android:textSize="14sp" android:maxLines="2" android:ellipsize="end" android:gravity="center_vertical" android:paddingLeft="4dp" android:paddingRight="4dp" android:text="☐   Задача"/>
-<TextView android:id="@+id/t7" android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:textColor="#23392E" android:textSize="14sp" android:maxLines="2" android:ellipsize="end" android:gravity="center_vertical" android:paddingLeft="4dp" android:paddingRight="4dp" android:text="☐   Задача"/>
-<TextView android:id="@+id/t8" android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:textColor="#23392E" android:textSize="14sp" android:maxLines="2" android:ellipsize="end" android:gravity="center_vertical" android:paddingLeft="4dp" android:paddingRight="4dp" android:text="☐   Задача"/>
-<TextView android:id="@+id/t9" android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:textColor="#23392E" android:textSize="14sp" android:maxLines="2" android:ellipsize="end" android:gravity="center_vertical" android:paddingLeft="4dp" android:paddingRight="4dp" android:text="☐   Задача"/>
- <TextView android:id="@+id/chat" android:layout_width="match_parent" android:layout_height="46dp" android:text="  План с ChatGPT  →" android:gravity="center" android:textStyle="bold" android:textSize="15sp" android:textColor="#FFFFFF" android:background="#2E8A6B"/>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:padding="12dp"
+    android:background="@drawable/widget_bg">
+
+    <TextView
+        android:id="@+id/title"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="КУРС · ПЛАН НА СЕГОДНЯ"
+        android:textStyle="bold"
+        android:textSize="19sp"
+        android:textColor="#23392E" />
+
+    <TextView
+        android:id="@+id/date"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:paddingTop="3dp"
+        android:text="Сегодня"
+        android:textSize="14sp"
+        android:textColor="#607365" />
+
+    <TextView
+        android:id="@+id/progress"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:paddingTop="3dp"
+        android:paddingBottom="3dp"
+        android:text="Выполнено: 0 из 8"
+        android:textSize="15sp"
+        android:textColor="#35795F" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:gravity="center_vertical"
+        android:orientation="vertical">
+    <TextView
+        android:id="@+id/t0"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:minHeight="47dp"
+        android:gravity="center_vertical"
+        android:paddingStart="4dp"
+        android:paddingEnd="4dp"
+        android:paddingTop="3dp"
+        android:paddingBottom="3dp"
+        android:text="☐  Задача"
+        android:textColor="#23392E"
+        android:textSize="20sp"
+        android:maxLines="2"
+        android:ellipsize="end" />
+    <TextView
+        android:id="@+id/t1"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:minHeight="47dp"
+        android:gravity="center_vertical"
+        android:paddingStart="4dp"
+        android:paddingEnd="4dp"
+        android:paddingTop="3dp"
+        android:paddingBottom="3dp"
+        android:text="☐  Задача"
+        android:textColor="#23392E"
+        android:textSize="20sp"
+        android:maxLines="2"
+        android:ellipsize="end" />
+    <TextView
+        android:id="@+id/t2"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:minHeight="47dp"
+        android:gravity="center_vertical"
+        android:paddingStart="4dp"
+        android:paddingEnd="4dp"
+        android:paddingTop="3dp"
+        android:paddingBottom="3dp"
+        android:text="☐  Задача"
+        android:textColor="#23392E"
+        android:textSize="20sp"
+        android:maxLines="2"
+        android:ellipsize="end" />
+    <TextView
+        android:id="@+id/t3"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:minHeight="47dp"
+        android:gravity="center_vertical"
+        android:paddingStart="4dp"
+        android:paddingEnd="4dp"
+        android:paddingTop="3dp"
+        android:paddingBottom="3dp"
+        android:text="☐  Задача"
+        android:textColor="#23392E"
+        android:textSize="20sp"
+        android:maxLines="2"
+        android:ellipsize="end" />
+    <TextView
+        android:id="@+id/t4"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:minHeight="47dp"
+        android:gravity="center_vertical"
+        android:paddingStart="4dp"
+        android:paddingEnd="4dp"
+        android:paddingTop="3dp"
+        android:paddingBottom="3dp"
+        android:text="☐  Задача"
+        android:textColor="#23392E"
+        android:textSize="20sp"
+        android:maxLines="2"
+        android:ellipsize="end" />
+    <TextView
+        android:id="@+id/t5"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:minHeight="47dp"
+        android:gravity="center_vertical"
+        android:paddingStart="4dp"
+        android:paddingEnd="4dp"
+        android:paddingTop="3dp"
+        android:paddingBottom="3dp"
+        android:text="☐  Задача"
+        android:textColor="#23392E"
+        android:textSize="20sp"
+        android:maxLines="2"
+        android:ellipsize="end" />
+    <TextView
+        android:id="@+id/t6"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:minHeight="47dp"
+        android:gravity="center_vertical"
+        android:paddingStart="4dp"
+        android:paddingEnd="4dp"
+        android:paddingTop="3dp"
+        android:paddingBottom="3dp"
+        android:text="☐  Задача"
+        android:textColor="#23392E"
+        android:textSize="20sp"
+        android:maxLines="2"
+        android:ellipsize="end" />
+    <TextView
+        android:id="@+id/t7"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:minHeight="47dp"
+        android:gravity="center_vertical"
+        android:paddingStart="4dp"
+        android:paddingEnd="4dp"
+        android:paddingTop="3dp"
+        android:paddingBottom="3dp"
+        android:text="☐  Задача"
+        android:textColor="#23392E"
+        android:textSize="20sp"
+        android:maxLines="2"
+        android:ellipsize="end" />
+    <TextView
+        android:id="@+id/t8"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:minHeight="47dp"
+        android:gravity="center_vertical"
+        android:paddingStart="4dp"
+        android:paddingEnd="4dp"
+        android:paddingTop="3dp"
+        android:paddingBottom="3dp"
+        android:text="☐  Задача"
+        android:textColor="#23392E"
+        android:textSize="20sp"
+        android:maxLines="2"
+        android:ellipsize="end" />
+    <TextView
+        android:id="@+id/t9"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:minHeight="47dp"
+        android:gravity="center_vertical"
+        android:paddingStart="4dp"
+        android:paddingEnd="4dp"
+        android:paddingTop="3dp"
+        android:paddingBottom="3dp"
+        android:text="☐  Задача"
+        android:textColor="#23392E"
+        android:textSize="20sp"
+        android:maxLines="2"
+        android:ellipsize="end" />
+    </LinearLayout>
+
+    <TextView
+        android:id="@+id/chat"
+        android:layout_width="match_parent"
+        android:layout_height="42dp"
+        android:layout_marginTop="6dp"
+        android:text="План с ChatGPT  →"
+        android:gravity="center"
+        android:textStyle="bold"
+        android:textSize="16sp"
+        android:textColor="#FFFFFF"
+        android:background="#2E8A6B" />
 </LinearLayout>
