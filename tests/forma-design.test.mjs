@@ -34,7 +34,8 @@ test('approved screen contracts remain part of the real app, not a separate mock
   assert.match(app,/className="main-screen home-no-scroll forma-home"/);
   assert.match(app,/className="forma-activity-grid"/);
   assert.match(app,/className="forma-distribution glass-card"/);
-  assert.match(app,/className="forma-podium"/);
+  assert.doesNotMatch(app,/forma-podium/);
+  assert.match(app,/GuideScreen/);
   assert.match(app,/className="forma-about-hero"/);
   assert.match(app,/forma-design\/splash\.webp/);
   assert.match(app,/onQuickActivity\(a\.id\)/);
@@ -42,7 +43,7 @@ test('approved screen contracts remain part of the real app, not a separate mock
   assert.match(gym,/\.slice\(0,8\)/);
   assert.match(gym,/r\.sourceKind\|\|kind/);
   assert.match(gym,/className="forma-gym-save-row"/);
-  assert.match(css,/--bg:#f7eee6/);
+  assert.match(css,/--bg:#eff0f2/);
   assert.match(css,/overflow:hidden!important/);
   assert.doesNotMatch(css,/https?:\/\/unsplash/);
 });
