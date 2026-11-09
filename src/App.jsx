@@ -1694,11 +1694,12 @@ export default function App(){
     {screen==='combat-history'&&<CombatHistory sessions={numberedSessions.filter(s=>s.type==='combat'&&isHistorySession(s))} onBack={()=>goBack('combat')}/>}
     {screen==='hike'&&<HikeTraining dateKey={draftDateKey} setDateKey={setDraftDateKey} sessions={numberedSessions} onBack={()=>goBack('add-training')} onHistory={()=>navigate('hike-history')} onSave={saveSession}/>}
     {screen==='hike-history'&&<HikeHistory sessions={numberedSessions.filter(s=>s.type==='hike'&&isHistorySession(s))} onBack={()=>goBack('hike')}/>}
-    {screen==='about'&&<AboutScreen onWhy={()=>navigate('why')}/>}
+    {screen==='about'&&<AboutScreen onWhy={()=>navigate('why')} onGuide={()=>navigate('guide')}/>}
     {screen==='profile'&&<ProfileScreen profile={profile} email={authSession.user.email} isBoss={isBoss} onBack={()=>goBack('home')} onNameChanged={data=>{setProfile(p=>({...p,name:data.name,name_changed_at:data.name_changed_at}));setMembers(rows=>rows.map(m=>m.id===authSession.user.id?{...m,name:data.name}:m));}} onWeightChanged={weight=>setProfile(p=>({...p,body_weight_kg:weight}))} onAvatarChanged={data=>{setProfile(p=>({...p,...data}));setMembers(rows=>rows.map(m=>m.id===authSession.user.id?{...m,...data}:m));}}/>}
     {trainerOpen&&<TrainerModal onClose={()=>setTrainerOpen(false)} onWorkout={()=>{setTrainerOpen(false);navigate('coach-workout');}}/>}
     {screen==='coach-workout'&&<TrainerWorkout userId={authSession.user.id} onClose={()=>goBack('gym')} onSave={saveSession}/>}
-    {screen==='why'&&<WhyScreen onBack={()=>goBack('home')}/>} 
+    {screen==='why'&&<WhyScreen onBack={()=>goBack('about')}/>}
+    {screen==='guide'&&<GuideScreen onBack={()=>goBack('about')}/>} 
     <FeedNotificationBridge userId={profile?.id} onOpenFeed={()=>navigate('feed')}/>
     {screen!=='coach-workout'&&<BottomNav screen={screen} onNavigate={navigate}/>}
   </div>;
@@ -1979,32 +1980,37 @@ function ProfileScreen({profile,email,isBoss,onBack,onNameChanged,onWeightChange
  <ProfileAvatarEditor profile={profile} onChanged={onAvatarChanged}/>
  <ProfileName profile={profile} onChanged={onNameChanged}/>
  <section className="glass-card" style={{padding:16,marginBottom:12}}><h2>Контакты</h2><p>{email||'Почта не указана'}</p><small>Для изменения почты используйте подтверждение через настройки аккаунта.</small></section>
- <form className="glass-card" onSubmit={saveWeight} style={{padding:16,marginBottom:12}}><h2>Вес тела</h2><label>Собственный вес, кг <input type="number" min="20" max="400" step="0.1" value={weight} onChange={e=>setWeight(e.target.value)} style={{width:'100%',boxSizing:'border-box',padding:10}}/></label><button type="submit" className="secondary-button">Сохранить вес</button>{weightNotice&&<p role="status">{weightNotice}</p>}</form>
+ <form className="glass-card forma-weight-card" onSubmit={saveWeight}><h2>Вес тела</h2><label>Собственный вес, кг <input type="number" min="20" max="400" step="0.1" value={weight} onChange={e=>setWeight(e.target.value)}/></label><button type="submit" className="secondary-button">Сохранить вес</button>{weightNotice&&<p role="status">{weightNotice}</p>}</form>
  <form className="glass-card" onSubmit={savePassword} style={{padding:16,marginBottom:12}}><h2>Безопасность</h2><label>Новый пароль <input type="password" autoComplete="new-password" minLength="8" value={password} onChange={e=>setPassword(e.target.value)}/></label><button type="submit" className="secondary-button">Сменить пароль</button>{passwordNotice&&<p role="status">{passwordNotice}</p>}</form>
  <section className="glass-card" style={{padding:16,marginBottom:12}}><h2>Подписки</h2><p>Информация о подписке тренера и доступных возможностях.</p></section>
  {isBoss&&<AdminUsersPanel/>}
  </main>;
 }
-function AboutScreen({onWhy}){
+function GuideScreen({onBack}){
+  const steps=[
+    ['Главная','Выбери дату в календаре недели и нажми «Добавить активность». Баллы за сезон показаны сверху: они отражают регулярность, а не уровень формы.'],
+    ['Силовые тренировки','Открой «Тренажёрка», выбери группу мышц и упражнения. Вводи подходы, повторы и вес — тоннаж считается сразу. Черновик сохраняется сам, итог фиксируется кнопкой «Сохранить тренировку».'],
+    ['Активности с GPS','Выбери вело, бег или поход и запусти запись. Маршрут рисуется по ходу движения. После завершения карту маршрута можно сохранить себе картинкой: кнопки «PNG» и «PNG без фона».'],
+    ['Тренер по подписке','Нужен индивидуальный план? В «Тренажёрке» нажми «Заказать тренера». После оформления подписки тренировки от тренера появятся в разделе «Тренировка от тренера».'],
+    ['Статистика и участники','В статистике видно неделю, месяц и год. В «Участниках» — рейтинг сезона: нажми на строку, чтобы увидеть, за что начислены баллы.']
+  ];
+  return <main className="sub-screen forma-guide">
+    <ScreenBack onBack={onBack} title="Инструкция"/>
+    <ol className="forma-guide-list">{steps.map(([t,d],i)=><li className="glass-card" key={t}><b>{i+1}</b><div><strong>{t}</strong><p>{d}</p></div></li>)}</ol>
+  </main>;
+}
+function AboutScreen({onWhy,onGuide}){
   const [iosHelp,setIosHelp]=useState(false);
   function openAndroid(){window.open(ANDROID_APK_URL,'_blank','noopener,noreferrer');}
   function openIos(){setIosHelp(true);window.open(IOS_INSTALL_URL,'_blank','noopener,noreferrer');}
-  const features=[
-    ['gym','Тренировки','Силовые планы и история нагрузок'],
-    ['bike','Активности','Вело, бег, походы, GPS и другое'],
-    ['stats','Статистика','Результаты, динамика, серии и цели'],
-    ['members','Сообщество','Единомышленники и лидерборд'],
-    ['goals','Цели','Физическая форма, активность и дисциплина'],
-    ['plan','Планирование','Календарь и контроль нагрузки']
-  ];
   return <main className="tab-screen about-screen about-tab-screen forma-about">
     <section className="forma-about-hero">
       <Brand/>
       <h1>Больше, чем просто тренировки</h1>
       <p>Двигайся, фиксируй активность и наблюдай свой прогресс.</p>
     </section>
-    <div className="forma-about-features">{features.map(([id,title,detail])=><article className="glass-card" key={id}><span className="forma-about-feature-icon">{id==='stats'?'▥':id==='members'?'♧':id==='goals'?'◎':id==='plan'?'▣':<ActivityGlyph type={id}/>}</span><div><strong>{title}</strong><small>{detail}</small></div></article>)}</div>
-    <button type="button" className="gradient-button forma-why-link" onClick={onWhy}><span>//</span><span><strong>Философия FORMA</strong><small>Для чего существует приложение</small></span><b>›</b></button>
+    <button type="button" className="gradient-button forma-why-link" onClick={onGuide}><span><strong>Инструкция</strong><small>Как пользоваться приложением</small></span><b>›</b></button>
+    <button type="button" className="gradient-button forma-why-link" onClick={onWhy}><span><strong>Философия FORMA</strong><small>Для чего существует приложение</small></span><b>›</b></button>
     <section className="download-card glass-card">
       <h2>Установить FORMA</h2>
       <p>Выбери своё устройство.</p>
@@ -3202,7 +3208,6 @@ function MembersV17({members,profile,previousTop5}){
   const [events,setEvents]=useState({});
   const [loadingId,setLoadingId]=useState(null);
   const previousVisible=(previousTop5||[]).filter(item=>Number(item.points)>0||item.name===profile?.name);
-  const top=[members?.[1],members?.[0],members?.[2]];
   async function toggle(member){
     if(openId===member.id){setOpenId(null);return;}
     setOpenId(member.id);
@@ -3223,10 +3228,7 @@ function MembersV17({members,profile,previousTop5}){
   return <main className="tab-screen members-screen forma-members">
     <section className="forma-members-hero"><p>Сообщество FORMA</p><h1>Участники</h1><span>Вместе двигаться интереснее</span></section>
     <div className="forma-community-tabs" role="group" aria-label="Список сообщества"><button type="button" aria-pressed={mode==='leaderboard'} className={mode==='leaderboard'?'active':''} onClick={()=>setMode('leaderboard')}>Лидерборд</button><button type="button" aria-pressed={mode==='all'} className={mode==='all'?'active':''} onClick={()=>setMode('all')}>Все участники</button></div>
-    {mode==='leaderboard'&&<><p className="forma-members-season">Сезон {season.name} · День {season.day} из {season.total}</p>
-    <section className="forma-podium" aria-label="Три лидера сезона">
-      {top.map((member,i)=>member?<button type="button" onClick={()=>toggle(member)} key={member.id} className={'forma-podium-place place-'+(i===1?1:i===0?2:3)}><span className="forma-podium-medal">{i===1?'Ⅰ':i===0?'Ⅱ':'Ⅲ'}</span><Avatar member={member}/><strong>{member.name||'Участник'}</strong><span>{Number(member.points)||0} баллов</span><b>{i===1?'1':i===0?'2':'3'}</b></button>:<div className="forma-podium-place empty" key={i}/>)}
-    </section></>}
+    {mode==='leaderboard'&&<><p className="forma-members-season">Сезон {season.name} · День {season.day} из {season.total}</p></>}
     <div className="forma-members-list-head"><h2>{mode==='leaderboard'?'Рейтинг сезона':'Все участники'}</h2><small>{members.length} участников</small></div>
     <div className="leaderboard-scroll forma-leaderboard" aria-label="Участники рейтинга"><div className="leaderboard">{members.map(m=><div className="leader-item-v17" key={m.id}>
       <button type="button" className={'leader-row '+(m.id===profile?.id?'me':'')} onClick={()=>toggle(m)}>
