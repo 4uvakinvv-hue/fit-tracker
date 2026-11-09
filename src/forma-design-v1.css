@@ -586,3 +586,56 @@ input,select,textarea{color-scheme:light}
 .forma-design-v1 .exercise-picker-list>button.selected{background:#e3f5ee!important;color:#087a5c!important;font-weight:700}
 .forma-design-v1 .exercise-picker>.secondary-dark{
   background:linear-gradient(145deg,#fffdf9,#f3e8de)!important;color:#087a5c!important;border:1px solid rgba(165,151,136,.3)!important}
+
+/* ===== Coach workout screen (Тренировка от тренера) in the light FORMA v1 theme ===== */
+.forma-design-v1 .coach-workout-screen{color:#292d29}
+.forma-design-v1 .coach-workout-screen .soft-text,.forma-design-v1 .coach-saving-hint,.forma-design-v1 .coach-edit-hint,
+.forma-design-v1 .coach-last-results,.forma-design-v1 .coach-last-result{color:#6b6f69!important}
+.forma-design-v1 .coach-workout-heading h2,.forma-design-v1 .coach-exercise-card h3,.forma-design-v1 .coach-screen-header>strong{color:#242b27!important}
+.forma-design-v1 .coach-recommendations-toggle{
+  background:linear-gradient(145deg,#fffdf9,#f3e8de)!important;color:#4b524c!important;
+  border:1px solid rgba(165,151,136,.3)!important;border-radius:14px;
+  box-shadow:inset 1px 2px 2px #fff,3px 5px 11px rgba(126,100,77,.12)}
+.forma-design-v1 .coach-general-notes{color:#4b524c!important}
+.forma-design-v1 .coach-volume-summary{background:#e9f6f0!important;border:1px solid #bfe6d9!important;color:#4b524c!important;border-radius:14px}
+.forma-design-v1 .coach-volume-summary strong{color:#087a5c!important}
+.forma-design-v1 .coach-exercise-card{
+  background:linear-gradient(145deg,#fffdf9,#f3e8de)!important;color:#292d29!important;
+  border:1px solid rgba(165,151,136,.22)!important;border-radius:20px;
+  box-shadow:inset 1px 2px 2px #fff,5px 7px 15px rgba(126,100,77,.15),-4px -4px 11px rgba(255,255,255,.92)!important}
+.forma-design-v1 .coach-exercise-card>header>span{background:#e3f5ee!important;color:#087a5c!important;font-weight:800}
+.forma-design-v1 .coach-target{color:#087a5c!important;font-weight:700}
+.forma-design-v1 .coach-short-technique,.forma-design-v1 .coach-card-info,.forma-design-v1 .coach-card-info>small{color:#5d625d!important}
+.forma-design-v1 .coach-technique-details summary{color:#087a5c!important;font-weight:700}
+.forma-design-v1 .coach-technique-details p,.forma-design-v1 .coach-technique-details strong{color:#3f4540!important}
+.forma-design-v1 .coach-superset-badge,.forma-design-v1 .coach-card-info>small.coach-superset-rest{color:#087a5c!important;background:#e3f5ee!important;border-color:#bfe6d9!important}
+.forma-design-v1 .coach-exercise-card.coach-superset{border-left:3px solid #10a67f!important}
+.forma-design-v1 .coach-result-line label span,.forma-design-v1 .coach-result-fields label span,.forma-design-v1 .coach-rir-fields label span{color:#5d625d!important;opacity:1}
+.forma-design-v1 .coach-result-line input,.forma-design-v1 .coach-result-fields input,.forma-design-v1 .coach-rir-fields input,
+.forma-design-v1 .coach-comment-editor textarea,.forma-design-v1 .coach-exercise-card textarea,
+.forma-design-v1 .coach-wishes-input,.forma-design-v1 .coach-intake-form input,.forma-design-v1 .coach-intake-form textarea,
+.forma-design-v1 .coach-body-weight input{
+  background:#fffaf5!important;color:#242b27!important;border:1px solid rgba(165,151,136,.4)!important;border-radius:14px;
+  box-shadow:inset 2px 3px 6px rgba(126,100,77,.14),inset -2px -2px 5px #fff}
+.forma-design-v1 .coach-result-line input::placeholder,.forma-design-v1 .coach-wishes-input::placeholder{color:#9a9a92}
+.forma-design-v1 .coach-rir-fields{border-color:rgba(165,151,136,.3)!important}
+.forma-design-v1 .coach-rir-fields legend,.forma-design-v1 .coach-wishes-box,.forma-design-v1 .coach-intake-form,.forma-design-v1 .coach-body-weight{color:#4b524c!important}
+.forma-design-v1 .coach-comment-editor button{color:#087a5c!important}
+
+/* ===== Owner request 09.11: icons in workout rows are hidden until they are finished ===== */
+.forma-design-v1 .forma-exercise-preview{display:none!important}
+.forma-design-v1 .exercise-head:before{content:none!important;display:none!important}
+.forma-design-v1 .exercise-head,.forma-design-v1 .exercise-row{grid-template-columns:minmax(0,1fr) 44px 44px 50px 28px!important;gap:5px}
+@media(max-width:380px){.forma-design-v1 .exercise-head,.forma-design-v1 .exercise-row{grid-template-columns:minmax(0,1fr) 38px 38px 44px 24px!important;gap:4px}}
+.forma-design-v1 .exercise-row .exercise-select-button{padding-left:10px;text-align:left}
+
+/* ===== Splash: live panel sits exactly on the baked-in panel and never touches the tagline below it ===== */
+.forma-splash-stage .forma-splash-live{top:82.3%!important;height:11.1%!important;box-shadow:none!important;border-radius:22px;gap:10px}
+.forma-splash-stage .forma-splash-live strong{font-size:clamp(12px,3.2vw,16px)}
+
+/* ===== One palette: ink text, one green accent, neutral greys. No orange/blue/violet text in the light theme ===== */
+.forma-design-v1 .coach-last-result,.forma-design-v1 .coach-last-results span{color:#6b6f69!important}
+.forma-design-v1 .success-line{color:#087a5c!important}
+.forma-design-v1 .error-line{color:#b0331b!important}
+.forma-design-v1 .coach-failure-compact{background:#fbe9e4!important;color:#8f2a17!important}
+.forma-splash-stage .forma-splash-live{width:min(98vw,560px)!important;padding:0 24px!important}
