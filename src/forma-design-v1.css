@@ -565,3 +565,24 @@ input,select,textarea{color-scheme:light}
   border:1px solid rgba(165,151,136,.3)!important;border-radius:16px;
   box-shadow:inset 1px 2px 2px #fff,3px 5px 11px rgba(126,100,77,.14)!important;
 }
+
+/* FORMA v1: no seasonal leaf decorations anywhere (legacy autumn theme) */
+.app-shell-dark.forma-design-v1::before,.app-shell-dark.forma-design-v1::after{content:none!important;display:none!important;background:none!important}
+.forma-design-v1 .season-leaf-icon{display:none!important}
+.forma-design-v1 .wheel-date-row.selected::before,
+.forma-design-v1 .season-score-card::after,
+.forma-design-v1 .workout-cta::before,.forma-design-v1 .workout-cta::after{
+  content:none!important;display:none!important;background:none!important;-webkit-mask:none!important;mask:none!important}
+
+/* Legacy dark-theme text variable: modals, pickers and sheets must read dark on light */
+:root{--text:#252b27}
+.forma-design-v1 .exercise-picker header h3,.forma-design-v1 .exercise-picker header>button{color:#242b27!important}
+.forma-design-v1 .exercise-picker small{color:#6b6f69!important}
+.forma-design-v1 .exercise-search{
+  background:#fffaf5!important;color:#242b27!important;border:1px solid rgba(165,151,136,.4)!important;border-radius:14px;
+  box-shadow:inset 2px 3px 6px rgba(126,100,77,.14),inset -2px -2px 5px #fff}
+.forma-design-v1 .exercise-search::placeholder{color:#9a9a92}
+.forma-design-v1 .exercise-picker-list>button{color:#242b27!important;border-bottom:1px solid rgba(165,151,136,.25)!important}
+.forma-design-v1 .exercise-picker-list>button.selected{background:#e3f5ee!important;color:#087a5c!important;font-weight:700}
+.forma-design-v1 .exercise-picker>.secondary-dark{
+  background:linear-gradient(145deg,#fffdf9,#f3e8de)!important;color:#087a5c!important;border:1px solid rgba(165,151,136,.3)!important}
