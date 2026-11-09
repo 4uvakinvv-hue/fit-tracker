@@ -7,14 +7,31 @@ permissions:
   contents: write
 jobs:
   build:
+    if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Smoke test
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+      - name: Install Android SDK 35
+        run: sdkmanager --install 'platforms;android-35' 'build-tools;35.0.0'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.7'
+      - name: Build APK
+        run: cd kurs-android && gradle --no-daemon assembleDebug
+      - name: Publish APK to branch
         run: |
-          echo OK > kurs-widget-ci.txt
+          cp kurs-android/app/build/outputs/apk/debug/app-debug.apk kurs-widget.apk
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add kurs-widget-ci.txt
-          git commit -m 'KURS widget CI smoke test'
-          git push
+          git add -f kurs-widget.apk
+          git commit -m 'Build KURS widget installable APK'
+          git push origin HEAD:kurs-widget-apk-build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: kurs-widget-apk
+          path: kurs-widget.apk
