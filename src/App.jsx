@@ -3151,7 +3151,7 @@ function StatisticsV17({sessions,dailySteps,expeditionDays,profile,memberCount,o
   const steps=(dailySteps||[]).filter(s=>s.date>=start&&s.date<=today).reduce((sum,s)=>sum+Math.max(0,Number(s.steps)||0),0);
   const categories=[...new Set(actual.map(s=>s.type||'other'))];
   const distribution=categories.map(type=>({type,label:activityMeta(type)?.label||type,count:actual.filter(s=>s.type===type).length})).sort((a,b)=>b.count-a.count);
-  const palette=['#0ba77e','#78d1b3','#e1bd73','#89abb7','#caabcf','#d7a7a1','#a2b56d','#75a6a1'];
+  const palette=['#0a8f6c','#3fc29a','#8fdcc2','#5f8f80','#b3c9bf','#7fa396','#d3e4dc','#9bb5aa'];
   const graphOptions=[{id:'all',label:'Все активности'},{id:'gym',label:'Тренировки'},...distribution.filter(d=>d.type!=='gym').map(d=>({id:d.type,label:d.label}))];
   const graphRows=graphType==='all'?actual:actual.filter(s=>s.type===graphType);
   const count=period==='week'?7:period==='month'?10:12;
