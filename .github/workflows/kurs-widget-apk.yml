@@ -27,5 +27,5 @@ jobs:
         run: cd kurs-android && gradle --no-daemon assembleDebug
       - uses: actions/upload-artifact@v4
         with:
-          name: kurs-widget-v0.2-apk
+          name: kurs-weekly-v0.3-apk
           path: kurs-android/app/build/outputs/apk/debug/app-debug.apk
