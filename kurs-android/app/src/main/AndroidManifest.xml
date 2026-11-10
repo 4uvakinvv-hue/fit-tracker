@@ -1,13 +1,18 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
   <queries><package android:name="com.openai.chatgpt"/></queries>
-  <application android:label="КУРС · План" android:icon="@android:drawable/ic_menu_agenda" android:theme="@android:style/Theme.Material.Light.NoActionBar" android:allowBackup="true" android:supportsRtl="true">
+  <application android:label="КУРС · Неделя" android:icon="@android:drawable/ic_menu_agenda" android:theme="@android:style/Theme.Material.Light.NoActionBar" android:allowBackup="true" android:supportsRtl="true">
     <activity android:name=".MainActivity" android:exported="true">
       <intent-filter>
         <action android:name="android.intent.action.MAIN"/>
         <category android:name="android.intent.category.LAUNCHER"/>
       </intent-filter>
     </activity>
+    <service android:name=".WidgetListService"
+        android:permission="android.permission.BIND_REMOTEVIEWS"
+        android:exported="false">
+        <intent-filter><action android:name="android.widget.RemoteViewsService"/></intent-filter>
+    </service>
     <receiver android:name=".MainActivity$Widget" android:exported="true">
       <intent-filter>
         <action android:name="android.appwidget.action.APPWIDGET_UPDATE"/>
