@@ -214,33 +214,38 @@ public final class MainActivity extends Activity {
             RemoteViews v=new RemoteViews(c.getPackageName(),R.layout.widget);
             JSONArray a=week(c);
             int done=0;
-            for(int i=0;i<a.length();i++){JSONObject o=a.optJSONObject(i);if(o!=null && o.optBoolean("done"))done++;}
-            String date=weekLabel();
-            v.setTextViewText(R.id.date,date);
-            v.setTextViewText(R.id.progress,"Выполнено: "+done+" из "+a.length());
-            for(int i=0;i<ROWS.length;i++) {
-                int row=ROWS[i];
-                if(i>=a.length()){v.setViewVisibility(row,View.GONE);continue;}
+            for(int i=0;i<a.length();i++) {
                 JSONObject o=a.optJSONObject(i);
-                if(o==null){v.setViewVisibility(row,View.GONE);continue;}
-                v.setViewVisibility(row,View.VISIBLE);
-                boolean finished=o.optBoolean("done");
-                String label=(finished?"☑   ":"☐   ")+o.optString("text","");
-                if(finished){SpannableString s=new SpannableString(label);s.setSpan(new StrikethroughSpan(),4,s.length(),0);v.setTextViewText(row,s);}
-                else v.setTextViewText(row,label);
-                v.setTextColor(row,finished?0xFF8B9891:0xFF23392E);
-                Intent click=new Intent(c,Widget.class);
-                click.setAction(TOGGLE);
-                click.putExtra("id",o.optString("id"));
-                PendingIntent pi=PendingIntent.getBroadcast(c,100+i,click,PendingIntent.FLAG_UPDATE_CURRENT|PendingIntent.FLAG_IMMUTABLE);
-                v.setOnClickPendingIntent(row,pi);
+                if(o!=null && o.optBoolean("done"))done++;
             }
+            v.setTextViewText(R.id.date,weekLabel());
+            v.setTextViewText(R.id.progress,"Выполнено: "+done+" из "+a.length());
+            Intent svc=new Intent(c,WidgetListService.class);
+            svc.putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID,wid);
+            svc.setData(Uri.parse("kurs-week://list/"+wid));
+            v.setRemoteAdapter(R.id.taskList,svc);
+            v.setEmptyView(R.id.taskList,R.id.empty);
+
+            Intent toggleIntent=new Intent(c,Widget.class);
+            toggleIntent.setAction(TOGGLE);
+            PendingIntent template=PendingIntent.getBroadcast(c,wid,toggleIntent,
+                PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_MUTABLE);
+            v.setPendingIntentTemplate(R.id.taskList,template);
+
             Intent open=new Intent(c,MainActivity.class);
-            v.setOnClickPendingIntent(R.id.title,PendingIntent.getActivity(c,200,open,PendingIntent.FLAG_UPDATE_CURRENT|PendingIntent.FLAG_IMMUTABLE));
+            PendingIntent edit=PendingIntent.getActivity(c,200,open,
+                PendingIntent.FLAG_UPDATE_CURRENT|PendingIntent.FLAG_IMMUTABLE);
+            v.setOnClickPendingIntent(R.id.title,edit);
+            v.setOnClickPendingIntent(R.id.editBtn,edit);
             Intent chat=new Intent(c,MainActivity.class);
             chat.putExtra("chat",true);
-            v.setOnClickPendingIntent(R.id.chat,PendingIntent.getActivity(c,201,chat,PendingIntent.FLAG_UPDATE_CURRENT|PendingIntent.FLAG_IMMUTABLE));
+            v.setOnClickPendingIntent(R.id.chat,PendingIntent.getActivity(c,201,chat,
+                PendingIntent.FLAG_UPDATE_CURRENT|PendingIntent.FLAG_IMMUTABLE));
             m.updateAppWidget(wid,v);
+            m.notifyAppWidgetViewDataChanged(wid,R.id.taskList);
+        }
+        @Override public void onAppWidgetOptionsChanged(Context c,AppWidgetManager m,int wid,Bundle opts) {
+            render(c,m,wid);
         }
     }
     @Override public void onCreate(Bundle b) {
