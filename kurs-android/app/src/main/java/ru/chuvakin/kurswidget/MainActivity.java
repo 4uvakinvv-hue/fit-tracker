@@ -268,46 +268,241 @@ public final class MainActivity extends Activity {
     }
     void build() {
         ScrollView sc=new ScrollView(this);
-        root=new LinearLayout(this);root.setOrientation(LinearLayout.VERTICAL);
-        root.setPadding(20,16,20,20);root.setBackgroundColor(0xFFF6F8F4);sc.addView(root);
-        TextView head=text(this,"КУРС · План на сегодня",24);root.addView(head);
+        root=new LinearLayout(this);
+        root.setOrientation(LinearLayout.VERTICAL);
+        root.setPadding(20,16,20,24);
+        root.setBackgroundColor(0xFFF6F8F4);
+        sc.addView(root);
+
+        root.addView(text(this,"КУРС · План на неделю",22));
+        root.addView(text(this,weekLabel(),16));
+
         JSONArray a=week(this);
-        int cnt=0;for(int i=0;i<a.length();i++){JSONObject o=a.optJSONObject(i);if(o!=null && o.optBoolean("done"))cnt++;}
-        root.addView(text(this,"Выполнено: "+cnt+" из "+a.length(),15));
+        int cnt=0;
         for(int i=0;i<a.length();i++) {
-            JSONObject o=a.optJSONObject(i);if(o==null)continue;
+            JSONObject o=a.optJSONObject(i);
+            if(o!=null && o.optBoolean("done"))cnt++;
+        }
+        root.addView(text(this,"Выполнено: "+cnt+" из "+a.length(),16));
+        root.addView(text(this,"Галочка — выполнено. ✎ — изменить. ➜ — продолжение задачи.",13));
+
+        for(int i=0;i<a.length();i++) {
+            JSONObject o=a.optJSONObject(i);
+            if(o==null)continue;
             String id=o.optString("id");
-            LinearLayout row=new LinearLayout(this);row.setOrientation(LinearLayout.HORIZONTAL);
-            CheckBox cb=new CheckBox(this);cb.setText(o.optString("text"));cb.setTextColor(0xFF23392E);cb.setTextSize(19);
+            LinearLayout row=new LinearLayout(this);
+            row.setOrientation(LinearLayout.HORIZONTAL);
+            row.setGravity(android.view.Gravity.CENTER_VERTICAL);
+
+            CheckBox cb=new CheckBox(this);
+            String label=o.optString("text","");
+            String due=o.optString("due","");
+            if(!due.isEmpty() && !due.equals("null")){
+                try {
+                    label=LocalDate.parse(due).format(DateTimeFormatter.ofPattern("EEE",new Locale("ru")))+" · "+label;
+                }catch(Exception ignored){}
+            }
+            cb.setText(label);
+            cb.setTextColor(0xFF23392E);
+            cb.setTextSize(18);
             cb.setChecked(o.optBoolean("done"));
             cb.setLayoutParams(new LinearLayout.LayoutParams(0,-2,1));
             if(o.optBoolean("done"))cb.setPaintFlags(cb.getPaintFlags()|Paint.STRIKE_THRU_TEXT_FLAG);
             cb.setOnClickListener(v->{toggle(this,id);build();});
-            Button del=new Button(this);del.setText("×");
-            del.setOnClickListener(v->{remove(this,id);build();});
-            row.addView(cb);row.addView(del);root.addView(row);
+
+            Button edit=new Button(this);
+            edit.setText("✎");
+            edit.setTextSize(16);
+            edit.setMinWidth(48);
+            edit.setOnClickListener(v->taskDialog(id,false));
+            Button next=new Button(this);
+            next.setText("➜");
+            next.setTextSize(16);
+            next.setMinWidth(48);
+            next.setOnClickListener(v->taskDialog(id,true));
+
+            row.addView(cb);
+            row.addView(edit);
+            row.addView(next);
+            root.addView(row);
         }
-        EditText input=new EditText(this); input.setHint("Новая задача");input.setSingleLine(false);root.addView(input);
-        LinearLayout addRow=new LinearLayout(this);
-        Button todayButton=new Button(this);todayButton.setText("+ Сегодня");
-        Button tomorrowButton=new Button(this);tomorrowButton.setText("+ Завтра");
-        todayButton.setOnClickListener(v->{add(input.getText().toString(),LocalDate.now());});
-        tomorrowButton.setOnClickListener(v->{add(input.getText().toString(),LocalDate.now().plusDays(1));});
-        addRow.addView(todayButton);addRow.addView(tomorrowButton);root.addView(addRow);
-        Button chat=new Button(this);chat.setText("План с ChatGPT");chat.setOnClickListener(v->openChat());root.addView(chat);
-        Button history=new Button(this);history.setText(showHistory?"Скрыть историю":"История выполненного");
-        history.setOnClickListener(v->{showHistory=!showHistory;build();});root.addView(history);
+
+        Button newTask=new Button(this);
+        newTask.setText("+ Новая задача");
+        newTask.setOnClickListener(v->taskDialog(null,false));
+        root.addView(newTask);
+
+        Button importButton=new Button(this);
+        importButton.setText("Вставить план из буфера");
+        importButton.setOnClickListener(v->importPlanDialog());
+        root.addView(importButton);
+
+        Button chat=new Button(this);
+        chat.setText("Составить план с ChatGPT");
+        chat.setOnClickListener(v->openChat());
+        root.addView(chat);
+
+        Button history=new Button(this);
+        history.setText(showHistory?"Скрыть историю":"История прошлых недель");
+        history.setOnClickListener(v->{showHistory=!showHistory;build();});
+        root.addView(history);
         if(showHistory){
-            JSONArray all=load(this);String d=LocalDate.now().toString();int count=0;
+            JSONArray all=load(this);
+            String monday=weekStart().toString();
+            int count=0;
             for(int i=0;i<all.length();i++){
                 JSONObject o=all.optJSONObject(i);
-                if(o!=null && o.optBoolean("done")&&!d.equals(o.optString("day"))) {
-                    root.addView(text(this,"✓ "+o.optString("completed")+" — "+o.optString("text"),14));count++;
+                if(o!=null && o.optBoolean("done")&&o.optString("day","").compareTo(monday)<0) {
+                    root.addView(text(this,"✓ "+o.optString("completed")+" — "+o.optString("text"),15));
+                    count++;
                 }
             }
-            if(count==0)root.addView(text(this,"История пока пуста",14));
+            if(count==0)root.addView(text(this,"История пока пуста",15));
         }
         setContentView(sc);
+    }
+
+    void taskDialog(String id,boolean followup) {
+        JSONArray all=load(this);
+        JSONObject old=null;
+        if(id!=null) {
+            for(int i=0;i<all.length();i++) {
+                JSONObject item=all.optJSONObject(i);
+                if(item!=null&&id.equals(item.optString("id"))) {old=item;break;}
+            }
+        }
+        final JSONObject found=old;
+        boolean creating=(id==null||followup);
+        String original=found==null?"":found.optString("text","");
+        String initial=original;
+        if(followup) {
+            if(original.startsWith("Саманаев:"))
+                initial="Саманаев: перезвонить по выплате";
+            else
+                initial=original+" — следующий шаг";
+        }
+        final LocalDate[] due=new LocalDate[]{null};
+        if(!followup && found!=null){
+            try {due[0]=LocalDate.parse(found.optString("due",""));}catch(Exception ignored){}
+        }
+        if(followup && original.startsWith("Саманаев:"))
+            due[0]=LocalDate.now().with(TemporalAdjusters.nextOrSame(DayOfWeek.FRIDAY));
+
+        LinearLayout panel=new LinearLayout(this);
+        panel.setOrientation(LinearLayout.VERTICAL);
+        panel.setPadding(24,14,24,10);
+        EditText input=new EditText(this);
+        input.setText(initial);
+        input.setTextSize(18);
+        input.setSingleLine(false);
+        input.setMinLines(2);
+        panel.addView(input);
+        Button dueButton=new Button(this);
+        dueButton.setText(due[0]==null?"Срок: без срока":"Срок: "+due[0]);
+        dueButton.setOnClickListener(v->{
+            LocalDate d=due[0]==null?LocalDate.now():due[0];
+            DatePickerDialog picker=new DatePickerDialog(this,(view,y,m,day)->{
+                due[0]=LocalDate.of(y,m+1,day);
+                dueButton.setText("Срок: "+due[0]);
+            },d.getYear(),d.getMonthValue()-1,d.getDayOfMonth());
+            picker.show();
+        });
+        panel.addView(dueButton);
+        Button clearDue=new Button(this);
+        clearDue.setText("Убрать срок");
+        clearDue.setOnClickListener(v->{due[0]=null;dueButton.setText("Срок: без срока");});
+        panel.addView(clearDue);
+
+        AlertDialog.Builder dialog=new AlertDialog.Builder(this)
+            .setTitle(followup?"Следующий шаг":creating?"Новая задача":"Изменить задачу")
+            .setView(panel)
+            .setNegativeButton("Отмена",null)
+            .setPositiveButton("Сохранить",(d,which)->{
+                String title=input.getText().toString().trim();
+                if(title.isEmpty())return;
+                JSONArray items=load(this);
+                if(creating) {
+                    LocalDate planned=due[0]==null?weekStart():
+                        due[0].with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
+                    put(items,title,planned.toString());
+                    JSONObject n=items.optJSONObject(items.length()-1);
+                    if(n!=null&&due[0]!=null)try{n.put("due",due[0].toString());}catch(Exception ignored){}
+                }else{
+                    for(int i=0;i<items.length();i++){
+                        JSONObject item=items.optJSONObject(i);
+                        if(item==null||!id.equals(item.optString("id")))continue;
+                        try{
+                            item.put("text",title);
+                            if(due[0]==null)item.remove("due");
+                            else{
+                                item.put("due",due[0].toString());
+                                item.put("day",due[0].with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY)).toString());
+                            }
+                        }catch(Exception ignored){}
+                        break;
+                    }
+                }
+                save(this,items);
+                Widget.refresh(this);
+                build();
+            });
+        if(!creating)dialog.setNeutralButton("Удалить",(d,which)->{
+            remove(this,id);
+            build();
+        });
+        dialog.show();
+    }
+
+    void importPlanDialog() {
+        ClipboardManager clipboard=(ClipboardManager)getSystemService(CLIPBOARD_SERVICE);
+        String paste="";
+        if(clipboard.hasPrimaryClip()&&clipboard.getPrimaryClip()!=null&&
+            clipboard.getPrimaryClip().getItemCount()>0) {
+            CharSequence text=clipboard.getPrimaryClip().getItemAt(0).coerceToText(this);
+            if(text!=null)paste=text.toString();
+        }
+        LinearLayout panel=new LinearLayout(this);
+        panel.setOrientation(LinearLayout.VERTICAL);
+        panel.setPadding(20,12,20,12);
+        EditText input=new EditText(this);
+        input.setText(paste);
+        input.setHint("☐ Задача 1\n☐ Задача 2\n☐ Задача для Ксюши");
+        input.setMinLines(7);
+        input.setTextSize(16);
+        panel.addView(input);
+        new AlertDialog.Builder(this)
+            .setTitle("Добавить задачи на неделю")
+            .setMessage("Вставь список строк с ☐. Выполненные задачи останутся на месте, дубликаты не добавятся.")
+            .setView(panel)
+            .setNegativeButton("Отмена",null)
+            .setPositiveButton("Добавить",(d,which)->{
+                JSONArray existing=load(this);
+                JSONArray w=week(this);
+                Set<String> names=new HashSet<>();
+                for(int i=0;i<w.length();i++) {
+                    JSONObject item=w.optJSONObject(i);
+                    if(item!=null)names.add(item.optString("text","").trim().toLowerCase(new Locale("ru")));
+                }
+                int added=0;
+                for(String line:input.getText().toString().split("\\n")) {
+                    String task=line.trim();
+                    if(task.startsWith("☐")||task.startsWith("☑"))
+                        task=task.substring(1).trim();
+                    else if(task.matches("^[-*] \\[.\\].*"))
+                        task=task.substring(5).trim();
+                    else continue;
+                    if(task.isEmpty()||task.length()>240)continue;
+                    String key=task.toLowerCase(new Locale("ru"));
+                    if(names.contains(key))continue;
+                    put(existing,task,weekStart().toString());
+                    names.add(key);
+                    added++;
+                }
+                save(this,existing);
+                Widget.refresh(this);
+                build();
+                Toast.makeText(this,"Добавлено: "+added,Toast.LENGTH_SHORT).show();
+            }).show();
     }
     void add(String val,LocalDate date){
         if(val.trim().isEmpty())return;
