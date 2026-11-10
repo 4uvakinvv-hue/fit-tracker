@@ -31,6 +31,15 @@ import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.Locale;
 import java.util.UUID;
+import android.app.AlertDialog;
+import android.app.DatePickerDialog;
+import android.widget.EditText;
+import java.time.DayOfWeek;
+import java.time.temporal.TemporalAdjusters;
+import java.util.Calendar;
+import java.util.HashSet;
+import java.util.Set;
+
 
 public final class MainActivity extends Activity {
     static final String PREF = "kurs_widget_v1";
@@ -51,11 +60,11 @@ public final class MainActivity extends Activity {
                 String[] initial = {
                     "07:30–08:30 — FORMA: выпустить редизайн без иконок",
                     "Комплектатор: отдельный чат и описание структуры",
-                    "МПК: самопрезентация для застройщика",
-                    "МПК: самопрезентация для дизайнера",
+                    "Вася Мебель: для застройщика",
+                    "Вася Мебель: для дизайнера",
                     "Армен МКС2: написать и договориться о кофе",
-                    "Дизайнер от Армена: позвонить и обсудить МПК",
-                    "Соманаев: узнать конкретный срок выплаты",
+                    "Дизайнер от Армена: позвонить",
+                    "Саманаев: узнать конкретный срок выплаты",
                     "Ксюша: подобрать мототренировку на Мацесте"
                 };
                 for (String s:initial) put(a,s, now.toString());
@@ -68,12 +77,12 @@ public final class MainActivity extends Activity {
         boolean changed = false;
         JSONArray migrated = migrateLegacyAndCompact(a);
         if(migrated != a) {a=migrated;changed=true;}
-        String today=LocalDate.now().toString();
+        String monday=weekStart().toString();
         for(int i=0;i<a.length();i++) {
             JSONObject o = a.optJSONObject(i);
             if(o==null)continue;
-            if(!o.optBoolean("done",false) && o.optString("day","").compareTo(today)<0) {
-                try { o.put("day",today); changed=true; } catch(Exception ignored){}
+            if(!o.optBoolean("done",false) && o.optString("day","").compareTo(monday)<0) {
+                try { o.put("day",monday); changed=true; } catch(Exception ignored){}
             }
         }
         if(changed)save(c,a);
@@ -91,11 +100,11 @@ public final class MainActivity extends Activity {
             try {
                 if(label.equals("МПК: самопрезентации для застройщика и дизайнера")
                     || label.equals("МПК: две самопрезентации — для застройщика и дизайнера")) {
-                    o.put("text","МПК: презентация застройщику");
+                    o.put("text","Вася Мебель: для застройщика");
                     result.put(o);
                     JSONObject second=new JSONObject(o.toString());
                     second.put("id",UUID.randomUUID().toString());
-                    second.put("text","МПК: презентация дизайнеру");
+                    second.put("text","Вася Мебель: для дизайнера");
                     result.put(second);
                     changed=true;
                     continue;
@@ -105,16 +114,16 @@ public final class MainActivity extends Activity {
                     compact="07:30–08:30 · FORMA: релиз без иконок";
                 else if(label.equals("Комплектатор: отдельный чат и описание структуры"))
                     compact="Комплектатор: описать структуру";
-                else if(label.equals("МПК: самопрезентация для застройщика"))
-                    compact="МПК: презентация застройщику";
-                else if(label.equals("МПК: самопрезентация для дизайнера"))
-                    compact="МПК: презентация дизайнеру";
+                else if(label.equals("МПК: презентация застройщику") || label.equals("МПК: самопрезентация для застройщика") || label.equals("Вася Мебель: для застройщика"))
+                    compact="Вася Мебель: для застройщика";
+                else if(label.equals("МПК: презентация дизайнеру") || label.equals("МПК: самопрезентация для дизайнера") || label.equals("Вася Мебель: для дизайнера"))
+                    compact="Вася Мебель: для дизайнера";
                 else if(label.equals("Армен МКС2: написать и договориться о кофе"))
                     compact="Армен МКС2: договориться о кофе";
-                else if(label.equals("Дизайнер от Армена: позвонить и обсудить МПК"))
+                else if(label.equals("Дизайнер от Армена: позвонить"))
                     compact="Дизайнер от Армена: позвонить";
-                else if(label.equals("Соманаев: узнать конкретный срок выплаты"))
-                    compact="Соманаев: узнать срок выплаты";
+                else if(label.equals("Саманаев: узнать конкретный срок выплаты"))
+                    compact="Саманаев: узнать срок выплаты";
                 else if(label.equals("Ксюша: подобрать мототренировку на Мацесте"))
                     compact="Ксюша: мототренировка на Мацесте";
                 if(!compact.equals(label)){o.put("text",compact);changed=true;}
@@ -153,23 +162,34 @@ public final class MainActivity extends Activity {
         }
         save(c,a);Widget.refresh(c);
     }
-    static JSONArray today(Context c) {
-        JSONArray source=load(c), result=new JSONArray();
-        String date=LocalDate.now().toString();
-        for(int i=0;i<source.length();i++){
-            JSONObject o=source.optJSONObject(i);
-            if(o!=null && date.equals(o.optString("day")))result.put(o);
+    static LocalDate weekStart() {
+        return LocalDate.now().with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
+    }
+    static JSONArray week(Context c) {
+        JSONArray all=load(c), result=new JSONArray();
+        String monday=weekStart().toString();
+        String sunday=weekStart().plusDays(6).toString();
+        for(int i=0;i<all.length();i++) {
+            JSONObject o=all.optJSONObject(i);
+            if(o==null)continue;
+            String day=o.optString("day","");
+            if(day.compareTo(monday)>=0 && day.compareTo(sunday)<=0)result.put(o);
         }
         return result;
     }
+    static String weekLabel() {
+        LocalDate mon=weekStart(),sun=mon.plusDays(6);
+        DateTimeFormatter f=DateTimeFormatter.ofPattern("d MMMM",new Locale("ru"));
+        return "Неделя "+mon.getDayOfMonth()+"–"+sun.format(f);
+    }
     static String plan(Context c) {
-        JSONArray a=today(c);
+        JSONArray a=week(c);
         StringBuilder b=new StringBuilder("Помоги составить план на завтра. План на сегодня:\n\n");
         for(int i=0;i<a.length();i++) {
             JSONObject o=a.optJSONObject(i);
             if(o!=null)b.append(o.optBoolean("done")?"☑ ":"☐ ").append(o.optString("text")).append("\n");
         }
-        b.append("\nПеренеси незакрытое, предложи максимум 4–7 реалистичных задач. Главный приоритет — советник собственника. Обязательна хотя бы одна личная задача, желательно для Ксюши. Сначала предложи на утверждение.");
+        b.append("\nСоставь план на следующую неделю, сохрани незавершённые задачи, соблюдай приоритет консалтинга и минимум одну личную задачу для Ксюши. Ответь строго строками вида ☐ Название задачи — чтобы я скопировал их в приложение. Не выдумывай выполненные дела и встречи.");
         return b.toString();
     }
     public static final class Widget extends AppWidgetProvider {
@@ -192,10 +212,10 @@ public final class MainActivity extends Activity {
         }
         static void render(Context c,AppWidgetManager m,int wid) {
             RemoteViews v=new RemoteViews(c.getPackageName(),R.layout.widget);
-            JSONArray a=today(c);
+            JSONArray a=week(c);
             int done=0;
             for(int i=0;i<a.length();i++){JSONObject o=a.optJSONObject(i);if(o!=null && o.optBoolean("done"))done++;}
-            String date=LocalDate.now().format(DateTimeFormatter.ofPattern("d MMMM, EEEE",new Locale("ru")));
+            String date=weekLabel();
             v.setTextViewText(R.id.date,date);
             v.setTextViewText(R.id.progress,"Выполнено: "+done+" из "+a.length());
             for(int i=0;i<ROWS.length;i++) {
@@ -246,7 +266,7 @@ public final class MainActivity extends Activity {
         root=new LinearLayout(this);root.setOrientation(LinearLayout.VERTICAL);
         root.setPadding(20,16,20,20);root.setBackgroundColor(0xFFF6F8F4);sc.addView(root);
         TextView head=text(this,"КУРС · План на сегодня",24);root.addView(head);
-        JSONArray a=today(this);
+        JSONArray a=week(this);
         int cnt=0;for(int i=0;i<a.length();i++){JSONObject o=a.optJSONObject(i);if(o!=null && o.optBoolean("done"))cnt++;}
         root.addView(text(this,"Выполнено: "+cnt+" из "+a.length(),15));
         for(int i=0;i<a.length();i++) {
