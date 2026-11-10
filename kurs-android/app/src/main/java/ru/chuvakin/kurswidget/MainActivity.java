@@ -120,9 +120,9 @@ public final class MainActivity extends Activity {
                     compact="Вася Мебель: для дизайнера";
                 else if(label.equals("Армен МКС2: написать и договориться о кофе"))
                     compact="Армен МКС2: договориться о кофе";
-                else if(label.equals("Дизайнер от Армена: позвонить"))
+                else if(label.equals("Дизайнер от Армена: позвонить и обсудить МПК") || label.equals("Дизайнер от Армена: позвонить"))
                     compact="Дизайнер от Армена: позвонить";
-                else if(label.equals("Саманаев: узнать конкретный срок выплаты"))
+                else if(label.equals("Соманаев: узнать конкретный срок выплаты") || label.equals("Соманаев: узнать срок выплаты") || label.equals("Саманаев: узнать конкретный срок выплаты"))
                     compact="Саманаев: узнать срок выплаты";
                 else if(label.equals("Ксюша: подобрать мототренировку на Мацесте"))
                     compact="Ксюша: мототренировка на Мацесте";
@@ -184,7 +184,7 @@ public final class MainActivity extends Activity {
     }
     static String plan(Context c) {
         JSONArray a=week(c);
-        StringBuilder b=new StringBuilder("Помоги составить план на завтра. План на сегодня:\n\n");
+        StringBuilder b=new StringBuilder("Помоги составить недельный план. Текущая неделя:\n\n");
         for(int i=0;i<a.length();i++) {
             JSONObject o=a.optJSONObject(i);
             if(o!=null)b.append(o.optBoolean("done")?"☑ ":"☐ ").append(o.optString("text")).append("\n");
