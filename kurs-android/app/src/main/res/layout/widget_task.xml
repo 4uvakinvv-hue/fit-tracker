@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/taskRow"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:minHeight="52dp"
+    android:gravity="center_vertical"
+    android:orientation="horizontal"
+    android:paddingTop="5dp"
+    android:paddingBottom="5dp"
+    android:paddingStart="3dp"
+    android:paddingEnd="3dp">
+    <TextView
+        android:id="@+id/taskText"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="☐  Задача"
+        android:textColor="#23392E"
+        android:textSize="19sp"
+        android:maxLines="3"
+        android:ellipsize="end"
+        android:gravity="center_vertical"/>
+</LinearLayout>
