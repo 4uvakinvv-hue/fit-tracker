@@ -45,7 +45,6 @@ public final class MainActivity extends Activity {
     static final String PREF = "kurs_widget_v1";
     static final String KEY = "tasks";
     static final String TOGGLE = "ru.chuvakin.kurswidget.TOGGLE";
-    static final int[] ROWS = {R.id.t0,R.id.t1,R.id.t2,R.id.t3,R.id.t4,R.id.t5,R.id.t6,R.id.t7,R.id.t8,R.id.t9};
     LinearLayout root;
     boolean showHistory = false;
 
