@@ -1,3 +1,4 @@
+import {supersetGroup} from './coach-presentation.js';
 export const GROUPS=[{id:'chest',label:'Грудь',icon:'◈'},{id:'back',label:'Спина',icon:'╫'},{id:'legs',label:'Ноги',icon:'⋔'},{id:'custom',label:'Своё',icon:'✦'}];
 export const blankRows=n=>Array.from({length:n},()=>({exercise:'',sets:'',reps:'',weight:'',comment:''}));
 export const numeric=value=>Number(String(value??'').trim().replace(',','.'));
@@ -15,4 +16,16 @@ export function restoreCoachDraft(draft,plan){
  if(!draft)return initialWorkout(plan);
  if(draft.prefillVersion===1)return draft;
  return {...draft,prefillVersion:1,baseRows:draft.baseRows.map((r,i)=>{const p=plan.exercises[i]||{};return {...r,sets:r.sets===undefined||r.sets===''?String(r.targetSets??p.sets??''):r.sets,reps:r.reps===undefined||r.reps===''?suggestedReps({reps:r.targetReps??p.reps,startReps:p.startReps}):r.reps,weight:r.weight===undefined||r.weight===''?String(r.targetWeight??p.weight??''):r.weight};})};
+}
+
+// Preserve separate result rows while counting adjacent supersets as one block.
+export function workoutBlocks(rows){
+ const populated=rows.filter(row=>String(row.exercise||'').trim());
+ const blocks=[];
+ for(let index=0;index<populated.length;index++){
+  const group=supersetGroup(populated,index);
+  if(!group||group.first)blocks.push([]);
+  blocks[blocks.length-1].push(populated[index]);
+ }
+ return blocks;
 }

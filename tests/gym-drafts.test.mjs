@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {draftKey,readDraft,writeDraft,normalizedRows,initialWorkout,restoreCoachDraft,validateResults,normalizeResults,tonnage} from '../src/gym-drafts.js';
+import {draftKey,readDraft,writeDraft,normalizedRows,initialWorkout,restoreCoachDraft,validateResults,normalizeResults,tonnage,workoutBlocks} from '../src/gym-drafts.js';
 import {findExercises,EXERCISES} from '../src/exercise-catalog.js';
 const storage=()=>{const map=new Map();return{getItem:k=>map.get(k)||null,setItem:(k,v)=>map.set(k,v),removeItem:k=>map.delete(k)};};
 test('draft survives a fresh reader and is isolated by account, date and mode',()=>{const s=storage(),key=draftKey('user-a','manual','2026-10-12','custom');const d={id:'save-id',baseRows:[{exercise:'Тяга вне каталога',weight:'13,5',sets:'3',reps:'12',comment:'Заметка'}],extraRows:[]};writeDraft(s,key,d);assert.deepEqual(readDraft(s,key).baseRows,d.baseRows);assert.equal(readDraft(s,draftKey('user-b','manual','2026-10-12','custom')),null);assert.equal(readDraft(s,draftKey('user-a','coach','2026-10-12','custom')),null);assert.equal(readDraft(s,draftKey('user-a','manual','2026-10-13','custom')),null);assert.equal(readDraft(s,key).id,'save-id');});
@@ -11,3 +11,16 @@ test('rows never truncate an existing longer workout',()=>{const rows=Array.from
 test('catalog searches variants and preserves exercises missing from catalog',()=>{assert.ok(EXERCISES.length>=150);assert.ok(findExercises('жим гантелей').some(x=>x.name.includes('отрицательным')));assert.ok(findExercises('горизонтальная тяга').some(x=>x.name.includes('одной рукой')));assert.ok(findExercises('бицепс').length>0);assert.ok(findExercises('Мой редкий жим','all',['Мой редкий жим']).length===1);});
 
 test('legacy blank coach drafts get suggestions once without replacing entered results',()=>{const plan={id:'plan',exercises:[{exercise:'Тяга',sets:2,reps:'10–12',weight:25}]};const old={id:'stable-session-id',planId:'plan',baseRows:[{exercise:'Тяга',targetSets:2,targetReps:'10–12',targetWeight:25,sets:'',reps:'9,5',weight:'23.5',comment:'Моя заметка'}],extraRows:[]};const next=restoreCoachDraft(old,plan);assert.equal(next.id,old.id);assert.equal(next.baseRows[0].sets,'2');assert.equal(next.baseRows[0].reps,'9,5');assert.equal(next.baseRows[0].weight,'23.5');assert.equal(next.baseRows[0].comment,old.baseRows[0].comment);next.baseRows[0].weight='';assert.equal(restoreCoachDraft(next,plan).baseRows[0].weight,'');assert.equal(validateResults([{exercise:'Тяга',sets:2,reps:'9,5',weight:25}]),null);assert.equal(normalizeResults([{reps:'9,5'}])[0].reps,'9.5');});
+
+test('manual blocks preserve all movements and count only adjacent supersets',()=>{
+ const rows=Array.from({length:9},(_,index)=>({exercise:`Movement ${index}`}));
+ rows[6].superset='A';
+ rows[7].superset='A';
+ const blocks=workoutBlocks(rows);
+ assert.equal(blocks.length,8);
+ assert.equal(blocks[6].length,2);
+ assert.deepEqual(blocks.flat(),rows);
+ assert.equal(workoutBlocks([{exercise:'First',superset:'A'},{exercise:'Middle'},{exercise:'Last',superset:'A'}]).length,3);
+ assert.equal(workoutBlocks([...rows,{exercise:'   '}]).length,8);
+ assert.equal(workoutBlocks(rows.map(({superset,...row})=>row)).length,9);
+});

@@ -36,6 +36,40 @@ test('save retains failed drafts and prevents simultaneous double completion',as
  await React.act(async()=>resolve());assert.equal([...Array(localStorage.length)].map((_,i)=>localStorage.key(i)).filter(k=>k.includes('gym-draft')).length,0);await unmount();
  await mount({...props,onSave:async()=>{throw Error('offline')}});await input(document.querySelector('input[aria-label="Жим штанги лёжа: вес"]'),'63');await click(button('Сохранить тренировку'));assert.ok(document.querySelector('[role="alert"]').textContent.includes('offline'));await unmount();await mount();assert.equal(document.querySelector('input[aria-label="Жим штанги лёжа: вес"]').value,'63');await unmount();
 });
+test('manual nine-movement eight-block template renders, restores and saves every row',async()=>{
+ localStorage.clear();
+ const rows=Array.from({length:9},(_,index)=>({exercise:`Movement ${index+1}`,sets:'3',reps:'10',weight:'10',comment:''}));
+ rows[6].superset='A';
+ rows[7].superset='A';
+ let saved;
+ const template={baseRows:rows.slice(0,3),extraRows:rows.slice(3)};
+ const customProps={...props,gymTemplates:{chest:template},onSave:async payload=>{saved=payload;}};
+ await mount(customProps);
+ assert.equal(document.querySelectorAll('.exercise-row-wrap').length,9);
+ assert.equal(document.querySelectorAll('.coach-superset-badge').length,2);
+ assert.equal(document.querySelector('.forma-legacy-overflow'),null);
+ await input(document.querySelector('input[aria-label="Movement 9: вес"]'),'12,5');
+ await unmount();
+ await mount(customProps);
+ assert.equal(document.querySelector('input[aria-label="Movement 9: вес"]').value,'12,5');
+ await click(button('Сохранить тренировку'));
+ assert.equal(saved.baseRows.length+saved.extraRows.length,9);
+ assert.equal(saved.extraRows[5].weight,'12.5');
+ assert.equal(saved.extraRows[3].superset,'A');
+ assert.equal(saved.extraRows[4].superset,'A');
+ await unmount();
+});
+test('manual nine unrelated movements remain editable and cannot bypass the block limit',async()=>{
+ localStorage.clear();
+ const rows=Array.from({length:9},(_,index)=>({exercise:`Single ${index+1}`,sets:'3',reps:'10',weight:'10'}));
+ let saves=0;
+ await mount({...props,gymTemplates:{chest:{baseRows:rows.slice(0,3),extraRows:rows.slice(3)}},onSave:async()=>{saves++;}});
+ assert.ok(document.querySelector('.forma-legacy-overflow'));
+ await click(button('Сохранить тренировку'));
+ assert.equal(saves,0);
+ assert.ok(document.querySelector('[role="alert"]').textContent.includes('8 блоков'));
+ await unmount();
+});
 // Supabase is bundled as a separate client in Coach; intercept its browser transport instead of asserting an invented live session.
 test('coach screen prefills suggestions, collapses notes and preserves edited results',async()=>{
  localStorage.clear();
