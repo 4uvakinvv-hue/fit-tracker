@@ -4354,3 +4354,103 @@ html:has(.coach-workout-screen),.app-shell-dark>.sub-screen.coach-workout-screen
 .app-shell-dark.season-winter .admin-users-list article.unconfirmed{border-color:rgba(79,177,238,0.35)}
 .app-shell-dark.season-winter .admin-users-list article.unconfirmed .admin-user-main small{color:#65b1e1}
 /* End of generated winter recolor */
+
+
+/* Forma photo-card release, approved 25.11.2026.
+   Photographs fill the activity and statistics cards; layouts and click targets stay intact. */
+.compact-activity-grid .activity-choice.has-photo,
+.stats-v17 .photo-stat-card {
+  position:relative!important;
+  isolation:isolate;
+  overflow:hidden!important;
+}
+.compact-activity-grid .activity-choice.has-photo {
+  justify-content:flex-end!important;
+  align-items:flex-start!important;
+  text-align:left!important;
+  background-color:#201711;
+}
+.forma-card-image {
+  position:absolute;
+  inset:0;
+  width:100%;
+  height:100%;
+  display:block;
+  object-fit:cover;
+  object-position:center;
+  z-index:0;
+  pointer-events:none;
+  user-select:none;
+}
+.compact-activity-grid .activity-choice.has-photo::before,
+.stats-v17 .photo-stat-card::before {
+  content:"";
+  position:absolute;
+  inset:0;
+  z-index:1;
+  pointer-events:none;
+  background:linear-gradient(0deg,rgba(7,9,12,.82) 0%,rgba(10,12,15,.36) 52%,rgba(8,10,13,.06) 100%);
+}
+.compact-activity-grid .activity-choice.has-photo > :not(.forma-card-image),
+.stats-v17 .photo-stat-card > :not(.forma-card-image) {
+  position:relative;
+  z-index:2;
+}
+.compact-activity-grid .activity-choice.has-photo > strong,
+.compact-activity-grid .activity-choice.has-photo .activity-svg {
+  filter:drop-shadow(0 1px 3px rgba(0,0,0,.85));
+}
+.compact-activity-grid .activity-choice.has-photo .forma-card-image { object-position:center; }
+.compact-activity-grid .activity-choice.has-photo.violet .forma-card-image { object-position:55% 35%; }
+.compact-activity-grid .activity-choice.has-photo.amber .forma-card-image { object-position:58% center; }
+.compact-activity-grid .activity-choice.has-photo.coral .forma-card-image { object-position:center 42%; }
+.compact-activity-grid .activity-choice.has-photo.combat .forma-card-image { object-position:center 30%; }
+.compact-activity-grid .activity-choice.has-photo.crossfit .forma-card-image { object-position:center 55%; }
+
+/* Statistics: full-bleed photography, never a small photo in the icon slot. */
+.stats-v17 .photo-stat-card {
+  background-color:#162435;
+  color:#fff;
+}
+.stats-v17 .photo-stat-card::before {
+  background:linear-gradient(90deg,rgba(7,11,18,.88) 0%,rgba(10,12,17,.70) 34%,rgba(9,11,15,.18) 82%,rgba(9,11,15,.08) 100%);
+}
+.stats-v17 .stat-card-v17.photo-stat-card {
+  grid-template-columns:minmax(0,1fr) 12px!important;
+}
+.stats-v17 .gym-stat-card-v17.photo-stat-card {
+  grid-template-columns:minmax(0,1fr) 14px!important;
+}
+.stats-v17 .photo-stat-card .stat-copy,
+.stats-v17 .photo-stat-card > span {
+  min-width:0;
+}
+.stats-v17 .photo-stat-card small,
+.stats-v17 .photo-stat-card strong,
+.stats-v17 .photo-stat-card em,
+.stats-v17 .photo-stat-card .stat-copy i {
+  color:#f5f5f6!important;
+  text-shadow:0 1px 5px rgba(0,0,0,.85);
+}
+.stats-v17 .photo-stat-card .stat-open-arrow,
+.stats-v17 .gym-stat-card-v17.photo-stat-card > b {
+  color:#fff!important;
+  text-shadow:0 2px 4px rgba(0,0,0,.8);
+}
+.stats-v17 .series-stat-card-v110.photo-stat-card {
+  min-height:88px;
+  overflow:hidden!important;
+}
+.stats-v17 .series-stat-card-v110.photo-stat-card .forma-card-image { object-position:65% 48%; }
+.stats-v17 .series-stat-card-v110.photo-stat-card small,
+.stats-v17 .series-stat-card-v110.photo-stat-card strong,
+.stats-v17 .series-stat-card-v110.photo-stat-card em { color:#fff!important; }
+@media(max-width:360px) {
+  .stats-v17 .photo-stat-card {padding:9px!important;}
+  .stats-v17 .stat-card-v17.photo-stat-card {grid-template-columns:minmax(0,1fr) 10px!important;}
+  .stats-v17 .photo-stat-card .stat-copy strong {font-size:clamp(16px,5.2vw,22px)!important;}
+}
+@media(prefers-reduced-motion:reduce) {
+  .compact-activity-grid .activity-choice.has-photo,
+  .stats-v17 .photo-stat-card {transition:none!important;}
+}
