@@ -4226,6 +4226,10 @@ html:has(.coach-workout-screen),.app-shell-dark>.sub-screen.coach-workout-screen
   display:block;
   z-index:2!important;
 }
+/* The gym artwork includes its label, so keep the entire image in view. */
+.add-training-screen .compact-activity-grid .activity-choice.approved-photo-card.violet > .approved-card-image {
+  object-fit:contain!important;
+}
 .add-training-screen .compact-activity-grid .activity-choice.approved-photo-card > .approved-card-image[hidden] {
   display:none!important;
 }

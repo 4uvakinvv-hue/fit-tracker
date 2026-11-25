@@ -24,6 +24,7 @@ import crossfitPhoto from './assets/activities/crossfit.webp';
 import hikePhoto from './assets/activities/hike.webp';
 import stepsPhoto from './assets/activities/steps.webp';
 import seriesPhoto from './assets/activities/series.webp';
+import motoPhoto from './assets/activities/moto.webp';
 import approvedGymCard from './assets/activities/approved-gym.png';
 import approvedOutdoorCard from './assets/activities/approved-outdoor.png';
 import approvedWorkoutCard from './assets/activities/approved-workout.png';
@@ -52,10 +53,10 @@ const ACTIVITIES = [
   { id: 'crossfit', label: 'CrossFit', icon: '⚡', accent: 'crossfit' },
 ];
 
-// Approved dark-autumn activity photography (25.11.2026). Bundled locally for offline Android/PWA.
-const ACTIVITY_PHOTOS = { gym:gymPhoto, outdoor:outdoorPhoto, workout:workoutPhoto,
+// Statistics backgrounds are bundled for offline Android and PWA use.
+const STAT_PHOTOS = { workout:workoutPhoto,
   combat:combatPhoto, crossfit:crossfitPhoto, bike:outdoorPhoto, hike:hikePhoto,
-  steps:stepsPhoto, run:stepsPhoto, moto:outdoorPhoto, flaneuring:outdoorPhoto };
+  steps:stepsPhoto, run:seriesPhoto, moto:motoPhoto, flaneuring:stepsPhoto };
 
 // Pixel-exact crops of the owner's final approved 25.11.2026 activity-picker mockup.
 // These assets include approved typography; never overlay duplicate glyphs or labels.
@@ -3143,7 +3144,7 @@ function StepsHistoryV17({dailySteps,stepsStatus,stepsSyncing,diagnostics,onSync
 
 function V17StatCard({type,accent,title,value,unit,secondary='',wide=false,onClick}){
   return <button type="button" className={'stat-card stat-card-v17 photo-stat-card '+accent+(wide?' stat-wide':'')} onClick={onClick}>
-    <img className="forma-card-image" src={ACTIVITY_PHOTOS[type]||seriesPhoto} alt="" aria-hidden="true" loading="lazy" draggable="false"/>
+    <img className="forma-card-image" src={STAT_PHOTOS[type]||seriesPhoto} alt="" aria-hidden="true" loading="lazy" draggable="false"/>
     <span className="stat-copy"><small>{title}</small><strong>{value}</strong><em>{unit}</em>{secondary&&<i>{secondary}</i>}</span><b className="stat-open-arrow">›</b>
   </button>;
 }

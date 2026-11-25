@@ -24,6 +24,11 @@ test('approved photo-card design matches exact screenshot crops without extra gr
   assert.match(styles, /\.activity-choice\.approved-photo-card > \.approved-card-fallback\s*\{\s*display:none!important/);
 });
 
+test('gym picker preserves the proportions and embedded title of the approved photo', () => {
+  assert.match(app, /id: 'gym', label: 'Тренажёрка', icon: '[^']+', accent: 'violet'/);
+  assert.match(styles, /\.approved-photo-card\.violet > \.approved-card-image\s*\{[^}]*object-fit:contain!important/);
+});
+
 test('all five picker assets are exact, lossless crops from approved reference', () => {
   const hashes = {
     gym:'27818169a617080f56d4e13be85966e6a8bbcf50b6a8f82b87aa2a1e3b45a600',
@@ -41,7 +46,7 @@ test('all five picker assets are exact, lossless crops from approved reference',
   assert.ok(existsSync(reference),'The approved screenshot reference must be in the repository');
 });
 
-test('stats photo backgrounds still fill the card; their existing behavior stays unchanged', () => {
+test('stats photos fill their cards behind live values and history links', () => {
   assert.match(app, /className="gym-stat-card-v17 stat-wide photo-stat-card"/);
   assert.match(app, /className=\{'stat-card stat-card-v17 photo-stat-card /);
   assert.match(app, /className="series-stat-card-v110 photo-stat-card"/);
@@ -53,8 +58,8 @@ test('stats photo backgrounds still fill the card; their existing behavior stays
   assert.match(app, /\{formatKg\(tonnage\)\}/);
 });
 
-test('previous statistics photo assets are preserved', () => {
-  for(const name of ['gym','outdoor','workout','combat','crossfit','hike','steps','series']) {
+test('statistics photo assets are bundled locally', () => {
+  for(const name of ['gym','outdoor','workout','combat','crossfit','hike','steps','series','moto']) {
     assert.ok(existsSync(join(new URL('../src/assets/activities/',import.meta.url).pathname,name+'.webp')),name+' missing');
   }
 });
