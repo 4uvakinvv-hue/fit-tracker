@@ -16,6 +16,15 @@ import { sanitizeGpsPoints } from './gps-protection.js';
 import { Filesystem, Directory } from '@capacitor/filesystem';
 import { LocalNotifications } from '@capacitor/local-notifications';
 import { Share } from '@capacitor/share';
+import gymPhoto from './assets/activities/gym.webp';
+import outdoorPhoto from './assets/activities/outdoor.webp';
+import workoutPhoto from './assets/activities/workout.webp';
+import combatPhoto from './assets/activities/combat.webp';
+import crossfitPhoto from './assets/activities/crossfit.webp';
+import hikePhoto from './assets/activities/hike.webp';
+import stepsPhoto from './assets/activities/steps.webp';
+import seriesPhoto from './assets/activities/series.webp';
+
 
 const APP_VERSION = '2.1';
 const ANDROID_APK_URL = 'https://github.com/4uvakinvv-hue/fit-tracker/releases/download/android-current/forma-android.apk';
@@ -37,6 +46,11 @@ const ACTIVITIES = [
   { id: 'combat', label: 'Единоборства', icon: '🥊', accent: 'combat' },
   { id: 'crossfit', label: 'CrossFit', icon: '⚡', accent: 'crossfit' },
 ];
+
+// Approved dark-autumn activity photography (25.11.2026). Bundled locally for offline Android/PWA.
+const ACTIVITY_PHOTOS = { gym:gymPhoto, outdoor:outdoorPhoto, workout:workoutPhoto,
+  combat:combatPhoto, crossfit:crossfitPhoto, bike:outdoorPhoto, hike:hikePhoto,
+  steps:stepsPhoto, run:stepsPhoto, moto:outdoorPhoto, flaneuring:outdoorPhoto };
 
 const GYM_GROUPS = [
   { id: 'chest', label: 'Грудь', icon: '◈' },
@@ -2113,7 +2127,8 @@ function AddTraining({dateKey,setDateKey,onProposal,onBack,onChoose}){
     </label>
 
     <div className="activity-grid add-grid compact-activity-grid">
-      {ACTIVITIES.map(a=><button key={a.id} className={`activity-choice ${a.accent}`} onClick={()=>onChoose(a.id)}>
+      {ACTIVITIES.map(a=><button key={a.id} className={`activity-choice ${a.accent} has-photo`} onClick={()=>onChoose(a.id)}>
+        <img className="forma-card-image" src={ACTIVITY_PHOTOS[a.id]} alt="" aria-hidden="true" draggable="false"/>
         <ActivityGlyph type={a.id} className={a.accent}/>
         <strong>{a.label}</strong>
       </button>)}
@@ -3119,8 +3134,8 @@ function StepsHistoryV17({dailySteps,stepsStatus,stepsSyncing,diagnostics,onSync
 }
 
 function V17StatCard({type,accent,title,value,unit,secondary='',wide=false,onClick}){
-  return <button type="button" className={'stat-card stat-card-v17 '+accent+(wide?' stat-wide':'')} onClick={onClick}>
-    <span className="stat-icon"><ActivityGlyph type={type} className={accent}/></span>
+  return <button type="button" className={'stat-card stat-card-v17 photo-stat-card '+accent+(wide?' stat-wide':'')} onClick={onClick}>
+    <img className="forma-card-image" src={ACTIVITY_PHOTOS[type]||seriesPhoto} alt="" aria-hidden="true" loading="lazy" draggable="false"/>
     <span className="stat-copy"><small>{title}</small><strong>{value}</strong><em>{unit}</em>{secondary&&<i>{secondary}</i>}</span><b className="stat-open-arrow">›</b>
   </button>;
 }
@@ -3255,9 +3270,9 @@ function StatisticsV17({sessions,dailySteps,isBoss,hookahEvents,hookahStartedOn,
     <p className="range-caption">{formatDate(start)} — {formatDate(end)}</p>
 
     <div className="stats-grid-big stats-grid-v17">
-      {gym>0&&<button type="button" className="gym-stat-card-v17 stat-wide" onClick={()=>onOpenHistory('gym')}><span className="stat-icon"><ActivityGlyph type="gym" className="violet"/></span><span><small>Тренажёрка</small><strong>{gym} тренировок</strong><em>Тоннаж {formatKg(tonnage)} кг · среднее {formatKg(avgTonnage)} кг / трен.</em></span><b>›</b></button>}
+      {gym>0&&<button type="button" className="gym-stat-card-v17 stat-wide photo-stat-card" onClick={()=>onOpenHistory('gym')}><img className="forma-card-image" src={gymPhoto} alt="" aria-hidden="true" loading="lazy" draggable="false"/><span><small>Тренажёрка</small><strong>{gym} тренировок</strong><em>Тоннаж {formatKg(tonnage)} кг · среднее {formatKg(avgTonnage)} кг / трен.</em></span><b>›</b></button>}
       {compact.map((card,index)=><V17StatCard key={card.key} {...card} onClick={card.open} wide={compact.length%2===1&&index===compact.length-1}/>)}
-      {Number(profile?.seriesCount||0)>0&&<article className="series-stat-card-v110"><small>Серии сезона</small><strong>{profile.seriesCount}</strong><em>закрыто полностью</em></article>}
+      {Number(profile?.seriesCount||0)>0&&<article className="series-stat-card-v110 photo-stat-card"><img className="forma-card-image" src={seriesPhoto} alt="" aria-hidden="true" loading="lazy" draggable="false"/><small>Серии сезона</small><strong>{profile.seriesCount}</strong><em>закрыто полностью</em></article>}
       {!gym&&!compact.length&&!isBoss&&<div className="empty-state stat-empty-v17">В выбранном периоде пока нет активности.</div>}
     </div>
     {hookahOpen&&<HookahHistoryFullscreen hookahEvents={hookahEvents} hookahStartedOn={hookahStartedOn} hookahProgramStartedOn={hookahProgramStartedOn} withdrawals={withdrawals} onClose={()=>setHookahOpen(false)}/>}
