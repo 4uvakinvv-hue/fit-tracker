@@ -24,9 +24,9 @@ test('approved photo-card design matches exact screenshot crops without extra gr
   assert.match(styles, /\.activity-choice\.approved-photo-card > \.approved-card-fallback\s*\{\s*display:none!important/);
 });
 
-test('gym picker preserves the proportions and embedded title of the approved photo', () => {
+test('gym picker fills its cell proportionally and anchors the embedded title', () => {
   assert.match(app, /id: 'gym', label: 'Тренажёрка', icon: '[^']+', accent: 'violet'/);
-  assert.match(styles, /\.approved-photo-card\.violet > \.approved-card-image\s*\{[^}]*object-fit:contain!important/);
+  assert.match(styles, /\.approved-photo-card\.violet > \.approved-card-image\s*\{[^}]*object-fit:cover!important;[^}]*object-position:left bottom!important/);
 });
 
 test('all five picker assets are exact, lossless crops from approved reference', () => {

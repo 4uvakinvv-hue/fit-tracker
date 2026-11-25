@@ -2158,7 +2158,14 @@ function AddTraining({dateKey,setDateKey,onProposal,onBack,onChoose}){
 }
 
 function ScreenBack({onBack,title}){
-  return <div className="screen-back-row"><button className="back-button" onClick={onBack}>‹</button>{title&&<strong>{title}</strong>}</div>;
+  return <div className="screen-back-row">
+    <button className="back-button" type="button" aria-label="Назад" onClick={onBack}>
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+        <path d="M10.5 3 5.5 8l5 5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+      </svg>
+    </button>
+    {title&&<strong>{title}</strong>}
+  </div>;
 }
 
 function GymHistory({sessions,onBack}){

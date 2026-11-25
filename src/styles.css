@@ -39,7 +39,7 @@
 
 .bottom-nav{position:fixed;z-index:100;bottom:0;left:50%;transform:translateX(-50%);width:min(100%,620px);min-height:76px;padding:8px 24px calc(8px + env(safe-area-inset-bottom));display:grid;background:linear-gradient(180deg,rgba(12,21,34,.92),rgba(6,11,18,.99));border-top:1px solid rgba(100,132,176,.18);backdrop-filter:blur(18px)}.bottom-nav.three{grid-template-columns:repeat(3,1fr)}.bottom-nav button{background:transparent;color:#6f7d93;display:grid;justify-items:center;gap:2px;font-size:10px}.bottom-nav button.active{color:var(--mint)}.nav-icon{font-size:22px;line-height:1}
 
-.sub-screen,.tab-screen{min-height:100vh}.screen-back-row{min-height:50px;display:flex;align-items:center;gap:10px;margin-bottom:6px}.screen-back-row>strong{font-size:24px;letter-spacing:-.03em}.back-button{width:42px;height:42px;border-radius:50%;background:#14243a;color:#a9bdd8;font-size:30px;line-height:1}
+.sub-screen,.tab-screen{min-height:100vh}.screen-back-row{min-height:50px;display:flex;align-items:center;gap:10px;margin-bottom:6px}.screen-back-row>.back-button{display:grid;place-items:center;padding:0;flex:none}.screen-back-row>.back-button>svg{display:block}.screen-back-row>strong{font-size:24px;letter-spacing:-.03em}.back-button{width:42px;height:42px;border-radius:50%;background:#14243a;color:#a9bdd8;font-size:30px;line-height:1}
 .eyebrow-dark{color:#76e8be;font-size:10px;text-transform:uppercase;letter-spacing:.12em;font-weight:850;margin:26px 0 7px}.sub-screen>h1,.tab-screen>h1,.onboarding h1{margin:0;font-size:36px;letter-spacing:-.045em;line-height:1.03}
 
 .date-control{display:grid;gap:7px;margin:22px 0}.date-control span{color:#8092ab;font-size:11px;font-weight:750}.date-control input{height:52px;width:100%;border-radius:14px;border:1px solid #405775;background:#111e30;color:#eef5ff;padding:0 12px;outline:none}.compact-date{margin:5px 0 13px}
@@ -4226,9 +4226,10 @@ html:has(.coach-workout-screen),.app-shell-dark>.sub-screen.coach-workout-screen
   display:block;
   z-index:2!important;
 }
-/* The gym artwork includes its label, so keep the entire image in view. */
+/* Keep the baked-in label anchored while the photo fills the button. */
 .add-training-screen .compact-activity-grid .activity-choice.approved-photo-card.violet > .approved-card-image {
-  object-fit:contain!important;
+  object-fit:cover!important;
+  object-position:left bottom!important;
 }
 .add-training-screen .compact-activity-grid .activity-choice.approved-photo-card > .approved-card-image[hidden] {
   display:none!important;
