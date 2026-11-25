@@ -14,12 +14,14 @@ permissions:
   contents: write
 
 concurrency:
-  group: ${{ inputs.rustore_version_code != '' && 'forma-android-rustore' || 'forma-android-v2.1-final' }}
+  group: ${{ (inputs.rustore_version_code != '' || (github.event_name == 'push' && github.event.head_commit.message == 'Build signed FORMA APK for RuStore (2109)')) && 'forma-android-rustore' || 'forma-android-v2.1-final' }}
   cancel-in-progress: true
 
 jobs:
   android:
     runs-on: ubuntu-latest
+    env:
+      RUSTORE_VERSION_CODE: ${{ inputs.rustore_version_code || ((github.event_name == 'push' && github.event.head_commit.message == 'Build signed FORMA APK for RuStore (2109)') && '2109') || '' }}
     steps:
       - uses: actions/checkout@v4
 
@@ -62,9 +64,9 @@ jobs:
           sed -i 's/versionName "1.0"/versionName "2.1"/' android/app/build.gradle
 
       - name: Build and sign RuStore APK
-        if: inputs.rustore_version_code != ''
+        if: env.RUSTORE_VERSION_CODE != ''
         env:
-          VERSION_CODE: ${{ inputs.rustore_version_code }}
+          VERSION_CODE: ${{ env.RUSTORE_VERSION_CODE }}
           KEYSTORE_BASE64: ${{ secrets.FORMA_RELEASE_KEYSTORE_BASE64 }}
           STORE_PASSWORD: ${{ secrets.FORMA_RELEASE_STORE_PASSWORD }}
           SIGNER_SHA256: "4367C4C345E8BD7F9A88CC902D6B48032E8608A1F43805733E9578DEEFA8D5BC"
@@ -97,15 +99,15 @@ jobs:
           "$build_tools/aapt" dump badging forma-rustore.apk | (head -n 1; cat >/dev/null) | grep -F "name='ru.forma.app' versionCode='$VERSION_CODE'"
 
       - name: Upload RuStore APK
-        if: inputs.rustore_version_code != ''
+        if: env.RUSTORE_VERSION_CODE != ''
         uses: actions/upload-artifact@v4
         with:
-          name: forma-rustore-${{ inputs.rustore_version_code }}
+          name: forma-rustore-${{ env.RUSTORE_VERSION_CODE }}
           path: forma-rustore.apk
           if-no-files-found: error
 
       - name: Build APK
-        if: inputs.rustore_version_code == ''
+        if: env.RUSTORE_VERSION_CODE == ''
         run: |
           cd android
           chmod +x gradlew
@@ -115,7 +117,7 @@ jobs:
           cp app/build/outputs/bundle/debug/app-debug.aab app/build/outputs/bundle/debug/forma-v2.1.aab
 
       - name: Upload workflow artifact
-        if: inputs.rustore_version_code == ''
+        if: env.RUSTORE_VERSION_CODE == ''
         uses: actions/upload-artifact@v4
         with:
           name: forma-android
@@ -124,7 +126,7 @@ jobs:
             android/app/build/outputs/bundle/debug/forma-v2.1.aab
 
       - name: Publish versioned release
-        if: inputs.rustore_version_code == ''
+        if: env.RUSTORE_VERSION_CODE == ''
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -132,7 +134,7 @@ jobs:
           gh release create android-v2.1 android/app/build/outputs/apk/debug/forma-v2.1.apk android/app/build/outputs/bundle/debug/forma-v2.1.aab --title "Форма Android 2.1" --notes "Forma 2.1: обновлённые тренировки тренера, тоннаж с учётом собственного веса, профиль и история." --prerelease
 
       - name: Publish stable Android download
-        if: inputs.rustore_version_code == ''
+        if: env.RUSTORE_VERSION_CODE == ''
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
