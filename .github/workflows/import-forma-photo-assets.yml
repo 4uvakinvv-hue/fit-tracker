@@ -27,7 +27,7 @@ jobs:
           from PIL import Image, ImageOps
           source = {
             "gym": "https://images.unsplash.com/photo-1583454110551-21f2fa2afe61",
-            "outdoor": "https://images.unsplash.com/photo-1541625602330-2277b4c461de",
+            "outdoor": "https://images.squarespace-cdn.com/content/v1/5af635497e3c3afe59776e1c/1534625388871-R592OH24UMMQHNF3QQQ5/david-hellmann-286496-unsplash.jpg",
             "workout": "https://images.unsplash.com/photo-1599058917212-d750089bc07e",
             "combat": "https://images.unsplash.com/photo-1612179736716-d643f0bdcf4e",
             "crossfit": "https://images.unsplash.com/photo-1517836357463-d25dfeac3438",
