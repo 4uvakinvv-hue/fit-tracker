@@ -4,12 +4,17 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      rustore_version_code:
+        description: "RuStore versionCode (leave empty for the existing GitHub build)"
+        required: false
+        type: string
 
 permissions:
   contents: write
 
 concurrency:
-  group: forma-android-v2.1-final
+  group: ${{ inputs.rustore_version_code != '' && 'forma-android-rustore' || 'forma-android-v2.1-final' }}
   cancel-in-progress: true
 
 jobs:
@@ -56,7 +61,52 @@ jobs:
           sed -i 's/versionCode 1/versionCode 2106/' android/app/build.gradle
           sed -i 's/versionName "1.0"/versionName "2.1"/' android/app/build.gradle
 
+      - name: Build and sign RuStore APK
+        if: inputs.rustore_version_code != ''
+        env:
+          VERSION_CODE: ${{ inputs.rustore_version_code }}
+          KEYSTORE_BASE64: ${{ secrets.FORMA_RELEASE_KEYSTORE_BASE64 }}
+          STORE_PASSWORD: ${{ secrets.FORMA_RELEASE_STORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.FORMA_RELEASE_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.FORMA_RELEASE_KEY_PASSWORD }}
+          SIGNER_SHA256: ${{ vars.FORMA_RELEASE_CERT_SHA256 }}
+        run: |
+          set -euo pipefail
+          [[ "$VERSION_CODE" =~ ^[1-9][0-9]{0,9}$ ]] && (( VERSION_CODE > 2106 && VERSION_CODE <= 2100000000 )) || {
+            echo "Use a versionCode higher than the previous release and at most 2100000000."
+            exit 1
+          }
+          : "${KEYSTORE_BASE64:?Missing release keystore}" "${STORE_PASSWORD:?Missing store password}"
+          : "${KEY_ALIAS:?Missing key alias}" "${KEY_PASSWORD:?Missing key password}"
+          [[ "$SIGNER_SHA256" =~ ^[a-fA-F0-9]{64}$ ]] || { echo "Set the expected SHA-256 signing certificate fingerprint."; exit 1; }
+
+          umask 077
+          key_dir=$(mktemp -d)
+          trap 'rm -rf "$key_dir"' EXIT
+          printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$key_dir/forma-release.p12"
+          unset KEYSTORE_BASE64
+
+          sed -i "s/versionCode 2106/versionCode $VERSION_CODE/" android/app/build.gradle
+          (cd android && chmod +x gradlew && env -u STORE_PASSWORD -u KEY_PASSWORD ./gradlew assembleRelease)
+
+          build_tools=$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -n 1)
+          "$build_tools/zipalign" -P 16 -f 4 android/app/build/outputs/apk/release/app-release-unsigned.apk "$key_dir/aligned.apk"
+          "$build_tools/apksigner" sign --ks "$key_dir/forma-release.p12" --ks-key-alias "$KEY_ALIAS" \
+            --ks-pass env:STORE_PASSWORD --key-pass env:KEY_PASSWORD --out forma-rustore.apk "$key_dir/aligned.apk"
+          cert=$("$build_tools/apksigner" verify --print-certs forma-rustore.apk | sed -n 's/^Signer #1 certificate SHA-256 digest: //p')
+          [[ "${cert,,}" == "${SIGNER_SHA256,,}" ]] || { echo "Unexpected signing certificate."; exit 1; }
+          "$build_tools/aapt" dump badging forma-rustore.apk | (head -n 1; cat >/dev/null) | grep -F "name='ru.forma.app' versionCode='$VERSION_CODE'"
+
+      - name: Upload RuStore APK
+        if: inputs.rustore_version_code != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: forma-rustore-${{ inputs.rustore_version_code }}
+          path: forma-rustore.apk
+          if-no-files-found: error
+
       - name: Build APK
+        if: inputs.rustore_version_code == ''
         run: |
           cd android
           chmod +x gradlew
@@ -66,6 +116,7 @@ jobs:
           cp app/build/outputs/bundle/debug/app-debug.aab app/build/outputs/bundle/debug/forma-v2.1.aab
 
       - name: Upload workflow artifact
+        if: inputs.rustore_version_code == ''
         uses: actions/upload-artifact@v4
         with:
           name: forma-android
@@ -74,6 +125,7 @@ jobs:
             android/app/build/outputs/bundle/debug/forma-v2.1.aab
 
       - name: Publish versioned release
+        if: inputs.rustore_version_code == ''
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -81,6 +133,7 @@ jobs:
           gh release create android-v2.1 android/app/build/outputs/apk/debug/forma-v2.1.apk android/app/build/outputs/bundle/debug/forma-v2.1.aab --title "Форма Android 2.1" --notes "Forma 2.1: обновлённые тренировки тренера, тоннаж с учётом собственного веса, профиль и история." --prerelease
 
       - name: Publish stable Android download
+        if: inputs.rustore_version_code == ''
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
