@@ -69,7 +69,7 @@ jobs:
           STORE_PASSWORD: ${{ secrets.FORMA_RELEASE_STORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.FORMA_RELEASE_KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.FORMA_RELEASE_KEY_PASSWORD }}
-          SIGNER_SHA256: ${{ vars.FORMA_RELEASE_CERT_SHA256 }}
+          SIGNER_SHA256: "4367C4C345E8BD7F9A88CC902D6B48032E8608A1F43805733E9578DEEFA8D5BC"
         run: |
           set -euo pipefail
           current_version_code=$(awk '$1 == "versionCode" { print $2 }' android/app/build.gradle)
@@ -80,7 +80,7 @@ jobs:
           }
           : "${KEYSTORE_BASE64:?Missing release keystore}" "${STORE_PASSWORD:?Missing store password}"
           : "${KEY_ALIAS:?Missing key alias}" "${KEY_PASSWORD:?Missing key password}"
-          [[ "$SIGNER_SHA256" =~ ^[a-fA-F0-9]{64}$ ]] || { echo "Set the expected SHA-256 signing certificate fingerprint."; exit 1; }
+          [[ "$SIGNER_SHA256" =~ ^[a-fA-F0-9]{64}$ ]] || { echo "Invalid expected SHA-256 signing certificate fingerprint."; exit 1; }
 
           umask 077
           key_dir=$(mktemp -d)
