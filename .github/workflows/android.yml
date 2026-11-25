@@ -67,8 +67,6 @@ jobs:
           VERSION_CODE: ${{ inputs.rustore_version_code }}
           KEYSTORE_BASE64: ${{ secrets.FORMA_RELEASE_KEYSTORE_BASE64 }}
           STORE_PASSWORD: ${{ secrets.FORMA_RELEASE_STORE_PASSWORD }}
-          KEY_ALIAS: ${{ secrets.FORMA_RELEASE_KEY_ALIAS }}
-          KEY_PASSWORD: ${{ secrets.FORMA_RELEASE_KEY_PASSWORD }}
           SIGNER_SHA256: "4367C4C345E8BD7F9A88CC902D6B48032E8608A1F43805733E9578DEEFA8D5BC"
         run: |
           set -euo pipefail
@@ -79,7 +77,6 @@ jobs:
             exit 1
           }
           : "${KEYSTORE_BASE64:?Missing release keystore}" "${STORE_PASSWORD:?Missing store password}"
-          : "${KEY_ALIAS:?Missing key alias}" "${KEY_PASSWORD:?Missing key password}"
           [[ "$SIGNER_SHA256" =~ ^[a-fA-F0-9]{64}$ ]] || { echo "Invalid expected SHA-256 signing certificate fingerprint."; exit 1; }
 
           umask 077
@@ -89,12 +86,12 @@ jobs:
           unset KEYSTORE_BASE64
 
           sed -i "s/versionCode $current_version_code/versionCode $VERSION_CODE/" android/app/build.gradle
-          (cd android && chmod +x gradlew && env -u STORE_PASSWORD -u KEY_PASSWORD ./gradlew assembleRelease)
+          (cd android && chmod +x gradlew && env -u STORE_PASSWORD ./gradlew assembleRelease)
 
           build_tools=$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -n 1)
           "$build_tools/zipalign" -P 16 -f 4 android/app/build/outputs/apk/release/app-release-unsigned.apk "$key_dir/aligned.apk"
-          "$build_tools/apksigner" sign --ks "$key_dir/forma-release.p12" --ks-key-alias "$KEY_ALIAS" \
-            --ks-pass env:STORE_PASSWORD --key-pass env:KEY_PASSWORD --out forma-rustore.apk "$key_dir/aligned.apk"
+          "$build_tools/apksigner" sign --ks "$key_dir/forma-release.p12" --ks-key-alias forma-release \
+            --ks-pass env:STORE_PASSWORD --key-pass env:STORE_PASSWORD --out forma-rustore.apk "$key_dir/aligned.apk"
           cert=$("$build_tools/apksigner" verify --print-certs forma-rustore.apk | sed -n 's/^Signer #1 certificate SHA-256 digest: //p')
           [[ "${cert,,}" == "${SIGNER_SHA256,,}" ]] || { echo "Unexpected signing certificate."; exit 1; }
           "$build_tools/aapt" dump badging forma-rustore.apk | (head -n 1; cat >/dev/null) | grep -F "name='ru.forma.app' versionCode='$VERSION_CODE'"
