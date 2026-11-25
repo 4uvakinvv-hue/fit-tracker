@@ -14,14 +14,14 @@ permissions:
   contents: write
 
 concurrency:
-  group: ${{ (inputs.rustore_version_code != '' || (github.event_name == 'push' && github.event.head_commit.message == 'Build signed FORMA APK for RuStore (2109)')) && 'forma-android-rustore' || 'forma-android-v2.1-final' }}
+  group: ${{ (inputs.rustore_version_code != '' || (github.event_name == 'push' && github.event.head_commit.message == 'Verify and build signed FORMA APK for RuStore (2109)')) && 'forma-android-rustore' || 'forma-android-v2.1-final' }}
   cancel-in-progress: true
 
 jobs:
   android:
     runs-on: ubuntu-latest
     env:
-      RUSTORE_VERSION_CODE: ${{ inputs.rustore_version_code || ((github.event_name == 'push' && github.event.head_commit.message == 'Build signed FORMA APK for RuStore (2109)') && '2109') || '' }}
+      RUSTORE_VERSION_CODE: ${{ inputs.rustore_version_code || ((github.event_name == 'push' && github.event.head_commit.message == 'Verify and build signed FORMA APK for RuStore (2109)') && '2109') || '' }}
     steps:
       - uses: actions/checkout@v4
 
@@ -86,6 +86,10 @@ jobs:
           trap 'rm -rf "$key_dir"' EXIT
           printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$key_dir/forma-release.p12"
           unset KEYSTORE_BASE64
+          keytool -exportcert -keystore "$key_dir/forma-release.p12" -storetype PKCS12 \
+            -alias forma-release -storepass:env STORE_PASSWORD -file "$key_dir/cert.der"
+          cert=$(sha256sum "$key_dir/cert.der" | cut -d ' ' -f 1)
+          [[ "${cert,,}" == "${SIGNER_SHA256,,}" ]] || { echo "Unexpected keystore certificate: $cert"; exit 1; }
 
           sed -i "s/versionCode $current_version_code/versionCode $VERSION_CODE/" android/app/build.gradle
           (cd android && chmod +x gradlew && env -u STORE_PASSWORD ./gradlew assembleRelease)
@@ -94,8 +98,10 @@ jobs:
           "$build_tools/zipalign" -P 16 -f 4 android/app/build/outputs/apk/release/app-release-unsigned.apk "$key_dir/aligned.apk"
           "$build_tools/apksigner" sign --ks "$key_dir/forma-release.p12" --ks-key-alias forma-release \
             --ks-pass env:STORE_PASSWORD --key-pass env:STORE_PASSWORD --out forma-rustore.apk "$key_dir/aligned.apk"
-          cert=$("$build_tools/apksigner" verify --print-certs forma-rustore.apk | sed -n 's/^Signer #1 certificate SHA-256 digest: //p')
-          [[ "${cert,,}" == "${SIGNER_SHA256,,}" ]] || { echo "Unexpected signing certificate."; exit 1; }
+          verification=$("$build_tools/apksigner" verify --print-certs forma-rustore.apk)
+          printf '%s\n' "$verification"
+          apk_cert=$(printf '%s\n' "$verification" | sed -nE 's/^.*certificate SHA-256 digest:[[:space:]]*([[:xdigit:]]{64}).*$/\1/p')
+          [[ "${apk_cert,,}" == "${SIGNER_SHA256,,}" ]] || { echo "Unexpected APK signing certificate."; exit 1; }
           "$build_tools/aapt" dump badging forma-rustore.apk | (head -n 1; cat >/dev/null) | grep -F "name='ru.forma.app' versionCode='$VERSION_CODE'"
 
       - name: Upload RuStore APK
