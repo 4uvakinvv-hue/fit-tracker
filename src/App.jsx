@@ -24,6 +24,11 @@ import crossfitPhoto from './assets/activities/crossfit.webp';
 import hikePhoto from './assets/activities/hike.webp';
 import stepsPhoto from './assets/activities/steps.webp';
 import seriesPhoto from './assets/activities/series.webp';
+import approvedGymCard from './assets/activities/approved-gym.png';
+import approvedOutdoorCard from './assets/activities/approved-outdoor.png';
+import approvedWorkoutCard from './assets/activities/approved-workout.png';
+import approvedCombatCard from './assets/activities/approved-combat.png';
+import approvedCrossfitCard from './assets/activities/approved-crossfit.png';
 
 
 const APP_VERSION = '2.1';
@@ -51,6 +56,10 @@ const ACTIVITIES = [
 const ACTIVITY_PHOTOS = { gym:gymPhoto, outdoor:outdoorPhoto, workout:workoutPhoto,
   combat:combatPhoto, crossfit:crossfitPhoto, bike:outdoorPhoto, hike:hikePhoto,
   steps:stepsPhoto, run:stepsPhoto, moto:outdoorPhoto, flaneuring:outdoorPhoto };
+
+// Pixel-exact crops of the owner's final approved 25.11.2026 activity-picker mockup.
+// These assets include approved typography; never overlay duplicate glyphs or labels.
+const APPROVED_PICKER_CARDS = {gym:approvedGymCard,outdoor:approvedOutdoorCard,workout:approvedWorkoutCard,combat:approvedCombatCard,crossfit:approvedCrossfitCard};
 
 const GYM_GROUPS = [
   { id: 'chest', label: 'Грудь', icon: '◈' },
@@ -2127,13 +2136,12 @@ function AddTraining({dateKey,setDateKey,onProposal,onBack,onChoose}){
     </label>
 
     <div className="activity-grid add-grid compact-activity-grid">
-      {ACTIVITIES.map(a=><button key={a.id} className={`activity-choice ${a.accent} has-photo`} onClick={()=>onChoose(a.id)}>
-        <img className="forma-card-image" src={ACTIVITY_PHOTOS[a.id]} alt="" aria-hidden="true" draggable="false"/>
-        <ActivityGlyph type={a.id} className={a.accent}/>
-        <strong>{a.label}</strong>
+      {ACTIVITIES.map(a=><button key={a.id} type="button" aria-label={a.label} className={`activity-choice ${a.accent} has-photo approved-photo-card`} onClick={()=>onChoose(a.id)}>
+        <img className="forma-card-image approved-card-image" src={APPROVED_PICKER_CARDS[a.id]} alt="" aria-hidden="true" draggable="false" onError={e=>{e.currentTarget.hidden=true;e.currentTarget.parentElement.classList.add('approved-image-failed');}}/>
+        <strong className="approved-card-fallback" aria-hidden="true">{a.label}</strong>
       </button>)}
-      <button className="activity-choice other-choice" onClick={()=>{setOtherOpen(true);setSent(false);}}>
-        <span>＋</span><strong>Другое</strong>
+      <button type="button" className="activity-choice other-choice approved-other-choice" onClick={()=>{setOtherOpen(true);setSent(false);}}>
+        <strong>Другое</strong>
       </button>
     </div>
 

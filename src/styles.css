@@ -4199,6 +4199,56 @@ html:has(.coach-workout-screen),.app-shell-dark>.sub-screen.coach-workout-screen
   .stats-v17 .photo-stat-card {transition:none!important;}
 }
 
+/* Final approved activity picker artwork — owner confirmed 25.11.2026.
+   Original artwork includes exact photographic crop and label; do not draw a second label or icon. */
+.add-training-screen .compact-activity-grid .activity-choice.approved-photo-card {
+  position:relative!important;
+  padding:0!important;
+  border:0!important;
+  background:var(--season-panel);
+  display:block!important;
+  overflow:hidden!important;
+}
+.add-training-screen .compact-activity-grid .activity-choice.approved-photo-card::before {
+  display:none!important;
+  content:none!important;
+}
+.add-training-screen .compact-activity-grid .activity-choice.approved-photo-card > .approved-card-image {
+  position:absolute!important;
+  inset:0!important;
+  width:100%!important;
+  height:100%!important;
+  max-width:none!important;
+  max-height:none!important;
+  margin:0!important;
+  object-fit:fill!important;
+  object-position:center!important;
+  display:block;
+  z-index:2!important;
+}
+.add-training-screen .compact-activity-grid .activity-choice.approved-photo-card > .approved-card-image[hidden] {
+  display:none!important;
+}
+.add-training-screen .compact-activity-grid .activity-choice.approved-photo-card > .approved-card-fallback {
+  display:none!important;
+}
+.add-training-screen .compact-activity-grid .activity-choice.approved-photo-card.approved-image-failed {
+  display:flex!important;
+  align-items:flex-start!important;
+  justify-content:flex-end!important;
+  padding:10px 12px!important;
+}
+.add-training-screen .compact-activity-grid .activity-choice.approved-photo-card.approved-image-failed > .approved-card-fallback {
+  display:block!important;
+}
+.add-training-screen .compact-activity-grid .activity-choice.approved-other-choice {
+  justify-content:flex-end!important;
+  align-items:flex-start!important;
+}
+@media(max-width:360px) {
+  .add-training-screen .compact-activity-grid .activity-choice.approved-other-choice {padding:8px 10px!important;}
+}
+
 /* Forma 2.1 — winter treatment (owner request, 3 Nov 2026).
    Winter must contain no orange: white snowflakes instead of leaves, icy panels, gentle snowfall.
    Part 1 is handcrafted (mirrors the autumn reference treatment). Part 2 is a generated winter
