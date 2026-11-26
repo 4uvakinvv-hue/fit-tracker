@@ -24,3 +24,33 @@ test('manual blocks preserve all movements and count only adjacent supersets',()
  assert.equal(workoutBlocks([...rows,{exercise:'   '}]).length,8);
  assert.equal(workoutBlocks(rows.map(({superset,...row})=>row)).length,9);
 });
+
+test('individual approaches round-trip and count assistance and dumbbells per set',()=>{
+ const rows=[
+  {exercise:'Махи гантелями',weightBasis:'per_hand',approaches:[{reps:12,weight:5},{reps:8,weight:'7,5'}]},
+  {exercise:'Подтягивания в гравитроне',bodyWeight:90,approaches:[{reps:8,weight:30},{reps:6,weight:35}]},
+ ];
+ assert.equal(validateResults(rows),null);
+ const normalized=normalizeResults(rows);
+ assert.equal(normalized[0].sets,'2');
+ assert.equal(normalized[0].approaches[1].weight,'7.5');
+ assert.equal(tonnage(normalized),1050);
+});
+
+test('monthly templates fill the intended slots and history repeat keeps actual sets',async()=>{
+ const {monthlyTemplates,repeatTemplate}=await import('../src/gym-monthly.js');
+ for(const days of [2,3]){
+  const november=monthlyTemplates('2026-11-26',days);
+  assert.deepEqual(november,monthlyTemplates('2026-12-01',days));
+  assert.deepEqual(Object.values(november).map(slot=>slot.baseRows.length),days===2?[7,6,0,0]:[7,7,6,0]);
+  assert.equal(november.chest.baseRows[0].weight,'');
+ }
+ const approaches=[{reps:'8',weight:'50'},{reps:'6',weight:'55'}];
+ const session={date:'2026-11-14',baseRows:[{exercise:'Жим',approaches,superset:'A',comment:'История'}],extraRows:[{exercise:'Тяга',superset:'A'}]};
+ const repeated=repeatTemplate(session);
+ assert.deepEqual(repeated.baseRows.map(row=>row.exercise),['Жим','Тяга']);
+ assert.deepEqual(repeated.baseRows[0].approaches,approaches);
+ assert.equal(repeated.baseRows[0].comment,undefined);
+ assert.equal(workoutBlocks(repeated.baseRows).length,1);
+ assert.equal(session.baseRows[0].comment,'История');
+});

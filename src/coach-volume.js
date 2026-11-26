@@ -16,6 +16,10 @@ export function effectiveLoad(row, bodyWeight = null) {
  return mode === 'assisted' ? Math.max(0, own-weight) : own+weight;
 }
 export function rowVolume(row, bodyWeight = null) {
+ if(Array.isArray(row?.approaches)){
+  const volumes=row.approaches.map(({reps,weight})=>rowVolume({...row,approaches:undefined,sets:1,reps,weight},bodyWeight));
+  return volumes.some(value=>value===null)?null:volumes.reduce((sum,value)=>sum+value,0);
+ }
  const load=effectiveLoad(row, bodyWeight);
  if (load===null) return null;
  const sets=numeric(row?.sets), reps=numeric(row?.reps);

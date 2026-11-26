@@ -2,6 +2,8 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { supabase } from './supabase.js';
 import TrainerModal from './TrainerModal.jsx';
 import GymTraining from './GymTraining.jsx';
+import {GROUPS,todayMoscow,setManualGroup} from './gym-drafts.js';
+import {monthlyTemplates,repeatTemplate} from './gym-monthly.js';
 import TrainerWorkout from './TrainerWorkout.jsx';
 import ProfileName from './ProfileName.jsx';
 import {rowVolume} from './coach-volume.js';
@@ -889,6 +891,10 @@ export default function App(){
   const [sessions,setSessions]=useState([]);
   const [schedule,setSchedule]=useState({});
   const [gymTemplates,setGymTemplates]=useState({});
+  const [gymTemplateChange,setGymTemplateChange]=useState(null);
+  const [gymTemplateSaving,setGymTemplateSaving]=useState(false);
+  const [gymTemplateError,setGymTemplateError]=useState('');
+  const gymTemplateBusy=useRef(false);
   const [dailySteps,setDailySteps]=useState([]);
   const [expeditionDays,setExpeditionDays]=useState([]);
   const [isBoss,setIsBoss]=useState(false);
@@ -1363,7 +1369,7 @@ export default function App(){
       setSchedule(plans);
 
       const templates={};
-      (templatesRes.data||[]).forEach(t=>{templates[t.gym_group]={baseRows:t.base_rows||[],extraRows:t.extra_rows||[]};});
+      (templatesRes.data||[]).forEach(t=>{templates[t.gym_group]={baseRows:t.base_rows||[],extraRows:t.extra_rows||[],updatedAt:t.updated_at};});
       setGymTemplates(templates);
       setDailySteps((stepsRes.data||[]).map(x=>({date:x.date,steps:Number(x.steps)||0})));
       setExpeditionDays((expeditionRes.data||[]).map(x=>({...x,distance:Number(x.distance)||0,pointCount:Number(x.point_count)||0})));
@@ -1599,12 +1605,53 @@ export default function App(){
     await loadData();
   }
 
-  async function saveTemplate(group,baseRows,extraRows){
-    const {error}=await supabase.from('gym_templates').upsert({
-      user_id:authSession.user.id,gym_group:group,base_rows:baseRows,extra_rows:extraRows,updated_at:new Date().toISOString()
-    });
+  async function saveTemplates(templates){
+    const updatedAt=new Date().toISOString();
+    const rows=Object.entries(templates).map(([group,{baseRows,extraRows}])=>({
+      user_id:authSession.user.id,gym_group:group,base_rows:baseRows,extra_rows:extraRows,updated_at:updatedAt
+    }));
+    const {error}=await supabase.from('gym_templates').upsert(rows,{onConflict:'user_id,gym_group'});
     if(error)throw error;
-    setGymTemplates(cur=>({...cur,[group]:{baseRows,extraRows}}));
+    const saved=Object.fromEntries(Object.entries(templates).map(([id,template])=>[id,{...template,updatedAt}]));
+    setGymTemplates(current=>({...current,...saved}));
+  }
+
+  function saveTemplate(group,baseRows,extraRows){
+    return saveTemplates({[group]:{baseRows,extraRows}});
+  }
+
+  function requestTemplateChange(templates,repeat=false){
+    const nonempty=GROUPS.filter(({id})=>Object.hasOwn(templates,id)&&
+      [...(gymTemplates[id]?.baseRows??[]),...(gymTemplates[id]?.extraRows??[])].some(row=>row.exercise));
+    const change={templates,repeat,slots:nonempty.map(({id})=>GROUPS.findIndex(group=>group.id===id)+1)};
+    setGymTemplateChange(change);
+    setGymTemplateError('');
+    if(!nonempty.length)void confirmTemplateChange(change);
+  }
+
+  async function confirmTemplateChange(change){
+    if(gymTemplateBusy.current)return;
+    gymTemplateBusy.current=true;
+    setGymTemplateSaving(true);
+    setGymTemplateError('');
+    try{
+      await saveTemplates(change.templates);
+      setGymTemplateChange(null);
+      if(change.repeat){
+        setManualGroup(localStorage,authSession.user.id,'custom');
+        if(screen==='gym-history')goBack('gym');
+        else navigate('gym');
+      }
+    }catch(error){
+      setGymTemplateError(error.message||'Не удалось обновить программу.');
+    }finally{
+      gymTemplateBusy.current=false;
+      setGymTemplateSaving(false);
+    }
+  }
+
+  function repeatGymSession(session){
+    requestTemplateChange({custom:repeatTemplate(session)},true);
   }
 
   async function addHookah(){
@@ -1661,15 +1708,22 @@ export default function App(){
 
   return <div className={`app-shell-dark season-${seasonKey()} screen-${screen}`}>
     {screen==='home'&&<Home onOpenProfile={()=>navigate('profile')} schedule={schedule} sessions={numberedSessions} profile={profile} dailySteps={dailySteps} expeditionDays={expeditionDays} saveNotice={saveNotice} isBoss={isBoss} adminNotifications={adminNotifications} onTrainer={requestTrainer} onMarkNotificationsRead={markNotificationsRead} hookahEvents={hookahEvents} hookahProgramStartedOn={hookahProgramStartedOn} canUndoHookah={!!undoHookahId} onHookah={addHookah} onBonusHookah={addBonusHookah} onUndoHookah={undoHookah} stepsStatus={stepsStatus} stepsSyncing={stepsSyncing} onEnableSteps={()=>syncSteps(true,authSession,{fullHistory:true,reason:'manual'})} onOpenSteps={()=>navigate('steps-history')} onOpenFeed={()=>navigate('feed')} selectedDateKey={selectedDateKey} setSelectedDateKey={setSelectedDateKey} onSavePlan={savePlan} onDeletePlan={deletePlan} onProposal={sendProposal} onOpenWorkout={openAdd}/>}
-    {screen==='history'&&<History sessions={numberedSessions} onDelete={deleteSession} onUpdate={updateSession}/>}
-    {screen.startsWith('history-')&&screen!=='steps-history'&&<History sessions={numberedSessions} onDelete={deleteSession} onUpdate={updateSession} filterType={screen.slice(8)}/>} 
+    {screen==='history'&&<History sessions={numberedSessions} onDelete={deleteSession} onUpdate={updateSession} onRepeat={repeatGymSession}/>}
+    {screen.startsWith('history-')&&screen!=='steps-history'&&<History sessions={numberedSessions} onDelete={deleteSession} onUpdate={updateSession} onRepeat={repeatGymSession} filterType={screen.slice(8)}/>}
     {screen==='steps-history'&&<StepsHistoryV17 dailySteps={dailySteps} stepsStatus={stepsStatus} stepsSyncing={stepsSyncing} diagnostics={stepsDiagnostics} onSync={()=>syncSteps(true,authSession,{fullHistory:true,reason:'manual'})} onSettings={()=>Health.openHealthConnectSettings().catch(()=>setStepsStatus('error'))} onBack={()=>goBack('home')}/>}
     {screen==='stats'&&<StatisticsV17 sessions={numberedSessions} dailySteps={dailySteps} isBoss={isBoss} hookahEvents={hookahEvents} hookahStartedOn={hookahStartedOn} hookahProgramStartedOn={hookahProgramStartedOn} profile={profile} memberCount={members.length} onOpenMembers={()=>navigate('members')} onOpenHistory={type=>navigate('history-'+type)} onOpenSteps={()=>navigate('steps-history')}/>}
     {screen==='members'&&<MembersV17 members={members} profile={profile} previousTop5={previousTop5}/>} 
     {screen==='feed'&&<FeedScreen profile={profile}/>} 
     {screen==='add-training'&&<AddTraining dateKey={draftDateKey} setDateKey={setDraftDateKey} onProposal={sendProposal} onBack={()=>goBack('home')} onChoose={chooseType}/>}
-    {screen==='gym'&&<GymTraining userId={authSession.user.id} onTrainerWorkout={()=>navigate('coach-workout')} dateKey={draftDateKey} setDateKey={setDraftDateKey} sessions={numberedSessions} gymTemplates={gymTemplates} onSaveTemplate={saveTemplate} onBack={()=>goBack('add-training')} onHistory={()=>navigate('gym-history')} onSave={saveSession} onTrainerRequest={requestTrainer}/>}
-    {screen==='gym-history'&&<GymHistory sessions={numberedSessions.filter(s=>s.type==='gym'&&isHistorySession(s))} onBack={()=>goBack('gym')}/>}
+    {screen==='gym'&&<GymTraining userId={authSession.user.id} onTrainerWorkout={()=>navigate('coach-workout')} onApplySplit={days=>requestTemplateChange(monthlyTemplates(todayMoscow(),days))} sessions={numberedSessions} gymTemplates={gymTemplates} onSaveTemplate={saveTemplate} onBack={()=>goBack('add-training')} onHistory={()=>navigate('gym-history')} onSave={saveSession} onTrainerRequest={requestTrainer}/>}
+    {screen==='gym-history'&&<GymHistory onRepeat={repeatGymSession} sessions={numberedSessions.filter(s=>s.type==='gym'&&isHistorySession(s))} onBack={()=>goBack('gym')}/>}
+    {gymTemplateChange&&<div className="modal-backdrop"><section className="glass-card gym-template-dialog" role="dialog" aria-modal="true" aria-labelledby="gym-template-dialog-title">
+      <h2 id="gym-template-dialog-title">{gymTemplateChange.slots.length?'Заменить программу?':'Обновление программы'}</h2>
+      {!!gymTemplateChange.slots.length&&<p>Будут изменены заполненные вкладки {gymTemplateChange.slots.join(', ')}. История и незавершённые черновики сохранятся.</p>}
+      {gymTemplateError&&<p className="error-line" role="alert">{gymTemplateError}</p>}
+      <div><button type="button" className="secondary-dark" disabled={gymTemplateSaving} onClick={()=>setGymTemplateChange(null)}>Отмена</button>
+      <button type="button" className="gradient-button" disabled={gymTemplateSaving} onClick={()=>confirmTemplateChange(gymTemplateChange)}>{gymTemplateSaving?'Сохраняем…':gymTemplateChange.slots.length?'Заменить':'Повторить'}</button></div>
+    </section></div>}
     {screen==='outdoor'&&<OutdoorTraining dateKey={draftDateKey} setDateKey={setDraftDateKey} sessions={numberedSessions} onBack={()=>goBack('add-training')} onSave={saveSession} onSaveExpedition={saveExpedition}/>}
     {screen==='crossfit'&&<CrossFitTraining dateKey={draftDateKey} setDateKey={setDraftDateKey} onBack={()=>goBack('add-training')} onSave={saveSession}/>} 
     {screen==='workout'&&<WorkoutTraining dateKey={draftDateKey} setDateKey={setDraftDateKey} sessions={numberedSessions} onBack={()=>goBack('add-training')} onHistory={()=>navigate('workout-history')} onSave={saveSession}/>}
@@ -2168,7 +2222,7 @@ function ScreenBack({onBack,title}){
   </div>;
 }
 
-function GymHistory({sessions,onBack}){
+function GymHistory({sessions,onBack,onRepeat}){
   const ordered=[...sessions].sort((a,b)=>b.date.localeCompare(a.date)||String(b.created_at||'').localeCompare(String(a.created_at||'')));
   const [openId,setOpenId]=useState(ordered[0]?.id||null);
 
@@ -2188,7 +2242,7 @@ function GymHistory({sessions,onBack}){
           {s.gymGroup==='custom'
             ?<ReadonlyExerciseBlock title="Упражнения" rows={s.baseRows||[]}/>
             :<><ReadonlyExerciseBlock title="База" rows={s.baseRows||[]}/><ReadonlyExerciseBlock title="Доп" rows={s.extraRows||[]}/></>}
-          <div className="history-tonnage">Тоннаж: <strong>{formatKg(workoutTonnage(s.baseRows||[],s.extraRows||[]))} кг</strong></div>
+          <div className="history-tonnage">Тоннаж: <strong>{formatKg(workoutTonnage(s.baseRows||[],s.extraRows||[]))} кг</strong></div><button type="button" className="secondary-dark gym-repeat-button" onClick={()=>onRepeat(s)}>Повторить тренировку</button>
         </div>}
       </article>;
     })}</div>
@@ -2203,8 +2257,9 @@ function ReadonlyExerciseBlock({title,rows}){
     <h3>{title}</h3>
     <div className="readonly-head"><span>Упражнение</span><span>Подх.</span><span>Повт.</span><span>Вес</span></div>
     {visible.map((r,i)=><div className="readonly-row-wrap" key={i}>
-      <div className="readonly-row"><span>{r.exercise}</span><span>{r.sets||'—'}</span><span>{r.reps||'—'}</span><span>{r.weight||'—'} кг</span></div>
+      <div className="readonly-row"><span>{r.exercise}</span><span>{r.sets||'—'}</span><span>{r.approaches?'—':r.reps||'—'}</span><span>{r.approaches?'—':`${r.weight||'—'} кг`}</span></div>
 
+      {r.approaches?.map((approach,index)=><div className="readonly-comment" key={index}>Подход {index+1} · {approach.reps} повт. · {approach.weight} кг</div>)}
       {r.weightBasis==='per_hand'&&<div className="readonly-comment">Вес указан на одну руку; выполнено с обеих сторон.</div>}
 
 
@@ -2853,7 +2908,7 @@ function SimpleTraining({type,dateKey,setDateKey,sessions,onBack,onSave}){
   </main>;
 }
 
-function History({sessions,onDelete,onUpdate,filterType=null}){
+function History({sessions,onDelete,onUpdate,onRepeat,filterType=null}){
   const ordered=[...sessions]
     .filter(s=>isHistorySession(s)&&(!filterType||s.type===filterType))
     .sort((a,b)=>b.date.localeCompare(a.date)||String(b.created_at||'').localeCompare(String(a.created_at||'')));
@@ -2909,7 +2964,7 @@ function History({sessions,onDelete,onUpdate,filterType=null}){
 
         {open&&<div className="master-detail">
           {s.routePoints?.length?<RouteResultCard session={s} compact/>:s.type==='gym'
-            ?<>{s.gymGroup==='custom'?<ReadonlyExerciseBlock title="Упражнения" rows={s.baseRows||[]}/>:<><ReadonlyExerciseBlock title="База" rows={s.baseRows||[]}/><ReadonlyExerciseBlock title="Доп" rows={s.extraRows||[]}/></>}<div className="history-tonnage">Тоннаж: <strong>{formatKg(workoutTonnage(s.baseRows||[],s.extraRows||[]))} кг</strong></div></>
+            ?<>{s.gymGroup==='custom'?<ReadonlyExerciseBlock title="Упражнения" rows={s.baseRows||[]}/>:<><ReadonlyExerciseBlock title="База" rows={s.baseRows||[]}/><ReadonlyExerciseBlock title="Доп" rows={s.extraRows||[]}/></>}<div className="history-tonnage">Тоннаж: <strong>{formatKg(workoutTonnage(s.baseRows||[],s.extraRows||[]))} кг</strong></div><button type="button" className="secondary-dark gym-repeat-button" onClick={()=>onRepeat(s)}>Повторить тренировку</button></>
             :s.type==='workout'?<p className="workout-history-text">{s.workoutText||'Описание не сохранено.'}</p>
             :s.type==='hike'?<div className="hike-history-detail"><strong>{s.title||'Хайкинг'}</strong><span>{Math.max(Number(s.hikeDays)||1,1)} дн.</span><span>{Number(s.distance||s.hikeDistance||0).toLocaleString('ru-RU')} км</span></div>
             :s.type==='combat'?<div className="combat-history-detail"><strong>{s.combatType||s.title||'Единоборства'}</strong></div>
