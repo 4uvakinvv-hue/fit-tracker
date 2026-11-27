@@ -1,5 +1,6 @@
 import {useEffect,useRef,useState} from 'react';
 import ExercisePicker from './ExercisePicker.jsx';
+import {exerciseTechnique} from './exercise-technique.js';
 import {supersetGroup,restCue} from './coach-presentation.js';
 import {supabase} from './supabase.js';
 import {bodyweightMode} from './coach-volume.js';
@@ -75,7 +76,7 @@ export default function GymTraining({userId,sessions,gymTemplates,onSaveTemplate
  const visibleRows=[...blocks.slice(0,8).flat(),...indexedRows.filter(r=>!String(r.exercise||'').trim()).slice(0,Math.max(0,8-blocks.length))];
  const overflowRows=blocks.slice(8).flat();
  const total=Math.round(tonnage([...data.baseRows,...data.extraRows])).toLocaleString('ru-RU');
- return <main className="sub-screen gym-screen"><div className="screen-back-row"><button className="back-button" onClick={onBack}>‹</button><strong>Тренировка</strong></div>
+ return <main className="sub-screen gym-screen"><div className="gym-wordmark"><i aria-hidden="true"/>FORMA</div><div className="screen-back-row"><button className="back-button" onClick={onBack}>‹</button><strong>Тренировка</strong></div>
   <section className="gym-coach-top" style={{display:'grid',gap:8,margin:'12px 0 18px'}}><button type="button" className="gradient-button coach-workout-entry" style={{width:'100%',minHeight:52,fontSize:16,fontWeight:800}} onClick={openCoach}>Тренировка от тренера <b>›</b></button>{coachAccess==='active'&&<small>Подписка активна — твой индивидуальный план доступен</small>}{coachAccess==='checking'&&<small>Проверяем доступ к тренеру…</small>}{coachMessage&&<p role="status" className="soft-text">{coachMessage}</p>}</section>
   <p className="gym-draft-status" role="status">{notice}. В историю попадёт только после сохранения тренировки.</p>
   <div className="gym-monthly-buttons">
@@ -83,35 +84,39 @@ export default function GymTraining({userId,sessions,gymTemplates,onSaveTemplate
    <button type="button" className="secondary-dark" disabled={saving} onClick={()=>onApplySplit(3)}>Сплит месяца · 3 дня</button>
   </div>
   <div className="gym-tabs">{GROUPS.map((g,index)=><button key={g.id} className={group===g.id?'active':''} aria-pressed={group===g.id} disabled={saving} onClick={()=>changeGroup(g.id)}>Тренировка {index+1}</button>)}</div>
-  <label className="gym-expanded-toggle"><input type="checkbox" checked={expanded} onChange={event=>setExpanded(event.target.checked)}/> По подходам</label>
+  <div className="gym-view-summary">
+   <label className="gym-expanded-toggle">По подходам <input type="checkbox" role="switch" checked={expanded} onChange={event=>setExpanded(event.target.checked)}/></label>
+   <div className="gym-volume">Тоннаж · <strong>{total} кг</strong></div>
+  </div>
   <ExerciseBlock title="Тренировка целиком" rows={visibleRows} group="all" kind="baseRows" onChange={update} extraNames={extraNames} expanded={expanded} onExpand={()=>setExpanded(true)}/>
   {overflowRows.length>0&&<details className="forma-legacy-overflow"><summary>В шаблоне больше 8 блоков · открой, чтобы изменить состав</summary><ExerciseBlock title="Дополнительные упражнения старого шаблона" rows={overflowRows} group="all" kind="baseRows" onChange={update} extraNames={extraNames} expanded={expanded} onExpand={()=>setExpanded(true)}/></details>}
   {error&&<p className="error-line" role="alert">{error}</p>}
-  <div className="tonnage-summary"><span>Тоннаж тренировки</span><strong>{total} кг</strong></div>
-  <button className="gradient-button save-training gym-save-primary" onClick={save} disabled={saving}>{saving?'Сохраняем…':'Сохранить тренировку'}<b>›</b></button>
   <div className="gym-coach-actions"><button className="gym-quiet-link" onClick={onTrainerRequest}>Заказать тренера</button></div>
   <button className="gym-history-link" onClick={onHistory}>Предыдущие тренировки<span>›</span></button>
+  <div className="gym-save-bar"><button className="gradient-button save-training gym-save-primary" onClick={save} disabled={saving}>{saving?'Сохраняем…':'Сохранить тренировку'}</button></div>
  </main>;
 }
 function ExerciseBlock({title,rows,group,kind,onChange,extraNames,expanded,onExpand}){
  const [openComment,setOpenComment]=useState(null);
- return <section className="exercise-block mint"><header><div><h2>{title}</h2></div><span>{rows.length} упражнений</span></header>
-  <div className="exercise-head"><span>Упражнение</span><span>Подх.</span><span>Повт.</span><span>Вес</span><span></span></div>
+ return <section className="gym-exercise-list" aria-label={title}>
   <div className="exercise-rows">{rows.map((r,i)=>{const pair=supersetGroup(rows,i);
    const setField=(field,value)=>onChange(r.sourceKind||kind,r.sourceIndex??i,field,value);
    const detail=r.exercise&&expanded;
    const approaches=exerciseApproaches(r);
    const replaceApproaches=next=>setField('approaches',next);
    const weightLabel=bodyweightMode(r.exercise)==='assisted'?'помощь':bodyweightMode(r.exercise)==='bodyweight'?'отягощение':'вес';
-   return <div className="exercise-row-wrap" key={i}><div className="exercise-row">
-   <ExercisePicker value={r.exercise} group={group} extra={extraNames} onChange={v=>onChange(r.sourceKind||kind,r.sourceIndex??i,'exercise',v)}/>
-   {detail||Array.isArray(r.approaches)?<button type="button" className="gym-approaches-summary" onClick={onExpand}>{approaches.length} подх.{!detail&&' · по подходам ›'}</button>:<>
-   <input aria-label={`${r.exercise||'Упражнение'}: подходы`} inputMode="numeric" value={r.sets} onChange={e=>onChange(r.sourceKind||kind,r.sourceIndex??i,'sets',e.target.value)} placeholder="3"/>
-   <input aria-label={`${r.exercise||'Упражнение'}: повторения`} inputMode="numeric" value={r.reps} onChange={e=>onChange(r.sourceKind||kind,r.sourceIndex??i,'reps',e.target.value)} placeholder="10"/>
-   <div className="weight-input"><input aria-label={`${r.exercise||'Упражнение'}: ${weightLabel}`} inputMode="decimal" value={r.weight} onChange={e=>onChange(r.sourceKind||kind,r.sourceIndex??i,'weight',e.target.value)} placeholder="0"/><small>кг</small></div>
-   </>}
-   <button className={`exercise-note-button ${r.comment?'has-note':''}`} aria-label="Комментарий" onClick={()=>setOpenComment(openComment===i?null:i)}>▤</button>
-  </div>
+   return <article className="exercise-row-wrap gym-exercise-card" key={`${r.sourceKind??kind}:${r.sourceIndex??i}`}>
+    <div className="gym-exercise-heading">
+     <ExercisePicker value={r.exercise} group={group} extra={extraNames} onChange={value=>setField('exercise',value)}/>
+     {r.exercise&&<button type="button" className={`exercise-note-button ${r.comment?'has-note':''}`} aria-label="Комментарий" aria-expanded={openComment===i} onClick={()=>setOpenComment(openComment===i?null:i)}>▤</button>}
+    </div>
+    {r.exercise&&(detail||Array.isArray(r.approaches)
+     ? detail?<span className="gym-set-count">{approaches.length} подх.</span>:<button type="button" className="gym-approaches-summary" onClick={onExpand}>{approaches.length} подх. · по подходам ›</button>
+     : <div className="gym-metrics">
+       <Metric field="sets" label="Подходы" ariaLabel={`${r.exercise}: подходы`} value={r.sets} onChange={setField}/>
+       <Metric field="reps" label="Повторы" ariaLabel={`${r.exercise}: повторения`} value={r.reps} onChange={setField}/>
+       <Metric field="weight" label={weightLabel==='вес'?'Вес, кг':weightLabel==='помощь'?'Помощь, кг':'Отягощение, кг'} ariaLabel={`${r.exercise}: ${weightLabel}`} value={r.weight} onChange={setField}/>
+      </div>)}
    {detail&&<div className="gym-approaches">
     {approaches.map((approach,index)=><div className="gym-approach" key={index}>
      <span>№ {index+1}</span>
@@ -121,6 +126,25 @@ function ExerciseBlock({title,rows,group,kind,onChange,extraNames,expanded,onExp
     <button type="button" className="secondary-dark" disabled={approaches.length>=50} onClick={()=>replaceApproaches([...approaches,{reps:'',weight:''}])}>Добавить подход</button>
    </div>}
    {r.exercise&&bodyweightMode(r.exercise)!=='external'&&<label className="gym-bodyweight">Собственный вес, кг <input inputMode="decimal" value={r.bodyWeight??''} onChange={event=>setField('bodyWeight',event.target.value)}/></label>}
-   {pair&&<small className="coach-superset-badge">Суперсет {pair.label} · {pair.position}/{pair.size}{pair.last?` · ${restCue(r)||'Отдых после пары'}`:' · Без отдыха → следующее упражнение'}</small>}{openComment===i&&<div className="exercise-comment-row"><input value={r.comment||''} onChange={e=>onChange(r.sourceKind||kind,r.sourceIndex??i,'comment',e.target.value)} placeholder="Комментарий к упражнению"/><button onClick={()=>setOpenComment(null)}>Готово</button></div>}</div>})}</div>
+   {pair&&<small className="coach-superset-badge">Суперсет {pair.label} · {pair.position}/{pair.size}{pair.last?` · ${restCue(r)||'Отдых после пары'}`:' · Без отдыха → следующее упражнение'}</small>}{openComment===i&&<div className="exercise-comment-row"><input value={r.comment||''} onChange={e=>onChange(r.sourceKind||kind,r.sourceIndex??i,'comment',e.target.value)} placeholder="Комментарий к упражнению"/><button onClick={()=>setOpenComment(null)}>Готово</button></div>}{r.exercise&&<Technique key={r.exercise} exercise={r.exercise}/>}</article>})}</div>
  </section>;
+}
+
+function Metric({field,label,ariaLabel,value,onChange}){
+ return <label className="gym-metric">
+  <span>{label}</span>
+  <input aria-label={ariaLabel} inputMode={field==='sets'?'numeric':'decimal'} value={value??''} onChange={event=>onChange(field,event.target.value)} placeholder="—"/>
+ </label>;
+}
+
+function Technique({exercise}){
+ const {what,how,tips}=exerciseTechnique(exercise);
+ return <details className="gym-technique">
+  <summary>Техника выполнения</summary>
+  <dl>
+   <dt>Что делать</dt><dd>{what}</dd>
+   <dt>Нюансы техники</dt><dd>{how}</dd>
+   <dt>Акценты</dt><dd>{tips}</dd>
+  </dl>
+ </details>;
 }

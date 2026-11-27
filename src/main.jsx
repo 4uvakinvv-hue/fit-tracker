@@ -1,6 +1,7 @@
 import { createRoot } from 'react-dom/client';
 import App from './App.jsx';
 import './styles.css';
+import './gym-screen.css';
 
 createRoot(document.getElementById('root')).render(<App />);
 

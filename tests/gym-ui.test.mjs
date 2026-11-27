@@ -158,4 +158,17 @@ test('new authorized members see one-time intake before first plan',async()=>{
  await unmount();
  globalThis.fetch=old;
 });
+
+
+test('manual exercise technique opens in place without changing accessible result fields',async()=>{
+ localStorage.clear();
+ await mount();
+ const details=document.querySelector('.gym-technique');
+ assert.equal(details.open,false);
+ await click(details.querySelector('summary'));
+ assert.equal(details.open,true);
+ assert.deepEqual([...details.querySelectorAll('dt')].map(el=>el.textContent),['Что делать','Нюансы техники','Акценты']);
+ assert.equal(document.querySelector('input[aria-label="Жим штанги лёжа: вес"]').value,'50');
+ await unmount();
+});
 test.after(async()=>{supabase.auth.stopAutoRefresh();supabase.auth.broadcastChannel?.close();await rm('.gym-test-build',{recursive:true,force:true});dom.window.close();});

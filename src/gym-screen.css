@@ -1,0 +1,31 @@
+.gym-wordmark{display:flex;justify-content:center;align-items:center;gap:8px;margin:0 0 8px;color:#eff8ff;font-size:23px;font-weight:950;font-style:italic;letter-spacing:.05em}
+.gym-wordmark i{width:23px;height:16px;transform:skewX(-25deg);background:linear-gradient(to right,var(--season-primary) 44%,transparent 44% 55%,var(--season-primary) 55%);border-radius:2px}
+.gym-screen .gym-coach-top .coach-workout-entry{margin:0;justify-content:center;min-height:48px}
+.gym-screen .gym-tabs button{font-size:clamp(9px,2.75vw,13px);padding-inline:2px}
+.gym-view-summary{display:flex;justify-content:space-between;align-items:center;gap:8px;margin:10px 0}
+.gym-volume{padding:8px 10px;border:1px solid var(--season-border);border-radius:10px;background:var(--season-panel);font-size:13px}
+.gym-expanded-toggle input{appearance:none;width:38px;height:22px;margin:0;border-radius:20px;background:var(--season-panel-strong);border:1px solid var(--season-border);cursor:pointer}
+.gym-expanded-toggle input::before{content:'';display:block;margin:2px;width:16px;height:16px;border-radius:50%;background:#f7f8fb}
+.gym-expanded-toggle input:checked{background:var(--season-secondary)}
+.gym-expanded-toggle input:checked::before{transform:translateX(16px)}
+.gym-exercise-list .exercise-rows{display:grid;gap:10px}
+.gym-exercise-card{min-width:0;background:linear-gradient(150deg,var(--season-panel),var(--season-panel-strong));border:1px solid var(--season-border);border-radius:14px;padding:10px 9px}
+.gym-exercise-heading{display:flex;align-items:center;gap:6px}
+.gym-exercise-heading .exercise-select-button{flex:1;min-width:0;min-height:46px;display:flex;align-items:center;justify-content:space-between;gap:6px;background:transparent;border:0;text-align:left;color:inherit;font-size:clamp(17px,4.5vw,20px);font-weight:850;line-height:1.2;overflow-wrap:anywhere}
+.gym-exercise-heading .exercise-note-button{width:40px;min-width:40px;min-height:44px}
+.gym-metrics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px;padding-top:10px;border-top:1px solid var(--season-border);margin-top:4px}
+.gym-metric{min-width:0;position:relative;display:block;border:1px solid var(--season-border);border-radius:10px;background:var(--season-soft);text-align:center;cursor:text}
+.gym-metric span{position:absolute;top:6px;left:2px;right:2px;color:var(--season-bright);font-size:clamp(9px,2.9vw,12px);pointer-events:none}
+.gym-metric input{width:100%;min-width:0;min-height:58px;padding:19px 2px 3px;background:transparent;color:inherit;border:0;border-radius:inherit;text-align:center;font-size:24px;font-weight:850}
+.gym-approach input,.gym-bodyweight input{min-height:56px;font-size:24px;text-align:center}
+.gym-approach button,.gym-approaches-summary,.gym-approaches>.secondary-dark{min-height:44px;padding:0 8px}
+.gym-set-count{display:block;padding:3px 8px;color:var(--season-bright);font-size:12px}
+.gym-technique summary{display:flex;justify-content:space-between;align-items:center;gap:8px;min-height:44px;cursor:pointer;list-style:none;font-size:13px;color:var(--season-bright)}
+.gym-technique summary::-webkit-details-marker{display:none}
+.gym-technique summary::after{content:'⌄';font-size:18px}
+.gym-technique[open] summary::after{transform:rotate(180deg)}
+.gym-technique dl{margin:0;font-size:14px;line-height:1.45}
+.gym-technique dt{font-weight:750;margin-top:6px}
+.gym-technique dd{margin:2px 0 8px}
+.gym-save-bar{position:sticky;bottom:calc(76px + env(safe-area-inset-bottom));z-index:2;padding:6px 0 max(6px,env(safe-area-inset-bottom));background:var(--season-panel-strong)}
+.gym-screen .gym-save-bar .gym-save-primary{width:100%;min-height:52px;margin:0;font-size:16px;justify-content:center}
