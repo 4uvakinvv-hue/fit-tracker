@@ -26,7 +26,7 @@ test('manual draft survives unmount, reload and external template refresh',async
  localStorage.clear();await mount();const field=()=>document.querySelector('input[aria-label="Жим штанги лёжа: вес"]');await input(field(),'62,5');assert.equal(field().value,'62,5');
  await React.act(async()=>root.render(React.createElement(Gym,{...props,gymTemplates:{chest:{baseRows:[{exercise:'Жим штанги лёжа',weight:'100'}]}}})));assert.equal(field().value,'62,5');
  await unmount();await mount();assert.equal(field().value,'62,5');
- await click(button('Спина'));await click(button('Грудь'));assert.equal(field().value,'62,5');
+ await click(button('Тренировка 2'));await click(button('Тренировка 1'));assert.equal(field().value,'62,5');
  await click(document.querySelector('.exercise-select-button'));await input(document.querySelector('.exercise-search'),'жим гантелей');assert.ok([...document.querySelectorAll('.exercise-picker-list button')].some(b=>b.textContent.includes('отрицательным')));await click(button('отрицательным'));assert.ok(document.querySelector('.exercise-select-button').textContent.includes('отрицательным'));
  await unmount();await mount();assert.ok(document.querySelector('.exercise-select-button').textContent.includes('отрицательным'));await unmount();
 });
@@ -157,5 +157,18 @@ test('new authorized members see one-time intake before first plan',async()=>{
  assert.ok(document.body.textContent.includes('Отправить и подготовить тренировку'));
  await unmount();
  globalThis.fetch=old;
+});
+
+
+test('manual exercise technique opens in place without changing accessible result fields',async()=>{
+ localStorage.clear();
+ await mount();
+ const details=document.querySelector('.gym-technique');
+ assert.equal(details.open,false);
+ await click(details.querySelector('summary'));
+ assert.equal(details.open,true);
+ assert.deepEqual([...details.querySelectorAll('dt')].map(el=>el.textContent),['Что делать','Нюансы техники','Акценты']);
+ assert.equal(document.querySelector('input[aria-label="Жим штанги лёжа: вес"]').value,'50');
+ await unmount();
 });
 test.after(async()=>{supabase.auth.stopAutoRefresh();supabase.auth.broadcastChannel?.close();await rm('.gym-test-build',{recursive:true,force:true});dom.window.close();});

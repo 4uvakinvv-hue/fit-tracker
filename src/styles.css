@@ -4254,6 +4254,22 @@ html:has(.coach-workout-screen),.app-shell-dark>.sub-screen.coach-workout-screen
   .add-training-screen .compact-activity-grid .activity-choice.approved-other-choice {padding:8px 10px!important;}
 }
 
+.gym-screen .gym-draft-status{padding:6px 10px;margin:8px 0}
+.gym-monthly-buttons{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.gym-monthly-buttons button{padding:6px;min-height:44px;border-color:var(--season-border);color:var(--season-bright)}
+.gym-expanded-toggle,.gym-bodyweight{display:flex;align-items:center;gap:8px;margin:8px 0;font-size:13px}
+.gym-approaches{display:grid;gap:6px;padding:8px}
+.gym-approach{display:grid;grid-template-columns:auto minmax(0,1fr) minmax(0,1fr) auto;gap:8px;align-items:end}
+.gym-approach label{min-width:0;font-size:11px}
+.gym-approach input,.gym-bodyweight input{display:block;width:100%;min-height:38px;padding:4px 6px;border:1px solid var(--season-border);border-radius:8px;background:var(--season-panel-strong);color:inherit}
+.gym-bodyweight input{max-width:6rem}
+.gym-approach button,.gym-approaches-summary{min-height:38px;border:1px solid var(--season-border);border-radius:8px;background:var(--season-panel);color:inherit}
+.gym-approaches-summary{grid-column:span 3}
+.gym-template-dialog{width:min(92vw,390px);padding:20px}
+.gym-template-dialog h2{margin-top:0}
+.gym-template-dialog div{display:flex;justify-content:flex-end;gap:8px}
+.gym-repeat-button{margin:8px 0}
+
 /* Forma 2.1 — winter treatment (owner request, 3 Nov 2026).
    Winter must contain no orange: white snowflakes instead of leaves, icy panels, gentle snowfall.
    Part 1 is handcrafted (mirrors the autumn reference treatment). Part 2 is a generated winter
